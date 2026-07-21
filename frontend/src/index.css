@@ -53,7 +53,7 @@ button:disabled { opacity: 0.5; }
   padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--border);
 }
 .app-header .spacer { flex: 1; }
-.theme-toggle { position: fixed; top: 10px; right: 12px; z-index: 20; background: transparent; font-size: 18px; padding: 6px; }
+.theme-toggle { position: fixed; top: 10px; right: 12px; z-index: 20; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-size: 18px; padding: 6px 10px; }
 label.field { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
 @media (min-width: 768px) {
   .page { max-width: 960px; }
