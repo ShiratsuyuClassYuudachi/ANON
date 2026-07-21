@@ -6,6 +6,7 @@ import { cronRouter } from './routes/cron';
 import { filesRouter, projectFilesRouter } from './routes/files';
 import { financeRouter } from './routes/finance';
 import { invitesRouter } from './routes/invites';
+import { materialsRouter } from './routes/materials';
 import { meRouter } from './routes/me';
 import { projectsRouter } from './routes/projects';
 import { todosRouter } from './routes/todos';
@@ -23,6 +24,7 @@ app.use('/api/invites', invitesRouter);
 app.use('/api/projects/:id/files', projectFilesRouter);
 app.use('/api/projects/:id/todos', todosRouter);
 app.use('/api/projects/:id/finance', financeRouter);
+app.use('/api/projects/:id/materials', materialsRouter);
 app.use('/api/files', filesRouter);
 app.use('/api/cron', cronRouter);
 

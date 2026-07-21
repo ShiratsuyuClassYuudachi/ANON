@@ -40,14 +40,18 @@ export async function api<T = unknown>(
 }
 
 export async function downloadFile(id: string, filename: string) {
-  const res = await fetch(`/api/files/${id}`, {
+  await downloadUrl(`/api/files/${id}`, filename);
+}
+
+export async function downloadUrl(url: string, filename: string) {
+  const res = await fetch(url, {
     headers: { Authorization: `Bearer ${getToken()}` },
   });
   if (!res.ok) throw new Error('下载失败');
-  const url = URL.createObjectURL(await res.blob());
+  const blobUrl = URL.createObjectURL(await res.blob());
   const a = document.createElement('a');
-  a.href = url;
+  a.href = blobUrl;
   a.download = filename;
   a.click();
-  URL.revokeObjectURL(url);
+  URL.revokeObjectURL(blobUrl);
 }
