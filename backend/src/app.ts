@@ -2,6 +2,7 @@ import express from 'express';
 import { errorHandler } from './middleware/errorHandler';
 import { adminRouter } from './routes/admin';
 import { authRouter } from './routes/auth';
+import { cronRouter } from './routes/cron';
 import { filesRouter, projectFilesRouter } from './routes/files';
 import { invitesRouter } from './routes/invites';
 import { meRouter } from './routes/me';
@@ -21,5 +22,6 @@ app.use('/api/invites', invitesRouter);
 app.use('/api/projects/:id/files', projectFilesRouter);
 app.use('/api/projects/:id/todos', todosRouter);
 app.use('/api/files', filesRouter);
+app.use('/api/cron', cronRouter);
 
 app.use(errorHandler);
