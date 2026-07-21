@@ -4,7 +4,7 @@ import { Router, type Request } from 'express';
 import { authRequired } from '../middleware/auth';
 import { loadMembership, requirePermission } from '../middleware/projectAccess';
 import { fixFilename, upload } from '../middleware/upload';
-import { File } from '../models/File';
+import { File, type FileDoc } from '../models/File';
 import { Resource, type ResourceDoc } from '../models/Resource';
 import { ResourceType, type ResourceTypeDoc } from '../models/ResourceType';
 import { ResourceVersion, type ResourceVersionDoc } from '../models/ResourceVersion';
@@ -246,33 +246,41 @@ materialsRouter.post(
   ...requirePermission('materials:manage'),
   upload.single('file'),
   ah(async (req, res) => {
-    const resource = await Resource.findOne({
-      _id: req.params.resourceId,
-      projectId: req.project!._id,
-    });
-    if (!resource) throw new AppError(404, 'not_found', '资源不存在');
-    if (!req.file) throw new AppError(400, 'bad_request', '缺少文件');
-    const file = await File.create({
-      projectId: req.project!._id,
-      filename: fixFilename(req.file.originalname),
-      path: req.file.path,
-      mime: req.file.mimetype,
-      size: req.file.size,
-      uploadedBy: req.userId,
-    });
-    const latest = await latestVersionOf(resource._id);
-    const previewPath = file.mime.startsWith('image/')
-      ? await generatePreview(file.path)
-      : null;
-    const v = await ResourceVersion.create({
-      resourceId: resource._id,
-      version: (latest?.version ?? 0) + 1,
-      fileId: file._id,
-      previewPath,
-      note: String(req.body?.note ?? ''),
-      createdBy: req.userId,
-    });
-    res.status(201).json({ version: await versionJson(v) });
+    // multer 已落盘，后续任何失败都要清理上传文件（及已建的 File 文档），避免孤儿文件
+    let fileDoc: FileDoc | null = null;
+    try {
+      const resource = await Resource.findOne({
+        _id: req.params.resourceId,
+        projectId: req.project!._id,
+      });
+      if (!resource) throw new AppError(404, 'not_found', '资源不存在');
+      if (!req.file) throw new AppError(400, 'bad_request', '缺少文件');
+      fileDoc = await File.create({
+        projectId: req.project!._id,
+        filename: fixFilename(req.file.originalname),
+        path: req.file.path,
+        mime: req.file.mimetype,
+        size: req.file.size,
+        uploadedBy: req.userId,
+      });
+      const latest = await latestVersionOf(resource._id);
+      const previewPath = req.file.mimetype.startsWith('image/')
+        ? await generatePreview(req.file.path)
+        : null;
+      const v = await ResourceVersion.create({
+        resourceId: resource._id,
+        version: (latest?.version ?? 0) + 1,
+        fileId: fileDoc._id,
+        previewPath,
+        note: String(req.body?.note ?? ''),
+        createdBy: req.userId,
+      });
+      res.status(201).json({ version: await versionJson(v) });
+    } catch (err) {
+      if (req.file) await fs.promises.unlink(req.file.path).catch(() => {});
+      if (fileDoc) await fileDoc.deleteOne().catch(() => {});
+      throw err;
+    }
   }),
 );
 

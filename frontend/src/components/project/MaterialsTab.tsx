@@ -160,7 +160,7 @@ function ResourceCard({
           }}
         >
           <AuthImg
-            src={`${base}/versions/${resource.latestVersion}/download`}
+            src={`${base}/versions/${selected}/download`}
             alt={resource.name}
             style={{ maxWidth: '92vw', maxHeight: '92vh' }}
           />
