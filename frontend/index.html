@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#ffffff" />
+    <title>ANON</title>
+    <script>
+      try {
+        var t = localStorage.getItem('anon-theme') || 'light';
+        document.documentElement.dataset.theme = t;
+        var m = document.querySelector('meta[name=theme-color]');
+        if (m) m.content = t === 'dark' ? '#111418' : '#ffffff';
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
