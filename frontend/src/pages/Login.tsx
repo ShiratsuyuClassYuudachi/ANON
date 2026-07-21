@@ -30,7 +30,7 @@ export default function Login() {
 
   return (
     <div className="page" style={{ maxWidth: 420 }}>
-      <ThemeToggle />
+      <div className="theme-toggle-fixed"><ThemeToggle /></div>
       <h1>ANON 登录</h1>
       <form className="card" onSubmit={submit}>
         <input type="email" placeholder="邮箱" value={email} onChange={(e) => setEmail(e.target.value)} required />

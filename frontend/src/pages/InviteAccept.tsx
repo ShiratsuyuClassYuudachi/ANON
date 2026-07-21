@@ -33,7 +33,7 @@ export default function InviteAccept() {
 
   return (
     <div className="page" style={{ maxWidth: 420 }}>
-      <ThemeToggle />
+      <div className="theme-toggle-fixed"><ThemeToggle /></div>
       <h1>项目邀请</h1>
       {err && <p className="error">{err}</p>}
       {info && (

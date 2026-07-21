@@ -7,13 +7,13 @@ export default function Layout() {
   const nav = useNavigate();
   return (
     <>
-      <ThemeToggle />
       <header className="app-header">
         <strong>ANON</strong>
         <Link to="/projects">项目</Link>
         <Link to="/me">我的</Link>
         {user?.isSuperAdmin && <Link to="/admin">管理</Link>}
         <span className="spacer" />
+        <ThemeToggle />
         <button
           className="ghost"
           onClick={() => {

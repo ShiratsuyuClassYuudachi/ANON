@@ -34,7 +34,7 @@ export default function Register() {
 
   return (
     <div className="page" style={{ maxWidth: 420 }}>
-      <ThemeToggle />
+      <div className="theme-toggle-fixed"><ThemeToggle /></div>
       <h1>注册</h1>
       <form className="card" onSubmit={submit}>
         <input placeholder="邀请码（首个管理员可留空）" value={form.inviteCode} onChange={set('inviteCode')} />
