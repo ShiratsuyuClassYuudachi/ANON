@@ -24,3 +24,16 @@ export interface TodoItem {
   completedAt: string | null; completedBy: string | null; completionNote: string | null;
   attachments: { id: string; filename: string }[];
 }
+export interface TxUser { userId: string; name: string; }
+export interface TransactionItem {
+  id: string; type: 'income' | 'expense'; amountCents: number; note: string;
+  payer: TxUser; splitAmong: TxUser[];
+  createdBy: string; createdByName: string; createdAt: string;
+  attachments: { id: string; filename: string }[];
+}
+export interface FinanceSummary {
+  ticketPriceCents: number; ticketCount: number; ticketIncomeCents: number;
+  incomeCents: number; expenseCents: number; profitCents: number;
+  perUser: { userId: string; name: string; netCents: number }[];
+  settlement: { from: TxUser; to: TxUser; amountCents: number }[];
+}

@@ -12,6 +12,8 @@ export interface IProject {
   endDate?: Date;
   createdBy: Types.ObjectId;
   roles: IRole[];
+  ticketPriceCents: number;
+  ticketCount: number;
 }
 
 export type ProjectDoc = HydratedDocument<IProject>;
@@ -24,6 +26,8 @@ const schema = new Schema<IProject>(
     endDate: Date,
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     roles: [{ name: String, permissions: [String], _id: false }],
+    ticketPriceCents: { type: Number, default: 0 },
+    ticketCount: { type: Number, default: 0 },
   },
   { timestamps: true },
 );

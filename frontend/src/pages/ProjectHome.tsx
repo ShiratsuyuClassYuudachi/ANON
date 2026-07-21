@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api/client';
+import FinanceTab from '../components/project/FinanceTab';
 import MembersTab from '../components/project/MembersTab';
 import RolesTab from '../components/project/RolesTab';
 import SettingsTab from '../components/project/SettingsTab';
@@ -16,6 +17,7 @@ interface Detail {
 
 const TABS = [
   { key: 'todos', label: '待办' },
+  { key: 'finance', label: '财务' },
   { key: 'members', label: '成员' },
   { key: 'roles', label: '角色' },
   { key: 'settings', label: '设置' },
@@ -53,6 +55,9 @@ export default function ProjectHome() {
       </div>
       {tab === 'todos' && (
         <TodosTab project={detail.project} members={detail.members} myPermissions={detail.myPermissions} />
+      )}
+      {tab === 'finance' && (
+        <FinanceTab project={detail.project} members={detail.members} myPermissions={detail.myPermissions} />
       )}
       {tab === 'members' && (
         <MembersTab project={detail.project} members={detail.members} onChanged={load} />
