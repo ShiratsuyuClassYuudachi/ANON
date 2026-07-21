@@ -1,8 +1,10 @@
+import crypto from 'crypto';
 import { Router } from 'express';
 import { authRequired } from '../middleware/auth';
 import { loadMembership, requirePermission } from '../middleware/projectAccess';
 import { Membership } from '../models/Membership';
 import { Project } from '../models/Project';
+import { ProjectInvite } from '../models/ProjectInvite';
 import { User } from '../models/User';
 import { ALL_PERMISSIONS, PRESET_ROLES } from '../services/permissions';
 import { ah } from '../utils/async';
@@ -179,5 +181,29 @@ projectsRouter.delete(
     });
     if (!m) throw new AppError(404, 'not_found', '成员不存在');
     res.json({ members: await membersJson(req.project!._id) });
+  }),
+);
+
+// ---- 邀请 ----
+projectsRouter.post(
+  '/:id/invites',
+  ...requirePermission('member:manage'),
+  ah(async (req, res) => {
+    const { roleName, targetUserId, expiresInHours } = req.body ?? {};
+    if (!req.project!.roles.some((r) => r.name === roleName)) {
+      throw new AppError(400, 'bad_request', '角色不存在');
+    }
+    if (targetUserId && !(await User.exists({ _id: targetUserId }))) {
+      throw new AppError(400, 'bad_request', '目标用户不存在');
+    }
+    const token = crypto.randomBytes(24).toString('hex');
+    await ProjectInvite.create({
+      projectId: req.project!._id,
+      token,
+      targetUserId: targetUserId || undefined,
+      roleName: String(roleName),
+      expiresAt: new Date(Date.now() + Number(expiresInHours ?? 72) * 3600_000),
+    });
+    res.status(201).json({ token, url: `/invite/${token}` });
   }),
 );
