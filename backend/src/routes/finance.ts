@@ -13,6 +13,17 @@ import { AppError } from '../utils/errors';
 export const financeRouter = Router({ mergeParams: true });
 financeRouter.use(authRequired, loadMembership);
 
+/** 财务管理：主办或 finance:manage，可见/可改全部账目与汇总 */
+function canManageFinance(req: { myPermissions?: Set<string> }): boolean {
+  const perms = req.myPermissions ?? new Set<string>();
+  return perms.has('project:manage') || perms.has('finance:manage');
+}
+
+/** 记账：财务管理者或 finance:add，仅可添加并管理自己添加的账目 */
+function canAddFinance(req: { myPermissions?: Set<string> }): boolean {
+  return canManageFinance(req) || (req.myPermissions ?? new Set<string>()).has('finance:add');
+}
+
 /** 项目成员（按 userId 排序，保证余数分摊确定性） */
 async function projectMembers(projectId: unknown): Promise<MemberInfo[]> {
   const ms = await Membership.find({ projectId }).lean();
@@ -108,23 +119,26 @@ async function saveUploads(req: { files?: unknown; project?: { _id: unknown }; u
 financeRouter.get(
   '/',
   ah(async (req, res) => {
-    const transactions = await Transaction.find({ projectId: req.project!._id }).sort({
+    // 非财务管理者只能看到自己添加的账目，且看不到项目级汇总
+    const query: Record<string, unknown> = { projectId: req.project!._id };
+    if (!canManageFinance(req)) query.createdBy = req.userId;
+    const transactions = await Transaction.find(query).sort({
       createdAt: -1,
       _id: -1,
     });
     const members = await projectMembers(req.project!._id);
     res.json({
       transactions: await Promise.all(transactions.map(txJson)),
-      summary: buildSummary(req.project!, transactions, members),
+      summary: canManageFinance(req) ? buildSummary(req.project!, transactions, members) : null,
     });
   }),
 );
 
 financeRouter.post(
   '/',
-  ...requirePermission('finance:manage'),
   upload.array('files', 10),
   ah(async (req, res) => {
+    if (!canAddFinance(req)) throw new AppError(403, 'forbidden', '没有权限');
     const { type, amount, note, payerUserId } = req.body ?? {};
     if (!payerUserId) throw new AppError(400, 'bad_request', '付款人必填');
     const splitAmong = parseSplitAmong(req.body?.splitAmong);
@@ -167,7 +181,8 @@ financeRouter.patch(
 financeRouter.get(
   '/export',
   ah(async (req, res) => {
-    const target = String(req.query.userId ?? req.userId);
+    // 非财务管理者只能导出自己的账目，忽略 userId 参数
+    const target = canManageFinance(req) ? String(req.query.userId ?? req.userId) : String(req.userId);
     const members = await projectMembers(req.project!._id);
     const me = members.find((m) => m.userId === target);
     if (!me) throw new AppError(400, 'bad_request', 'userId 必须是项目成员');
@@ -212,10 +227,14 @@ financeRouter.get(
 
 financeRouter.patch(
   '/:txId',
-  ...requirePermission('finance:manage'),
   ah(async (req, res) => {
+    if (!canAddFinance(req)) throw new AppError(403, 'forbidden', '没有权限');
     const tx = await Transaction.findOne({ _id: req.params.txId, projectId: req.project!._id });
     if (!tx) throw new AppError(404, 'not_found', '账目不存在');
+    // 非财务管理者只能修改自己添加的账目
+    if (!canManageFinance(req) && tx.createdBy.toString() !== String(req.userId)) {
+      throw new AppError(403, 'forbidden', '没有权限');
+    }
     const { type, amount, note, payerUserId } = req.body ?? {};
     if (type !== undefined) tx.type = parseType(type);
     if (amount !== undefined) tx.amountCents = parseAmount(amount);
@@ -236,10 +255,15 @@ financeRouter.patch(
 
 financeRouter.delete(
   '/:txId',
-  ...requirePermission('finance:manage'),
   ah(async (req, res) => {
-    const r = await Transaction.deleteOne({ _id: req.params.txId, projectId: req.project!._id });
-    if (!r.deletedCount) throw new AppError(404, 'not_found', '账目不存在');
+    if (!canAddFinance(req)) throw new AppError(403, 'forbidden', '没有权限');
+    const tx = await Transaction.findOne({ _id: req.params.txId, projectId: req.project!._id });
+    if (!tx) throw new AppError(404, 'not_found', '账目不存在');
+    // 非财务管理者只能删除自己添加的账目
+    if (!canManageFinance(req) && tx.createdBy.toString() !== String(req.userId)) {
+      throw new AppError(403, 'forbidden', '没有权限');
+    }
+    await Transaction.deleteOne({ _id: tx._id });
     res.json({ ok: true });
   }),
 );

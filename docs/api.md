@@ -34,10 +34,10 @@ interface TodoItem {
 interface FileMeta { id: string; filename: string; mime: string; size: number }
 ```
 
-权限点全集：`project:manage`、`member:manage`、`role:manage`、`todo:manage`、`todo:complete`、`file:upload`、`finance:manage`、`materials:manage`、`accounts:manage`（后三项为第二阶段新增）。
+权限点全集：`project:manage`、`member:manage`、`role:manage`、`todo:manage`、`todo:complete`、`file:upload`、`finance:manage`、`finance:add`、`materials:manage`、`accounts:manage`（`finance:manage` 起为第二阶段新增，`finance:add` 为财务权限拆分新增）。
 `project:manage` 等价于拥有全部权限；超级管理员在所有项目中视为拥有全部权限。
 
-预置角色：主办=全部权限；美工/宣发=`file:upload, todo:complete`；一般staff=`todo:complete`。
+预置角色：主办=全部权限；美工/宣发=`file:upload, todo:complete, finance:add`；一般staff=`todo:complete, finance:add`。
 
 ---
 
@@ -235,7 +235,12 @@ Query（均可选）：
 ## 财务（第二阶段）
 
 均挂载在 `/api/projects/:id/finance`，需项目成员身份（超管不受限）。
-金额在接口内部一律为**整数分**（`amountCents` / `ticketPriceCents`）；创建/编辑时以元（最多两位小数）提交，服务端转换为分。增删改需 `finance:manage` 权限；查看与导出任一项目成员即可。
+金额在接口内部一律为**整数分**（`amountCents` / `ticketPriceCents`）；创建/编辑时以元（最多两位小数）提交，服务端转换为分。
+
+权限分两级：
+
+- **财务管理者**（`finance:manage` 或 `project:manage`）：可查看/导出/修改全部账目与项目级汇总（盈亏、按人净额、建议转账），可设置门票。
+- **记账者**（`finance:add`）：仅可添加账目，且只能看到、修改、删除**自己添加**的账目（`createdBy` = 本人）；看不到项目级汇总（`summary` 为 `null`）；导出强制为本人（忽略 `userId` 参数）。
 
 ### 数据类型
 
@@ -270,10 +275,10 @@ interface FinanceSummary {
 
 ### GET /api/projects/:id/finance
 
-账目列表 + 汇总（任一项目成员）。
-响应 200：`{ transactions: TransactionItem[], summary: FinanceSummary }`（transactions 按创建时间倒序）
+账目列表 + 汇总（任一项目成员）。财务管理者见全部账目与完整汇总；`finance:add` 记账者仅见自己添加的账目，且 `summary` 为 `null`。
+响应 200：`{ transactions: TransactionItem[], summary: FinanceSummary | null }`（transactions 按创建时间倒序）
 
-### POST /api/projects/:id/finance（finance:manage）
+### POST /api/projects/:id/finance（finance:manage 或 finance:add）
 
 新建账目。支持两种请求体：
 
@@ -284,14 +289,16 @@ interface FinanceSummary {
 响应 201：`{ transaction: TransactionItem }`
 错误：400 `bad_request`；403 `forbidden`
 
-### PATCH /api/projects/:id/finance/:txId（finance:manage）
+### PATCH /api/projects/:id/finance/:txId（finance:manage 或 finance:add）
 
 编辑账目（JSON，字段均可选）：`{ type?, amount?, note?, payerUserId?, splitAmong? }`。不修改附件。
+财务管理者可改任意账目；`finance:add` 记账者仅能改自己添加的账目，改他人账目返回 403。
 响应 200：`{ transaction: TransactionItem }`
 错误：400 `bad_request`；403 `forbidden`；404 `not_found`
 
-### DELETE /api/projects/:id/finance/:txId（finance:manage）
+### DELETE /api/projects/:id/finance/:txId（finance:manage 或 finance:add）
 
+财务管理者可删任意账目；`finance:add` 记账者仅能删自己添加的账目，删他人账目返回 403。
 响应 200：`{ ok: true }`
 错误：403 `forbidden`；404 `not_found`
 
@@ -305,7 +312,7 @@ interface FinanceSummary {
 ### GET /api/projects/:id/finance/export?userId=（成员）
 
 导出某成员相关账目（其为付款人、或 `splitAmong` 为空、或其在 `splitAmong` 中）的 CSV。
-`userId` 缺省为当前用户；必须是项目成员。
+`userId` 缺省为当前用户；必须是项目成员。非财务管理者（仅 `finance:add`）强制导出本人，`userId` 参数被忽略。
 响应 200：`text/csv; charset=utf-8`，UTF-8 **带 BOM**，`Content-Disposition: attachment`。
 列：`日期,类型,金额(元),付款人,参与平摊,备注,添加人`（`参与平摊` 为「全员」或成员名以「、」连接；按创建时间升序）。
 错误：400 `bad_request`（userId 非项目成员）

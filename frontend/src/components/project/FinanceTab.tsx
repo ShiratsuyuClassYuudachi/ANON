@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api, downloadFile, getToken } from '../../api/client';
+import { useAuth } from '../../auth';
 import type { FinanceSummary, Member, ProjectDetail, TransactionItem } from '../../types';
 
 interface Props {
@@ -17,6 +18,8 @@ function signed(cents: number): string {
 
 export default function FinanceTab({ project, members, myPermissions }: Props) {
   const canManage = myPermissions.includes('project:manage') || myPermissions.includes('finance:manage');
+  const canAdd = canManage || myPermissions.includes('finance:add');
+  const { user } = useAuth();
   const [transactions, setTransactions] = useState<TransactionItem[]>([]);
   const [summary, setSummary] = useState<FinanceSummary | null>(null);
   const [err, setErr] = useState('');
@@ -28,13 +31,15 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
   const [exportUserId, setExportUserId] = useState('');
 
   const load = useCallback(async () => {
-    const d = await api<{ transactions: TransactionItem[]; summary: FinanceSummary }>(
+    const d = await api<{ transactions: TransactionItem[]; summary: FinanceSummary | null }>(
       `/api/projects/${project.id}/finance`,
     );
     setTransactions(d.transactions);
     setSummary(d.summary);
-    setTicketPrice(yuan(d.summary.ticketPriceCents));
-    setTicketCount(String(d.summary.ticketCount));
+    if (d.summary) {
+      setTicketPrice(yuan(d.summary.ticketPriceCents));
+      setTicketCount(String(d.summary.ticketCount));
+    }
   }, [project.id]);
 
   useEffect(() => {
@@ -82,14 +87,16 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
   const exportCsv = async () => {
     setErr('');
     try {
-      const q = exportUserId ? `?userId=${exportUserId}` : '';
+      const q = canManage && exportUserId ? `?userId=${exportUserId}` : '';
       const res = await fetch(`/api/projects/${project.id}/finance/export${q}`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (!res.ok) throw new Error('导出失败');
       const url = URL.createObjectURL(await res.blob());
       const a = document.createElement('a');
-      const name = members.find((m) => m.userId === exportUserId)?.name ?? 'all';
+      const name = canManage && exportUserId
+        ? (members.find((m) => m.userId === exportUserId)?.name ?? 'all')
+        : (user?.name ?? 'me');
       a.href = url;
       a.download = `finance-${name}.csv`;
       a.click();
@@ -101,36 +108,36 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
 
   return (
     <div>
-      <div className="card">
-        <label className="field">门票设置</label>
-        <div className="grid-2">
-          <div>
-            <label className="field">门票单价（元）</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={ticketPrice}
-              onChange={(e) => setTicketPrice(e.target.value)}
-              disabled={!canManage}
-            />
-          </div>
-          <div>
-            <label className="field">售票数量</label>
-            <input
-              type="number"
-              min="0"
-              value={ticketCount}
-              onChange={(e) => setTicketCount(e.target.value)}
-              disabled={!canManage}
-            />
-          </div>
-        </div>
-        {canManage && <button onClick={saveTicket}>保存门票设置</button>}
-        {summary && <p className="muted">门票收入：¥{yuan(summary.ticketIncomeCents)}（实时计入盈亏）</p>}
-      </div>
-
       {canManage && (
+        <div className="card">
+          <label className="field">门票设置</label>
+          <div className="grid-2">
+            <div>
+              <label className="field">门票单价（元）</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={ticketPrice}
+                onChange={(e) => setTicketPrice(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="field">售票数量</label>
+              <input
+                type="number"
+                min="0"
+                value={ticketCount}
+                onChange={(e) => setTicketCount(e.target.value)}
+              />
+            </div>
+          </div>
+          <button onClick={saveTicket}>保存门票设置</button>
+          {summary && <p className="muted">门票收入：¥{yuan(summary.ticketIncomeCents)}（实时计入盈亏）</p>}
+        </div>
+      )}
+
+      {canAdd && (
         <form className="card" onSubmit={create}>
           <label className="field">记一笔</label>
           <div className="grid-2">
@@ -207,18 +214,23 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
               {s.from.name} → {s.to.name}：¥{yuan(s.amountCents)}
             </p>
           ))}
-          <label className="field">导出 CSV</label>
-          <div className="row">
+        </div>
+      )}
+
+      <div className="card">
+        <label className="field">导出 CSV</label>
+        <div className="row">
+          {canManage && (
             <select value={exportUserId} onChange={(e) => setExportUserId(e.target.value)}>
               <option value="">我自己</option>
               {members.map((m) => (
                 <option key={m.userId} value={m.userId}>{m.name}</option>
               ))}
             </select>
-            <button className="ghost" onClick={exportCsv}>导出该成员账目</button>
-          </div>
+          )}
+          <button className="ghost" onClick={exportCsv}>{canManage ? '导出该成员账目' : '导出我的账目'}</button>
         </div>
-      )}
+      </div>
 
       {transactions.map((t) => (
         <div className="card" key={t.id}>
@@ -247,7 +259,7 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
               ))}
             </div>
           )}
-          {canManage && (
+          {(canManage || t.createdBy === user?.id) && (
             <button
               className="danger"
               onClick={async () => {

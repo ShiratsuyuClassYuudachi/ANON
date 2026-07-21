@@ -57,7 +57,7 @@ describe('finance', () => {
     });
     const res = await request(app)
       .get(`/api/projects/${projectId}/finance`)
-      .set('Authorization', `Bearer ${staff.token}`);
+      .set('Authorization', `Bearer ${owner.token}`);
     expect(res.status).toBe(200);
     expect(res.body.transactions).toHaveLength(1);
     const tx = res.body.transactions[0];
@@ -82,21 +82,38 @@ describe('finance', () => {
     expect(res.body.transaction.attachments[0].filename).toBe('凭证.png');
   });
 
-  it('无 finance:manage 的成员写操作返回 403', async () => {
+  it('无 finance:add 的成员写操作返回 403', async () => {
+    // outsider 不是成员；另建一个无 finance:add 的自定义角色成员
+    const roleRes = await request(app)
+      .post(`/api/projects/${projectId}/roles`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ name: '纯打杂', permissions: ['todo:complete'] });
+    expect(roleRes.status).toBe(201);
+    const inv = await request(app)
+      .post(`/api/projects/${projectId}/invites`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ roleName: '纯打杂' });
+    const creator = (await User.findOne({ email: 'admin@example.com' }))!._id;
+    await InviteCode.create({ code: 'C4', createdBy: creator });
+    const plain = await registerUser('C4', 'p@example.com', 'Plain');
+    await request(app)
+      .post(`/api/invites/${inv.body.token}/accept`)
+      .set('Authorization', `Bearer ${plain.token}`);
+
     const post = await request(app)
       .post(`/api/projects/${projectId}/finance`)
-      .set('Authorization', `Bearer ${staff.token}`)
-      .send({ type: 'expense', amount: 1, payerUserId: staff.user.id });
+      .set('Authorization', `Bearer ${plain.token}`)
+      .send({ type: 'expense', amount: 1, payerUserId: plain.user.id });
     expect(post.status).toBe(403);
     const tx = await addTx(owner.token, { type: 'expense', amount: 1, payerUserId: owner.user.id });
     const patch = await request(app)
       .patch(`/api/projects/${projectId}/finance/${tx.id}`)
-      .set('Authorization', `Bearer ${staff.token}`)
+      .set('Authorization', `Bearer ${plain.token}`)
       .send({ note: 'x' });
     expect(patch.status).toBe(403);
     const del = await request(app)
       .delete(`/api/projects/${projectId}/finance/${tx.id}`)
-      .set('Authorization', `Bearer ${staff.token}`);
+      .set('Authorization', `Bearer ${plain.token}`);
     expect(del.status).toBe(403);
     const ticket = await request(app)
       .patch(`/api/projects/${projectId}/finance/ticket`)
@@ -272,5 +289,73 @@ describe('finance', () => {
       .get(`/api/projects/${projectId}/finance/export?userId=${outsider.user.id}`)
       .set('Authorization', `Bearer ${owner.token}`);
     expect(badUser.status).toBe(400);
+  });
+
+  it('finance:add 成员：可记账，仅可见/可改自己的账目，无汇总', async () => {
+    // 一般staff 预设角色现含 finance:add
+    await addTx(staff.token, { type: 'expense', amount: 12, note: 'staff 的账', payerUserId: staff.user.id });
+    const ownTx = await addTx(staff.token, {
+      type: 'expense',
+      amount: 34,
+      note: 'staff 另一笔',
+      payerUserId: staff.user.id,
+    });
+    await addTx(owner.token, { type: 'expense', amount: 300, note: 'owner 的账', payerUserId: owner.user.id });
+
+    // GET：仅见自己的两笔，summary 为 null
+    const list = await request(app)
+      .get(`/api/projects/${projectId}/finance`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    expect(list.status).toBe(200);
+    expect(list.body.transactions).toHaveLength(2);
+    for (const t of list.body.transactions) expect(t.createdBy).toBe(staff.user.id);
+    expect(list.body.summary).toBeNull();
+
+    // PATCH/DELETE 自己的账目成功
+    const patch = await request(app)
+      .patch(`/api/projects/${projectId}/finance/${ownTx.id}`)
+      .set('Authorization', `Bearer ${staff.token}`)
+      .send({ note: '改过了' });
+    expect(patch.status).toBe(200);
+    expect(patch.body.transaction.note).toBe('改过了');
+    const del = await request(app)
+      .delete(`/api/projects/${projectId}/finance/${ownTx.id}`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    expect(del.status).toBe(200);
+  });
+
+  it('finance:add 成员：不能改/删他人账目，导出强制为本人', async () => {
+    await addTx(staff.token, {
+      type: 'expense',
+      amount: 50,
+      note: 'staff 的私账',
+      payerUserId: staff.user.id,
+      splitAmong: [staff.user.id],
+    });
+    const otherTx = await addTx(owner.token, {
+      type: 'expense',
+      amount: 99,
+      note: 'owner 的账',
+      payerUserId: owner.user.id,
+      splitAmong: [owner.user.id],
+    });
+
+    const patch = await request(app)
+      .patch(`/api/projects/${projectId}/finance/${otherTx.id}`)
+      .set('Authorization', `Bearer ${staff.token}`)
+      .send({ note: 'x' });
+    expect(patch.status).toBe(403);
+    const del = await request(app)
+      .delete(`/api/projects/${projectId}/finance/${otherTx.id}`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    expect(del.status).toBe(403);
+
+    // 即使传了别人的 userId，非管理者也强制导出自己
+    const res = await request(app)
+      .get(`/api/projects/${projectId}/finance/export?userId=${owner.user.id}`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('staff 的私账');
+    expect(res.text).not.toContain('owner 的账');
   });
 });

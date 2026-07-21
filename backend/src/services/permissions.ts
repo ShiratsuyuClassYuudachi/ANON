@@ -6,6 +6,7 @@ export const ALL_PERMISSIONS = [
   'todo:complete',
   'file:upload',
   'finance:manage',
+  'finance:add',
   'materials:manage',
   'accounts:manage',
 ] as const;
@@ -14,7 +15,7 @@ export type Permission = (typeof ALL_PERMISSIONS)[number];
 
 export const PRESET_ROLES: { name: string; permissions: Permission[] }[] = [
   { name: '主办', permissions: [...ALL_PERMISSIONS] },
-  { name: '美工', permissions: ['file:upload', 'todo:complete'] },
-  { name: '宣发', permissions: ['file:upload', 'todo:complete'] },
-  { name: '一般staff', permissions: ['todo:complete'] },
+  { name: '美工', permissions: ['file:upload', 'todo:complete', 'finance:add'] },
+  { name: '宣发', permissions: ['file:upload', 'todo:complete', 'finance:add'] },
+  { name: '一般staff', permissions: ['todo:complete', 'finance:add'] },
 ];
