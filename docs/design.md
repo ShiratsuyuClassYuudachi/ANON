@@ -274,5 +274,13 @@
 
 
 
+### 2026-07-21 第一阶段落地
+
+
+
+* 按 `docs/superpowers/plans/2026-07-21-anon-phase1.md`（15 个任务）完成第一阶段：后端 Express + TS + Mongoose 脚手架（vitest + mongodb-memory-server，33 用例全绿）、认证（邀请码注册 + `SUPER_ADMIN_EMAIL` 首超管引导、bcrypt cost 12）、个人资料与超管邀请码后台、项目/预置与自定义角色/权限中间件、指定与开放邀请链接、文件上传与鉴权下载（multer，可见范围字段预留未启用）、待办 CRUD/筛选/排序/完成带附件/模板导出导入（锚点偏移重算）、提醒（`ReminderLog` 去重 + SMTP 存根 + `POST /api/cron/reminders`）；前端 Vite + React 全部页面（登录/注册/项目列表/工作台四 Tab/邀请接受/个人资料/超管后台，含日夜主题）。工程侧含 `docker-compose.yml`（mongo:7，可选）、`.gitignore`、`docs/api.md`、`docs/readme.md`。端到端冒烟基于 mongodb-memory-server 全流程通过（Task 15 报告）。详细逐任务改动见 `docs/progress.md`。
+
+
+
 ---
 
