@@ -134,11 +134,17 @@ financeRouter.get(
   }),
 );
 
+/** 记账鉴权须先于 multer，避免无权限成员写入孤儿上传文件 */
+const requireAddFinance = ah(async (req, _res, next) => {
+  if (!canAddFinance(req)) throw new AppError(403, 'forbidden', '没有权限');
+  next();
+});
+
 financeRouter.post(
   '/',
+  requireAddFinance,
   upload.array('files', 10),
   ah(async (req, res) => {
-    if (!canAddFinance(req)) throw new AppError(403, 'forbidden', '没有权限');
     const { type, amount, note, payerUserId } = req.body ?? {};
     if (!payerUserId) throw new AppError(400, 'bad_request', '付款人必填');
     const splitAmong = parseSplitAmong(req.body?.splitAmong);
@@ -182,17 +188,22 @@ financeRouter.get(
   '/export',
   ah(async (req, res) => {
     // 非财务管理者只能导出自己的账目，忽略 userId 参数
-    const target = canManageFinance(req) ? String(req.query.userId ?? req.userId) : String(req.userId);
+    const isManager = canManageFinance(req);
+    const target = isManager ? String(req.query.userId ?? req.userId) : String(req.userId);
     const members = await projectMembers(req.project!._id);
     const me = members.find((m) => m.userId === target);
     if (!me) throw new AppError(400, 'bad_request', 'userId 必须是项目成员');
     const all = await Transaction.find({ projectId: req.project!._id }).sort({ createdAt: 1, _id: 1 });
-    const related = all.filter(
-      (t) =>
-        t.payerUserId.toString() === target ||
-        t.splitAmong.length === 0 ||
-        t.splitAmong.some((id) => id.toString() === target),
-    );
+    // 非管理者严格限本人创建的账目（与 GET 列表可见范围一致）；
+    // 管理者导出指定成员时保留“相关账目”（付款人/平摊人/全员平摊）
+    const related = isManager
+      ? all.filter(
+          (t) =>
+            t.payerUserId.toString() === target ||
+            t.splitAmong.length === 0 ||
+            t.splitAmong.some((id) => id.toString() === target),
+        )
+      : all.filter((t) => t.createdBy.toString() === target);
     const nameOf = new Map(members.map((m) => [m.userId, m.name]));
     const creators = await User.find({ _id: { $in: related.map((t) => t.createdBy) } }).lean();
     const creatorOf = new Map(creators.map((u) => [u._id.toString(), u.name]));

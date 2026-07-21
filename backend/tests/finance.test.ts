@@ -103,7 +103,10 @@ describe('finance', () => {
     const post = await request(app)
       .post(`/api/projects/${projectId}/finance`)
       .set('Authorization', `Bearer ${plain.token}`)
-      .send({ type: 'expense', amount: 1, payerUserId: plain.user.id });
+      .field('type', 'expense')
+      .field('amount', '1')
+      .field('payerUserId', plain.user.id)
+      .attach('files', Buffer.from('x'), 'a.png');
     expect(post.status).toBe(403);
     const tx = await addTx(owner.token, { type: 'expense', amount: 1, payerUserId: owner.user.id });
     const patch = await request(app)
@@ -247,7 +250,7 @@ describe('finance', () => {
     expect(transfers).toEqual([`${staff2.user.id}->${owner.user.id}:13000`]);
   });
 
-  it('导出 CSV：UTF-8 BOM、仅含该成员相关账目', async () => {
+  it('导出 CSV：UTF-8 BOM、管理者导出仅含该成员相关账目', async () => {
     await addTx(owner.token, { type: 'expense', amount: 300, note: '全员场地', payerUserId: owner.user.id });
     await addTx(owner.token, {
       type: 'expense',
@@ -264,9 +267,10 @@ describe('finance', () => {
       payerUserId: owner.user.id,
       splitAmong: [owner.user.id],
     });
+    // 管理者导出指定成员：保留“相关账目”（付款人/平摊人/全员平摊）
     const res = await request(app)
       .get(`/api/projects/${projectId}/finance/export?userId=${staff.user.id}`)
-      .set('Authorization', `Bearer ${staff.token}`);
+      .set('Authorization', `Bearer ${owner.token}`);
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('text/csv');
     expect(res.text.charCodeAt(0)).toBe(0xfeff);
@@ -289,6 +293,29 @@ describe('finance', () => {
       .get(`/api/projects/${projectId}/finance/export?userId=${outsider.user.id}`)
       .set('Authorization', `Bearer ${owner.token}`);
     expect(badUser.status).toBe(400);
+  });
+
+  it('非管理者导出仅含本人创建的账目，不含他人全员平摊账目', async () => {
+    // 他人创建、splitAmong 为空（全员平摊）的账目，不得泄露进非管理者导出
+    await addTx(owner.token, { type: 'expense', amount: 300, note: 'owner 全员账', payerUserId: owner.user.id });
+    await addTx(owner.token, {
+      type: 'expense',
+      amount: 60,
+      note: 'owner 平摊账',
+      payerUserId: owner.user.id,
+      splitAmong: [owner.user.id, staff.user.id],
+    });
+    await addTx(staff.token, { type: 'expense', amount: 12, note: 'staff 自记', payerUserId: staff.user.id });
+
+    const res = await request(app)
+      .get(`/api/projects/${projectId}/finance/export`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('staff 自记');
+    expect(res.text).not.toContain('owner 全员账');
+    expect(res.text).not.toContain('owner 平摊账');
+    const lines = res.text.slice(1).trim().split('\r\n');
+    expect(lines).toHaveLength(1 + 1);
   });
 
   it('finance:add 成员：可记账，仅可见/可改自己的账目，无汇总', async () => {
