@@ -24,3 +24,13 @@ export interface TodoItem {
   completedAt: string | null; completedBy: string | null; completionNote: string | null;
   attachments: { id: string; filename: string }[];
 }
+export interface Visibility { userIds: string[]; roleNames: string[]; }
+export interface ResourceTypeItem { id: string; name: string; visibility: Visibility; }
+export interface ResourceItem {
+  id: string; typeId: string; name: string; description: string;
+  visibility: Visibility; latestVersion: number; hasPreview: boolean; createdAt: string;
+}
+export interface ResourceVersionItem {
+  version: number; note: string; hasPreview: boolean; createdBy: string; createdAt: string;
+  file: { id: string; filename: string; mime: string; size: number } | null;
+}
