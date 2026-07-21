@@ -99,6 +99,10 @@ describe('accounts', () => {
     expect(byMode.contact.hasPassword).toBe(false);
     // otp 模式展示添加人信息（便于索取二步验证码）
     expect(byMode.otp.addedBy.name).toBe('Admin');
+    // contacts 仅 otp 模式返回，full/contact 不泄露
+    expect(byMode.otp.addedBy.contacts).toEqual([]);
+    expect(byMode.full.addedBy.contacts).toBeUndefined();
+    expect(byMode.contact.addedBy.contacts).toBeUndefined();
     // 平台筛选
     const filtered = await request(app)
       .get(`/api/projects/${projectId}/accounts?platform=QQ`)
@@ -158,6 +162,32 @@ describe('accounts', () => {
       .set('Authorization', `Bearer ${owner.token}`)
       .send({ platform: 'QQ', account: '333', mode: 'full', passwordCipher: 'plain-password' });
     expect(bad.status).toBe(400);
+    // 拒绝结构不完整的 ANONv1 密文（必须恰好 ANONv1:<salt>:<iv>:<data> 且各段非空）
+    for (const cipher of ['ANONv1:c2FsdA==', 'ANONv1:c2FsdA==:aXY=', 'ANONv1:c2FsdA==::ZGF0YQ==', 'ANONv1:c2FsdA==:aXY=:ZGF0YQ==:ZXh0cmE=']) {
+      const res = await request(app)
+        .post(`/api/projects/${projectId}/accounts`)
+        .set('Authorization', `Bearer ${owner.token}`)
+        .send({ platform: 'QQ', account: '444', mode: 'full', passwordCipher: cipher });
+      expect(res.status).toBe(400);
+    }
+  });
+
+  it('PATCH 拒绝空的 platform/account，非法 visibility.userIds 返回 400', async () => {
+    const a = await addAccount(owner.token, { platform: 'QQ', account: '12345', mode: 'contact' });
+    for (const body of [{ platform: '' }, { platform: '   ' }, { account: '' }]) {
+      const res = await request(app)
+        .patch(`/api/projects/${projectId}/accounts/${a.id}`)
+        .set('Authorization', `Bearer ${owner.token}`)
+        .send(body);
+      expect(res.status).toBe(400);
+    }
+    // 非 ObjectId 的 userIds 应是 400 而非 CastError 500
+    const badVis = await request(app)
+      .patch(`/api/projects/${projectId}/accounts/${a.id}`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ visibility: { userIds: ['not-an-objectid'], roleNames: [] } });
+    expect(badVis.status).toBe(400);
+    expect(badVis.body.error.code).toBe('bad_request');
   });
 
   it('可见范围：非空 visibility 仅列出用户/角色可见，优先于权限点', async () => {

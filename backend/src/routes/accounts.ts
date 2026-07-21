@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { isValidObjectId } from 'mongoose';
 import { authRequired } from '../middleware/auth';
 import { loadMembership, requirePermission } from '../middleware/projectAccess';
 import { Membership } from '../models/Membership';
@@ -43,7 +44,9 @@ async function accountJson(a: PlatformAccountDoc) {
     hasPassword: Boolean(a.passwordCipher),
     note: a.note,
     addedBy: adder
-      ? { userId: adder._id.toString(), name: adder.name, contacts: adder.contacts }
+      ? a.mode === 'otp'
+        ? { userId: adder._id.toString(), name: adder.name, contacts: adder.contacts }
+        : { userId: adder._id.toString(), name: adder.name }
       : null,
     visibility: {
       userIds: (a.visibility?.userIds ?? []).map((id) => id.toString()),
@@ -62,6 +65,9 @@ async function parseVisibility(projectId: unknown, roleNames: string[], raw: unk
   const userIds: string[] = Array.isArray(v.userIds) ? v.userIds.map(String) : [];
   const names: string[] = Array.isArray(v.roleNames) ? v.roleNames.map(String) : [];
   if (userIds.length) {
+    if (userIds.some((id) => !isValidObjectId(id))) {
+      throw new AppError(400, 'bad_request', 'visibility.userIds 包含无效的用户 ID');
+    }
     const count = await Membership.countDocuments({ projectId, userId: { $in: userIds } });
     if (count !== new Set(userIds).size) {
       throw new AppError(400, 'bad_request', '可见范围内的用户必须是项目成员');
@@ -88,6 +94,11 @@ function applyPassword(
     const cipher = String(body.passwordCipher ?? '');
     if (!cipher.startsWith(USER_CIPHER_PREFIX)) {
       throw new AppError(400, 'bad_request', '浏览器加密模式需要提供 ANONv1 格式的密文');
+    }
+    // ANONv1:<salt>:<iv>:<data>，四段均非空
+    const segments = cipher.split(':');
+    if (segments.length !== 4 || segments.some((s) => !s)) {
+      throw new AppError(400, 'bad_request', 'ANONv1 密文必须是 <salt>:<iv>:<data> 三段结构');
     }
     target.passwordCipher = cipher;
     target.cipherKeySource = 'user';
@@ -150,8 +161,14 @@ accountsRouter.patch(
   ah(async (req, res) => {
     const doc = req.account!;
     const { platform, account, mode, note, visibility } = req.body ?? {};
-    if (platform !== undefined) doc.platform = String(platform).trim();
-    if (account !== undefined) doc.account = String(account).trim();
+    if (platform !== undefined) {
+      if (!String(platform).trim()) throw new AppError(400, 'bad_request', '平台不能为空');
+      doc.platform = String(platform).trim();
+    }
+    if (account !== undefined) {
+      if (!String(account).trim()) throw new AppError(400, 'bad_request', '账号不能为空');
+      doc.account = String(account).trim();
+    }
     if (note !== undefined) doc.note = String(note);
     if (visibility !== undefined) {
       doc.visibility = (await parseVisibility(
