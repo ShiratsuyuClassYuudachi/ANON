@@ -58,7 +58,7 @@ describe('todos', () => {
     const res = await request(app)
       .post(`/api/projects/${projectId}/todos`)
       .set('Authorization', `Bearer ${owner.token}`)
-      .send({ title: 'X', assigneeIds: [owner.user.id.replace(/.$/, '0')] });
+      .send({ title: 'X', assigneeIds: [owner.user.id.replace(/.$/, (c) => (c === '0' ? '1' : '0'))] });
     // 不存在的用户 id 也违反成员校验
     expect([400, 500]).toContain(res.status);
   });

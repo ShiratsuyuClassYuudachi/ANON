@@ -47,3 +47,12 @@ export interface ResourceVersionItem {
   version: number; note: string; hasPreview: boolean; createdBy: string; createdAt: string;
   file: { id: string; filename: string; mime: string; size: number } | null;
 }
+export interface PlatformAccountItem {
+  id: string; platform: string; account: string;
+  mode: 'full' | 'otp' | 'contact';
+  cipherKeySource: 'user' | 'server' | null;
+  hasPassword: boolean; note: string;
+  addedBy: { userId: string; name: string; contacts: { platform: string; value: string }[] } | null;
+  visibility: { userIds: string[]; roleNames: string[] };
+  createdAt: string;
+}

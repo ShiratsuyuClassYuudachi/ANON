@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api/client';
+import AccountsTab from '../components/project/AccountsTab';
 import FinanceTab from '../components/project/FinanceTab';
 import MaterialsTab from '../components/project/MaterialsTab';
 import MembersTab from '../components/project/MembersTab';
@@ -20,6 +21,7 @@ const TABS = [
   { key: 'todos', label: '待办' },
   { key: 'finance', label: '财务' },
   { key: 'materials', label: '物料' },
+  { key: 'accounts', label: '账号' },
   { key: 'members', label: '成员' },
   { key: 'roles', label: '角色' },
   { key: 'settings', label: '设置' },
@@ -63,6 +65,9 @@ export default function ProjectHome() {
       )}
       {tab === 'materials' && (
         <MaterialsTab project={detail.project} members={detail.members} myPermissions={detail.myPermissions} />
+      )}
+      {tab === 'accounts' && (
+        <AccountsTab project={detail.project} members={detail.members} myPermissions={detail.myPermissions} />
       )}
       {tab === 'members' && (
         <MembersTab project={detail.project} members={detail.members} onChanged={load} />

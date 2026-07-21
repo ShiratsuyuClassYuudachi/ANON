@@ -11,6 +11,9 @@ export interface Viewer {
   isSuperAdmin: boolean;
 }
 
+/** 兼容别名：账号模块使用的命名 */
+export type VisibilityContext = Viewer;
+
 /** 空可见范围 = 不限制（走权限点） */
 export function visibilityEmpty(v?: VisibilityLike | null): boolean {
   return !v || ((v.userIds?.length ?? 0) === 0 && (v.roleNames?.length ?? 0) === 0);
@@ -27,4 +30,9 @@ export function canSee(viewer: Viewer, ...visibilities: (VisibilityLike | null |
   if ((eff.userIds ?? []).some((id) => id.toString() === viewer.userId)) return true;
   if (viewer.roleName && (eff.roleNames ?? []).includes(viewer.roleName)) return true;
   return false;
+}
+
+/** 单个 visibility 的判定（canSee 的单参形式） */
+export function isVisible(visibility: VisibilityLike | null | undefined, ctx: VisibilityContext): boolean {
+  return canSee(ctx, visibility);
 }
