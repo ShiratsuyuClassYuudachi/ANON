@@ -6,6 +6,7 @@ import { filesRouter, projectFilesRouter } from './routes/files';
 import { invitesRouter } from './routes/invites';
 import { meRouter } from './routes/me';
 import { projectsRouter } from './routes/projects';
+import { todosRouter } from './routes/todos';
 
 export const app = express();
 app.use(express.json({ limit: '2mb' }));
@@ -18,6 +19,7 @@ app.use('/api/me', meRouter);
 app.use('/api/projects', projectsRouter);
 app.use('/api/invites', invitesRouter);
 app.use('/api/projects/:id/files', projectFilesRouter);
+app.use('/api/projects/:id/todos', todosRouter);
 app.use('/api/files', filesRouter);
 
 app.use(errorHandler);
