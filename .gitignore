@@ -5,3 +5,4 @@ backend/uploads/
 .env
 *.local
 .DS_Store
+.worktrees/
