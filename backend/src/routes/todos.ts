@@ -6,6 +6,7 @@ import { File } from '../models/File';
 import { Membership } from '../models/Membership';
 import { Todo, type TodoDoc } from '../models/Todo';
 import { User } from '../models/User';
+import { applyTemplate, buildTemplate } from '../services/template';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
 
@@ -87,6 +88,35 @@ todosRouter.post(
       createdBy: req.userId,
     });
     res.status(201).json({ todo: await todoJson(todo) });
+  }),
+);
+
+todosRouter.get(
+  '/template/export',
+  ah(async (req, res) => {
+    const todos = await Todo.find({ projectId: req.project!._id }).sort({ createdAt: 1 });
+    res.json(buildTemplate(req.project!, todos));
+  }),
+);
+
+todosRouter.post(
+  '/template/import',
+  ...requirePermission('todo:manage'),
+  ah(async (req, res) => {
+    const { template, anchor, date } = req.body ?? {};
+    if (!template || !Array.isArray(template.todos)) {
+      throw new AppError(400, 'bad_request', '模板格式无效');
+    }
+    if (anchor !== 'start' && anchor !== 'end') {
+      throw new AppError(400, 'bad_request', 'anchor 必须是 start 或 end');
+    }
+    const anchorDate = new Date(String(date ?? ''));
+    if (Number.isNaN(anchorDate.getTime())) throw new AppError(400, 'bad_request', '锚定日期无效');
+    const items = applyTemplate(template, anchorDate);
+    await Todo.insertMany(
+      items.map((it) => ({ ...it, projectId: req.project!._id, createdBy: req.userId })),
+    );
+    res.status(201).json({ created: items.length });
   }),
 );
 
