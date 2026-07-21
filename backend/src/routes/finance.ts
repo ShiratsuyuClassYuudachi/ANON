@@ -62,20 +62,25 @@ function parseAmount(v: unknown): number {
   return Math.round(n * 100);
 }
 
-/** multipart 表单中 splitAmong 为 JSON 字符串或逗号分隔 */
+/** multipart 表单中 splitAmong 为 JSON 字符串或逗号分隔；去重以保证结算守恒 */
 function parseSplitAmong(v: unknown): string[] {
+  let ids: string[];
   if (v === undefined || v === null || v === '') return [];
-  if (Array.isArray(v)) return v.map(String);
-  const s = String(v);
-  if (s.startsWith('[')) {
-    try {
-      const arr = JSON.parse(s);
-      return Array.isArray(arr) ? arr.map(String) : [];
-    } catch {
-      throw new AppError(400, 'bad_request', 'splitAmong 格式无效');
+  else if (Array.isArray(v)) ids = v.map(String);
+  else {
+    const s = String(v);
+    if (s.startsWith('[')) {
+      try {
+        const arr = JSON.parse(s);
+        ids = Array.isArray(arr) ? arr.map(String) : [];
+      } catch {
+        throw new AppError(400, 'bad_request', 'splitAmong 格式无效');
+      }
+    } else {
+      ids = s.split(',').filter(Boolean);
     }
   }
-  return s.split(',').filter(Boolean);
+  return [...new Set(ids)];
 }
 
 function parseType(v: unknown): 'income' | 'expense' {

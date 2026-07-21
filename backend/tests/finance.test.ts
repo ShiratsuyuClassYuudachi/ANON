@@ -150,6 +150,37 @@ describe('finance', () => {
     expect(list.body.transactions).toHaveLength(0);
   });
 
+  it('splitAmong 重复 id 会去重，结算保持守恒', async () => {
+    const tx = await addTx(owner.token, {
+      type: 'expense',
+      amount: 60,
+      payerUserId: staff.user.id,
+      splitAmong: [staff.user.id, staff.user.id, owner.user.id],
+    });
+    const list = await request(app)
+      .get(`/api/projects/${projectId}/finance`)
+      .set('Authorization', `Bearer ${owner.token}`);
+    const stored = list.body.transactions[0];
+    expect(stored.splitAmong.map((s: { userId: string }) => s.userId).sort()).toEqual(
+      [owner.user.id, staff.user.id].sort(),
+    );
+    // 按去重后的两人平摊：staff 垫付 6000 自摊 3000 → +3000，owner −3000，staff2 无关为 0，合计守恒为 0
+    const s = list.body.summary;
+    const netOf = (id: string) =>
+      s.perUser.find((p: { userId: string }) => p.userId === id).netCents as number;
+    expect(netOf(staff.user.id)).toBe(3000);
+    expect(netOf(owner.user.id)).toBe(-3000);
+    expect(netOf(staff2.user.id)).toBe(0);
+    expect(s.perUser.reduce((sum: number, p: { netCents: number }) => sum + p.netCents, 0)).toBe(0);
+    // PATCH 路径同样去重
+    const patch = await request(app)
+      .patch(`/api/projects/${projectId}/finance/${tx.id}`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ splitAmong: [owner.user.id, owner.user.id] });
+    expect(patch.status).toBe(200);
+    expect(patch.body.transaction.splitAmong).toHaveLength(1);
+  });
+
   it('门票设置计入汇总', async () => {
     const res = await request(app)
       .patch(`/api/projects/${projectId}/finance/ticket`)
