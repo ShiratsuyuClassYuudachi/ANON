@@ -295,27 +295,17 @@ describe('finance', () => {
     expect(badUser.status).toBe(400);
   });
 
-  it('非管理者导出仅含本人创建的账目，不含他人全员平摊账目', async () => {
-    // 他人创建、splitAmong 为空（全员平摊）的账目，不得泄露进非管理者导出
-    await addTx(owner.token, { type: 'expense', amount: 300, note: 'owner 全员账', payerUserId: owner.user.id });
-    await addTx(owner.token, {
-      type: 'expense',
-      amount: 60,
-      note: 'owner 平摊账',
-      payerUserId: owner.user.id,
-      splitAmong: [owner.user.id, staff.user.id],
-    });
+  it('非管理者无导出权限（403）', async () => {
     await addTx(staff.token, { type: 'expense', amount: 12, note: 'staff 自记', payerUserId: staff.user.id });
-
     const res = await request(app)
       .get(`/api/projects/${projectId}/finance/export`)
       .set('Authorization', `Bearer ${staff.token}`);
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('staff 自记');
-    expect(res.text).not.toContain('owner 全员账');
-    expect(res.text).not.toContain('owner 平摊账');
-    const lines = res.text.slice(1).trim().split('\r\n');
-    expect(lines).toHaveLength(1 + 1);
+    expect(res.status).toBe(403);
+    // 即使传了 userId 也同样拒绝
+    const res2 = await request(app)
+      .get(`/api/projects/${projectId}/finance/export?userId=${staff.user.id}`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    expect(res2.status).toBe(403);
   });
 
   it('finance:add 成员：可记账，仅可见/可改自己的账目，无汇总', async () => {
@@ -351,7 +341,7 @@ describe('finance', () => {
     expect(del.status).toBe(200);
   });
 
-  it('finance:add 成员：不能改/删他人账目，导出强制为本人', async () => {
+  it('finance:add 成员：不能改/删他人账目，无导出权限', async () => {
     await addTx(staff.token, {
       type: 'expense',
       amount: 50,
@@ -377,12 +367,10 @@ describe('finance', () => {
       .set('Authorization', `Bearer ${staff.token}`);
     expect(del.status).toBe(403);
 
-    // 即使传了别人的 userId，非管理者也强制导出自己
+    // 非管理者无导出权限
     const res = await request(app)
       .get(`/api/projects/${projectId}/finance/export?userId=${owner.user.id}`)
       .set('Authorization', `Bearer ${staff.token}`);
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('staff 的私账');
-    expect(res.text).not.toContain('owner 的账');
+    expect(res.status).toBe(403);
   });
 });

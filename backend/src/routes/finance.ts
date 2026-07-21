@@ -186,24 +186,20 @@ financeRouter.patch(
 
 financeRouter.get(
   '/export',
+  ...requirePermission('finance:manage'),
   ah(async (req, res) => {
-    // 非财务管理者只能导出自己的账目，忽略 userId 参数
-    const isManager = canManageFinance(req);
-    const target = isManager ? String(req.query.userId ?? req.userId) : String(req.userId);
+    const target = String(req.query.userId ?? req.userId);
     const members = await projectMembers(req.project!._id);
     const me = members.find((m) => m.userId === target);
     if (!me) throw new AppError(400, 'bad_request', 'userId 必须是项目成员');
     const all = await Transaction.find({ projectId: req.project!._id }).sort({ createdAt: 1, _id: 1 });
-    // 非管理者严格限本人创建的账目（与 GET 列表可见范围一致）；
-    // 管理者导出指定成员时保留“相关账目”（付款人/平摊人/全员平摊）
-    const related = isManager
-      ? all.filter(
-          (t) =>
-            t.payerUserId.toString() === target ||
-            t.splitAmong.length === 0 ||
-            t.splitAmong.some((id) => id.toString() === target),
-        )
-      : all.filter((t) => t.createdBy.toString() === target);
+    // 导出该成员的“相关账目”（付款人/平摊人/全员平摊）
+    const related = all.filter(
+      (t) =>
+        t.payerUserId.toString() === target ||
+        t.splitAmong.length === 0 ||
+        t.splitAmong.some((id) => id.toString() === target),
+    );
     const nameOf = new Map(members.map((m) => [m.userId, m.name]));
     const creators = await User.find({ _id: { $in: related.map((t) => t.createdBy) } }).lean();
     const creatorOf = new Map(creators.map((u) => [u._id.toString(), u.name]));

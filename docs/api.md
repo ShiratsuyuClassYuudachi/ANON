@@ -240,7 +240,7 @@ Query（均可选）：
 权限分两级：
 
 - **财务管理者**（`finance:manage` 或 `project:manage`）：可查看/导出/修改全部账目与项目级汇总（盈亏、按人净额、建议转账），可设置门票。
-- **记账者**（`finance:add`）：仅可添加账目，且只能看到、修改、删除**自己添加**的账目（`createdBy` = 本人）；看不到项目级汇总（`summary` 为 `null`）；导出强制为本人（忽略 `userId` 参数）。
+- **记账者**（`finance:add`）：仅可添加账目，且只能看到、修改、删除**自己添加**的账目（`createdBy` = 本人）；看不到项目级汇总（`summary` 为 `null`）；无导出权限。
 
 ### 数据类型
 
@@ -309,10 +309,10 @@ interface FinanceSummary {
 响应 200：`{ ticketPriceCents: number, ticketCount: number }`
 错误：400 `bad_request`；403 `forbidden`
 
-### GET /api/projects/:id/finance/export?userId=（成员）
+### GET /api/projects/:id/finance/export?userId=（需 `finance:manage`）
 
 导出某成员相关账目（其为付款人、或 `splitAmong` 为空、或其在 `splitAmong` 中）的 CSV。
-`userId` 缺省为当前用户；必须是项目成员。非财务管理者（仅 `finance:add`）强制导出本人，`userId` 参数被忽略。
+`userId` 缺省为当前用户；必须是项目成员。仅财务管理者可用，其他身份返回 403。
 响应 200：`text/csv; charset=utf-8`，UTF-8 **带 BOM**，`Content-Disposition: attachment`。
 列：`日期,类型,金额(元),付款人,参与平摊,备注,添加人`（`参与平摊` 为「全员」或成员名以「、」连接；按创建时间升序）。
 错误：400 `bad_request`（userId 非项目成员）

@@ -83,3 +83,9 @@
 - 新权限点：`finance:manage` / `materials:manage` / `accounts:manage`（`backend/src/services/permissions.ts`）
 - 新环境变量：`PLATFORM_CRYPTO_KEY`（可选，见 `backend/.env.example`）
 - 端到端冒烟（mongodb-memory-server，无 Docker）第二阶段全流程通过，覆盖：门票设置/支出平摊/汇总与转账/CSV 导出 BOM、类型/资源/PNG 版本上传/WebP 预览生成与下载、server 加密 reveal 明文往返、ANONv1 密文原样存储
+
+## 2026-07-21 财务权限拆分
+- 新增权限点 `finance:add`（`backend/src/services/permissions.ts`），预置角色 美工/宣发/一般staff 默认获得
+- `backend/src/routes/finance.ts`：非管理者仅可见/改/删自己创建的账目（summary 为 null）；POST 鉴权前置 multer 防孤儿文件；导出仅限 `finance:manage`
+- 前端 `FinanceTab.tsx` 按权限隐藏门票卡/汇总卡/导出卡/删除按钮
+- 测试：`backend/tests/finance.test.ts` 61/61

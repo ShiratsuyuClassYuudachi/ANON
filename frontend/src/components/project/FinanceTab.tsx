@@ -87,14 +87,14 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
   const exportCsv = async () => {
     setErr('');
     try {
-      const q = canManage && exportUserId ? `?userId=${exportUserId}` : '';
+      const q = exportUserId ? `?userId=${exportUserId}` : '';
       const res = await fetch(`/api/projects/${project.id}/finance/export${q}`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (!res.ok) throw new Error('导出失败');
       const url = URL.createObjectURL(await res.blob());
       const a = document.createElement('a');
-      const name = canManage && exportUserId
+      const name = exportUserId
         ? (members.find((m) => m.userId === exportUserId)?.name ?? 'all')
         : (user?.name ?? 'me');
       a.href = url;
@@ -217,20 +217,20 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
         </div>
       )}
 
-      <div className="card">
-        <label className="field">导出 CSV</label>
-        <div className="row">
-          {canManage && (
+      {canManage && (
+        <div className="card">
+          <label className="field">导出 CSV</label>
+          <div className="row">
             <select value={exportUserId} onChange={(e) => setExportUserId(e.target.value)}>
               <option value="">我自己</option>
               {members.map((m) => (
                 <option key={m.userId} value={m.userId}>{m.name}</option>
               ))}
             </select>
-          )}
-          <button className="ghost" onClick={exportCsv}>{canManage ? '导出该成员账目' : '导出我的账目'}</button>
+            <button className="ghost" onClick={exportCsv}>导出该成员账目</button>
+          </div>
         </div>
-      </div>
+      )}
 
       {transactions.map((t) => (
         <div className="card" key={t.id}>
