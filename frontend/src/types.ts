@@ -24,3 +24,12 @@ export interface TodoItem {
   completedAt: string | null; completedBy: string | null; completionNote: string | null;
   attachments: { id: string; filename: string }[];
 }
+export interface PlatformAccountItem {
+  id: string; platform: string; account: string;
+  mode: 'full' | 'otp' | 'contact';
+  cipherKeySource: 'user' | 'server' | null;
+  hasPassword: boolean; note: string;
+  addedBy: { userId: string; name: string; contacts: { platform: string; value: string }[] } | null;
+  visibility: { userIds: string[]; roleNames: string[] };
+  createdAt: string;
+}

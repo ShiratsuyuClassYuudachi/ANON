@@ -5,6 +5,7 @@ export const ALL_PERMISSIONS = [
   'todo:manage',
   'todo:complete',
   'file:upload',
+  'accounts:manage',
 ] as const;
 
 export type Permission = (typeof ALL_PERMISSIONS)[number];
