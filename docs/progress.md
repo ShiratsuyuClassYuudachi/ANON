@@ -20,7 +20,7 @@
 
 ### Task 4：项目与权限
 - `backend/src/models/{Project,Membership}.ts`
-- `backend/src/services/permissions.ts`：预置角色（主办/美工/宣发/staff）与权限点
+- `backend/src/services/permissions.ts`：预置角色（主办/美工/宣发/一般staff）与权限点
 - `backend/src/middleware/projectAccess.ts`：成员/权限校验中间件
 - `backend/src/routes/projects.ts`：项目 CRUD、自定义角色、成员改角色/移除
 
@@ -52,7 +52,7 @@
 
 ### Task 15：文档与收尾
 - `docs/readme.md`（快速开始 / 环境变量表 / cron / 冒烟）、本文件、`docs/design.md` 追加「2026-07-21 第一阶段落地」
-- 端到端冒烟（mongodb-memory-server，无 Docker）：全流程 11 步通过，详见 `.superpowers/sdd/task-15-report.md`
+- 端到端冒烟（mongodb-memory-server，无 Docker）全部通过，覆盖：注册/邀请码/项目/邀请接受/待办/完成含附件/模板导入导出/cron/文件下载
 
 ### 工程
 - `docker-compose.yml`（mongo:7，可选）、`.gitignore`（含 `backend/.env`、`backend/uploads/`）、`docs/api.md`（全量接口契约）

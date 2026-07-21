@@ -65,7 +65,7 @@ cd frontend && npm run build     # vite build（含 tsc）
 
 ## 端到端冒烟（无 Docker）
 
-冒烟脚本（基于 `mongodb-memory-server`）已在 Task 15 验证过一遍完整流程：首超管注册 → 建邀请码 → 第二用户注册 → 建项目 → 建邀请 → 接受 → 建待办（指派 + 已过期 dueAt）→ 带附件完成 → 模板导出/导入 → cron 提醒 → 文件下载。步骤与实测输出见 `.superpowers/sdd/task-15-report.md`。核心 curl 流程（假设后端已用内存 Mongo 启动）：
+冒烟脚本（基于 `mongodb-memory-server`）已在 Task 15 验证过一遍完整流程：首超管注册 → 建邀请码 → 第二用户注册 → 建项目 → 建邀请 → 接受 → 建待办（指派 + 已过期 dueAt）→ 带附件完成 → 模板导出/导入 → cron 提醒 → 文件下载。冒烟覆盖：注册/邀请码/项目/邀请接受/待办/完成含附件/模板导入导出/cron/文件下载，全部通过。核心 curl 流程（假设后端已用内存 Mongo 启动）：
 
 ```bash
 # 1. 首超管注册（无邀请码）
@@ -82,7 +82,8 @@ curl -X POST localhost:4000/api/admin/invite-codes \
 # 7. 建待办（assigneeIds=[第二用户], dueAt=过去时间）
 # 8. POST /api/projects/:id/todos/:todoId/complete（curl -F completionNote=... -F files=@file）
 # 9. GET /api/projects/:id/todos/template/export → POST .../template/import
-# 10. POST /api/cron/reminders -H "Authorization: Bearer $CRON_SECRET" → {"sent":1}
+# 10. POST /api/cron/reminders -H "Authorization: Bearer $CRON_SECRET" → {"sent":0}
+#    （到期待办已在第 8 步完成，cron 只扫 status=open 故无提醒；第 9 步导入的待办锚定未来日期未到期）
 # 11. GET /api/files/:id -H "Authorization: Bearer $TOKEN" → 200 文件流
 ```
 
