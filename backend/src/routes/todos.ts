@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authRequired } from '../middleware/auth';
 import { loadMembership, requirePermission } from '../middleware/projectAccess';
+import { fixFilename, upload } from '../middleware/upload';
 import { File } from '../models/File';
 import { Membership } from '../models/Membership';
 import { Todo, type TodoDoc } from '../models/Todo';
@@ -127,5 +128,40 @@ todosRouter.delete(
     const r = await Todo.deleteOne({ _id: req.params.todoId, projectId: req.project!._id });
     if (!r.deletedCount) throw new AppError(404, 'not_found', '待办不存在');
     res.json({ ok: true });
+  }),
+);
+
+todosRouter.post(
+  '/:todoId/complete',
+  upload.array('files', 10),
+  ah(async (req, res) => {
+    const todo = await Todo.findOne({ _id: req.params.todoId, projectId: req.project!._id });
+    if (!todo) throw new AppError(404, 'not_found', '待办不存在');
+    const perms = req.myPermissions!;
+    const isAssignee = todo.assigneeIds.some((id) => id.toString() === req.userId);
+    const allowed =
+      perms.has('project:manage') || perms.has('todo:manage') || (isAssignee && perms.has('todo:complete'));
+    if (!allowed) throw new AppError(403, 'forbidden', '没有权限完成该待办');
+    if (todo.status === 'done') throw new AppError(409, 'already_done', '待办已完成');
+
+    const uploaded = (req.files as Express.Multer.File[]) ?? [];
+    const fileDocs = await File.insertMany(
+      uploaded.map((f) => ({
+        projectId: req.project!._id,
+        filename: fixFilename(f.originalname),
+        path: f.path,
+        mime: f.mimetype,
+        size: f.size,
+        uploadedBy: req.userId,
+      })),
+    );
+
+    todo.status = 'done';
+    todo.completedAt = new Date();
+    todo.completedBy = req.userId as never;
+    todo.completionNote = String(req.body?.completionNote ?? '');
+    todo.attachments.push(...fileDocs.map((f) => f._id));
+    await todo.save();
+    res.json({ todo: await todoJson(todo) });
   }),
 );
