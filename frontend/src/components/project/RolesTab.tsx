@@ -9,6 +9,10 @@ const PERMISSIONS = [
   { key: 'todo:manage', label: '待办管理' },
   { key: 'todo:complete', label: '完成待办' },
   { key: 'file:upload', label: '上传文件' },
+  { key: 'finance:manage', label: '财务管理' },
+  { key: 'finance:add', label: '记账' },
+  { key: 'materials:manage', label: '物料管理' },
+  { key: 'accounts:manage', label: '账号管理' },
 ];
 
 interface Props {
