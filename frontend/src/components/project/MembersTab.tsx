@@ -11,7 +11,11 @@ interface Props {
 
 export default function MembersTab({ project, members, onChanged }: Props) {
   const { user } = useAuth();
-  const [roleName, setRoleName] = useState(project.roles[0]?.name ?? '');
+  const [roleName, setRoleName] = useState(
+    project.roles.find((r) => r.name === '一般staff')?.name ??
+      project.roles[project.roles.length - 1]?.name ??
+      '',
+  );
   const [targetUserId, setTargetUserId] = useState('');
   const [inviteUrl, setInviteUrl] = useState('');
   const [err, setErr] = useState('');

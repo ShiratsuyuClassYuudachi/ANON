@@ -10,6 +10,15 @@ import { applyTemplate, buildTemplate } from '../services/template';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
 
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace Express {
+    interface Request {
+      todo?: TodoDoc;
+    }
+  }
+}
+
 export const todosRouter = Router({ mergeParams: true });
 todosRouter.use(authRequired, loadMembership);
 
@@ -161,18 +170,25 @@ todosRouter.delete(
   }),
 );
 
+const loadTodoForComplete = ah(async (req, _res, next) => {
+  const todo = await Todo.findOne({ _id: req.params.todoId, projectId: req.project!._id });
+  if (!todo) throw new AppError(404, 'not_found', '待办不存在');
+  const perms = req.myPermissions!;
+  const isAssignee = todo.assigneeIds.some((id) => id.toString() === req.userId);
+  const allowed =
+    perms.has('project:manage') || perms.has('todo:manage') || (isAssignee && perms.has('todo:complete'));
+  if (!allowed) throw new AppError(403, 'forbidden', '没有权限完成该待办');
+  if (todo.status === 'done') throw new AppError(409, 'already_done', '待办已完成');
+  req.todo = todo;
+  next();
+});
+
 todosRouter.post(
   '/:todoId/complete',
+  loadTodoForComplete,
   upload.array('files', 10),
   ah(async (req, res) => {
-    const todo = await Todo.findOne({ _id: req.params.todoId, projectId: req.project!._id });
-    if (!todo) throw new AppError(404, 'not_found', '待办不存在');
-    const perms = req.myPermissions!;
-    const isAssignee = todo.assigneeIds.some((id) => id.toString() === req.userId);
-    const allowed =
-      perms.has('project:manage') || perms.has('todo:manage') || (isAssignee && perms.has('todo:complete'));
-    if (!allowed) throw new AppError(403, 'forbidden', '没有权限完成该待办');
-    if (todo.status === 'done') throw new AppError(409, 'already_done', '待办已完成');
+    const todo = req.todo!;
 
     const uploaded = (req.files as Express.Multer.File[]) ?? [];
     const fileDocs = await File.insertMany(

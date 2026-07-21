@@ -25,6 +25,10 @@ export async function api<T = unknown>(
   }
   const res = await fetch(path, { method: opts.method ?? (body ? 'POST' : 'GET'), headers, body });
   if (res.status === 401) {
+    const data = (await res.json().catch(() => ({}))) as { error?: { code?: string; message?: string } };
+    if (data.error?.code === 'bad_credentials') {
+      throw new Error(data.error.message ?? '用户名或密码错误');
+    }
     setToken(null);
     const p = location.pathname;
     if (!PUBLIC_PATHS.includes(p) && !p.startsWith('/invite/')) location.href = '/login';

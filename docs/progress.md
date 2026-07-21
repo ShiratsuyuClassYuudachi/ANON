@@ -47,7 +47,7 @@
 
 ### Task 11–14：前端
 - 脚手架与主题：`frontend/src/{main,App,theme}.tsx`、`index.css`（日/夜切换）、`api/client.ts`（JWT 封装）、`components/Layout.tsx`
-- 页面：`pages/{Login,Register,Projects,ProjectHome,InviteAccept,Me,Admin}.tsx` + `components/project/`（项目工作台四 Tab：概览/待办/成员/文件）
+- 页面：`pages/{Login,Register,Projects,ProjectHome,InviteAccept,Me,Admin}.tsx` + `components/project/`（项目工作台四 Tab：待办/成员/角色/设置）
 - 超管后台邀请码管理、邀请接受页、个人资料维护
 
 ### Task 15：文档与收尾
