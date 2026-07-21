@@ -56,3 +56,30 @@
 
 ### 工程
 - `docker-compose.yml`（mongo:7，可选）、`.gitignore`（含 `backend/.env`、`backend/uploads/`）、`docs/api.md`（全量接口契约）
+
+## 2026-07-21 第二阶段：财务/物料/账号
+
+三条特性分支（finance/materials/accounts）合并入 main。后端 58 个 vitest 用例全绿、typecheck 通过，前端 `vite build` 通过。
+
+### 财务模块（finance）
+- `backend/src/models/Transaction.ts`：收支账目（类型/整数分金额/备注/付款人/平摊人/凭证附件）
+- `backend/src/services/finance.ts`：汇总计算（门票盈亏、按人净额、公款池结算、贪心建议转账）
+- `backend/src/routes/finance.ts`：账目 CRUD、门票价/售票数设置、按成员导出 CSV（UTF-8 带 BOM）
+- `frontend/src/components/project/FinanceTab.tsx`：账目列表/录入/汇总/转账建议/CSV 导出
+
+### 物料管理（materials）
+- `backend/src/models/{ResourceType,Resource,ResourceVersion}.ts`：类型/资源/版本
+- `backend/src/services/{visibility,preview}.ts`：可见范围判定（优先于权限点）、sharp 生成 WebP 预览（≤800px、≤100KB）
+- `backend/src/routes/materials.ts`：类型/资源/版本 CRUD、版本上传、预览与原图下载（均过可见范围校验）
+- `frontend/src/components/project/MaterialsTab.tsx`、`frontend/src/components/AuthImg.tsx`（fetch + Blob 鉴权图片）
+
+### 平台账号（accounts）
+- `backend/src/models/PlatformAccount.ts`：三模式（full/otp/contact）、密文、可见范围
+- `backend/src/services/platformCrypto.ts`：server 模式 AES-256-GCM（密钥 = SHA-256(`PLATFORM_CRYPTO_KEY`，缺省回退 `JWT_SECRET`））
+- `backend/src/routes/accounts.ts`：账号 CRUD、reveal（server 返回明文 / user 返回 ANONv1 密文）
+- `frontend/src/components/project/AccountsTab.tsx`、`frontend/src/crypto.ts`（ANONv1：PBKDF2-SHA256 10 万次 + AES-GCM 浏览器端加密）
+
+### 其他
+- 新权限点：`finance:manage` / `materials:manage` / `accounts:manage`（`backend/src/services/permissions.ts`）
+- 新环境变量：`PLATFORM_CRYPTO_KEY`（可选，见 `backend/.env.example`）
+- 端到端冒烟（mongodb-memory-server，无 Docker）第二阶段全流程通过，覆盖：门票设置/支出平摊/汇总与转账/CSV 导出 BOM、类型/资源/PNG 版本上传/WebP 预览生成与下载、server 加密 reveal 明文往返、ANONv1 密文原样存储

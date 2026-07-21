@@ -1,6 +1,6 @@
 # ANON
 
-ANON 是一个「活动全流程追踪」协作系统。第一阶段已实现：用户认证（邀请码注册制 + 首超管引导）、项目与角色权限、成员邀请链接、文件上传与鉴权下载、待办模块（CRUD / 筛选 / 排序 / 完成带附件 / 模板导入导出）、到期与节点提醒（cron 接口 + SMTP 存根）。
+ANON 是一个「活动全流程追踪」协作系统。第一阶段已实现：用户认证（邀请码注册制 + 首超管引导）、项目与角色权限、成员邀请链接、文件上传与鉴权下载、待办模块（CRUD / 筛选 / 排序 / 完成带附件 / 模板导入导出）、到期与节点提醒（cron 接口 + SMTP 存根）。第二阶段新增项目工作台三个 Tab：**财务**（收支/门票盈亏/转账建议/CSV 导出）、**物料**（类型/版本/WebP 预览/可见范围）、**账号**（三模式平台账号，浏览器端或服务端加密）。
 
 完整接口契约见 [`docs/api.md`](./api.md)；设计说明见 [`docs/design.md`](./design.md)；迭代日志见 [`docs/progress.md`](./progress.md)。
 
@@ -43,6 +43,7 @@ cd frontend && npm install && npm run dev
 | `CRON_SECRET` | 提醒功能必填 | cron 提醒接口的 Bearer 密钥；未配置时该接口返回 503 |
 | `SUPER_ADMIN_EMAIL` | 否 | 首个超管邮箱：数据库无用户时，该邮箱注册无需邀请码并自动成为超管 |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | 否 | SMTP 发信配置；未配置 `SMTP_HOST` 时邮件退化为控制台日志（存根） |
+| `PLATFORM_CRYPTO_KEY` | 否 | 平台账号「服务端加密」模式的密钥源（SHA-256 派生 AES-256-GCM 密钥）；缺省回退 `JWT_SECRET`。浏览器端 ANONv1 加密（默认）不依赖此项 |
 
 ## cron 提醒
 
@@ -89,5 +90,5 @@ curl -X POST localhost:4000/api/admin/invite-codes \
 
 ## 备注
 
-- 权限模型中的「可见范围」字段在 File 模型中已预留，第一阶段不启用。
+- 「可见范围」已在第二阶段启用（物料类型/资源、平台账号），优先于权限点；File 模型的预留字段仍未启用。
 - `backend/uploads/` 与 `backend/.env` 均已 gitignore，勿提交。
