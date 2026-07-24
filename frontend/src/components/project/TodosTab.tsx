@@ -1,6 +1,40 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { FileJson, MoreHorizontal, Paperclip, Plus } from 'lucide-react';
+import { toast } from 'sonner';
 import { api, downloadFile } from '../../api/client';
 import type { Member, ProjectDetail, TodoItem } from '../../types';
+import { FormOverlay } from '@/components/FormOverlay';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
 
 interface Props {
   project: ProjectDetail;
@@ -13,6 +47,10 @@ function toIso(v: string): string | undefined {
 }
 function fmt(v: string | null): string {
   return v ? v.slice(0, 16).replace('T', ' ') : '';
+}
+
+function isOverdue(t: TodoItem) {
+  return t.status !== 'done' && !!t.dueAt && new Date(t.dueAt).getTime() < Date.now();
 }
 
 export default function TodosTab({ project, members, myPermissions }: Props) {
@@ -28,6 +66,10 @@ export default function TodosTab({ project, members, myPermissions }: Props) {
   const importFile = useRef<HTMLInputElement>(null);
   const [importAnchor, setImportAnchor] = useState<'start' | 'end'>('start');
   const [importDate, setImportDate] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const q = new URLSearchParams();
@@ -37,7 +79,9 @@ export default function TodosTab({ project, members, myPermissions }: Props) {
   }, [project.id, filters]);
 
   useEffect(() => {
-    load().catch((e) => setErr(e.message));
+    load()
+      .catch((e) => setErr(e.message))
+      .finally(() => setLoading(false));
   }, [load]);
 
   const create = async (e: FormEvent) => {
@@ -57,9 +101,11 @@ export default function TodosTab({ project, members, myPermissions }: Props) {
       });
       setForm({ title: '', category: '', note: '', nodeAt: '', dueAt: '', remindAt: '' });
       setAssigneeIds([]);
+      setCreateOpen(false);
+      toast.success('已创建');
       await load();
     } catch (e2) {
-      setErr((e2 as Error).message);
+      toast.error((e2 as Error).message);
     }
   };
 
@@ -73,9 +119,20 @@ export default function TodosTab({ project, members, myPermissions }: Props) {
       setCompletingId(null);
       setCompletionNote('');
       setCompletionFiles(null);
+      toast.success('已完成');
       await load();
     } catch (e2) {
-      setErr((e2 as Error).message);
+      toast.error((e2 as Error).message);
+    }
+  };
+
+  const remove = async (todoId: string) => {
+    try {
+      await api(`/api/projects/${project.id}/todos/${todoId}`, { method: 'DELETE' });
+      toast.success('已删除');
+      await load();
+    } catch (e2) {
+      toast.error((e2 as Error).message);
     }
   };
 
@@ -93,7 +150,7 @@ export default function TodosTab({ project, members, myPermissions }: Props) {
     setErr('');
     const f = importFile.current?.files?.[0];
     if (!f || !importDate) {
-      setErr('请选择模板文件并填写锚定日期');
+      toast.error('请选择模板文件并填写锚定日期');
       return;
     }
     try {
@@ -101,151 +158,304 @@ export default function TodosTab({ project, members, myPermissions }: Props) {
       await api(`/api/projects/${project.id}/todos/template/import`, {
         body: { template, anchor: importAnchor, date: new Date(importDate).toISOString() },
       });
+      setImportOpen(false);
       await load();
     } catch (e2) {
-      setErr((e2 as Error).message);
+      toast.error((e2 as Error).message);
     }
   };
 
   return (
-    <div>
-      <form className="card" onSubmit={create}>
-        <label className="field">新建待办</label>
-        <input placeholder="标题" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
-        <input placeholder="类别（如 美工/宣发）" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
-        <div className="grid-2">
-          <div>
-            <label className="field">节点时间</label>
-            <input type="datetime-local" value={form.nodeAt} onChange={(e) => setForm({ ...form, nodeAt: e.target.value })} />
-          </div>
-          <div>
-            <label className="field">到期时间</label>
-            <input type="datetime-local" value={form.dueAt} onChange={(e) => setForm({ ...form, dueAt: e.target.value })} />
-          </div>
-        </div>
-        <label className="field">提醒时间</label>
-        <input type="datetime-local" value={form.remindAt} onChange={(e) => setForm({ ...form, remindAt: e.target.value })} />
-        <label className="field">指派人</label>
-        <div className="row" style={{ marginBottom: 8 }}>
-          {members.map((m) => (
-            <label key={m.userId} className="chip" style={{ cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                style={{ width: 'auto', margin: '0 4px 0 0' }}
-                checked={assigneeIds.includes(m.userId)}
-                onChange={(e) =>
-                  setAssigneeIds(
-                    e.target.checked ? [...assigneeIds, m.userId] : assigneeIds.filter((x) => x !== m.userId),
-                  )
-                }
-              />
-              {m.name}
-            </label>
-          ))}
-        </div>
-        <textarea placeholder="备注" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
-        <button>创建</button>
-      </form>
-
-      <div className="card">
-        <div className="grid-2">
-          <input placeholder="按类别筛选" value={filters.category} onChange={(e) => setFilters({ ...filters, category: e.target.value })} />
-          <select value={filters.assignee} onChange={(e) => setFilters({ ...filters, assignee: e.target.value })}>
-            <option value="">全部指派人</option>
-            {members.map((m) => (
-              <option key={m.userId} value={m.userId}>{m.name}</option>
-            ))}
-          </select>
-          <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
-            <option value="">全部状态</option>
-            <option value="open">进行中</option>
-            <option value="done">已完成</option>
-          </select>
-          <select
-            value={`${filters.sort}:${filters.order}`}
-            onChange={(e) => {
-              const [sort, order] = e.target.value.split(':');
-              setFilters({ ...filters, sort, order });
-            }}
-          >
-            <option value="createdAt:desc">最新创建</option>
-            <option value="dueAt:asc">到期时间 ↑</option>
-            <option value="nodeAt:asc">节点时间 ↑</option>
-          </select>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-lg font-semibold">待办</h3>
+        <div className="flex gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm"><FileJson className="size-4" /> 模板</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => exportTemplate().catch((e) => toast.error((e as Error).message))}>
+                导出为模板
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setImportOpen(true)}>导入模板…</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button size="sm" onClick={() => setCreateOpen(true)}><Plus className="size-4" /> 新建待办</Button>
         </div>
       </div>
 
-      {err && <p className="error">{err}</p>}
+      <Card>
+        <CardContent className="grid grid-cols-2 gap-2 p-3 md:grid-cols-4">
+          <Input
+            placeholder="按类别筛选"
+            value={filters.category}
+            onChange={(e) => setFilters({ ...filters, category: e.target.value })}
+          />
+          <Select
+            value={filters.assignee || 'all'}
+            onValueChange={(v) => setFilters({ ...filters, assignee: v === 'all' ? '' : v })}
+          >
+            <SelectTrigger><SelectValue placeholder="指派人" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部指派人</SelectItem>
+              {members.map((m) => <SelectItem key={m.userId} value={m.userId}>{m.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select
+            value={filters.status || 'all'}
+            onValueChange={(v) => setFilters({ ...filters, status: v === 'all' ? '' : v })}
+          >
+            <SelectTrigger><SelectValue placeholder="状态" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部状态</SelectItem>
+              <SelectItem value="open">进行中</SelectItem>
+              <SelectItem value="done">已完成</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select
+            value={`${filters.sort}:${filters.order}`}
+            onValueChange={(v) => { const [sort, order] = v.split(':'); setFilters({ ...filters, sort, order }); }}
+          >
+            <SelectTrigger><SelectValue placeholder="排序" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="createdAt:desc">最新创建</SelectItem>
+              <SelectItem value="dueAt:asc">到期时间↑</SelectItem>
+              <SelectItem value="nodeAt:asc">节点时间↑</SelectItem>
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
 
-      {todos.map((t) => (
-        <div className="card" key={t.id}>
-          <div className="row">
-            <strong style={{ textDecoration: t.status === 'done' ? 'line-through' : 'none' }}>{t.title}</strong>
-            {t.category && <span className="chip">{t.category}</span>}
-            <span className="chip">{t.status === 'done' ? '已完成' : '进行中'}</span>
+      {err && <Card className="p-4 text-sm text-destructive">{err}</Card>}
+
+      {loading ? (
+        <>
+          <Skeleton className="h-28 w-full" />
+          <Skeleton className="h-28 w-full" />
+        </>
+      ) : todos.length === 0 ? (
+        <Card className="p-8 text-center text-sm text-muted-foreground">没有符合条件的待办</Card>
+      ) : (
+        todos.map((t) => (
+          <Card key={t.id}>
+            <CardContent className="space-y-2 p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="space-y-1">
+                  <p className={`font-medium ${t.status === 'done' ? 'text-muted-foreground line-through' : ''}`}>{t.title}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {t.category && <Badge variant="secondary">{t.category}</Badge>}
+                    {t.status === 'done' ? (
+                      <Badge variant="outline" className="border-green-500 text-green-600 dark:text-green-400">已完成</Badge>
+                    ) : isOverdue(t) ? (
+                      <Badge variant="destructive">已逾期</Badge>
+                    ) : (
+                      <Badge variant="outline">进行中</Badge>
+                    )}
+                  </div>
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon"><MoreHorizontal className="size-4" /></Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {t.status === 'open' /* 与现行行为一致：客户端不预检完成权限，由服务端校验 */ && (
+                      <DropdownMenuItem onClick={() => { setCompletingId(t.id); setCompletionNote(''); }}>完成</DropdownMenuItem>
+                    )}
+                    {canManage && (
+                      <DropdownMenuItem variant="destructive" onClick={() => setDeletingId(t.id)}>删除</DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+              <div className="text-sm text-muted-foreground">
+                {t.assignees.length > 0 && <p>指派：{t.assignees.map((a) => a.name).join('、')}</p>}
+                {t.nodeAt && <p>节点：{fmt(t.nodeAt)}</p>}
+                {t.dueAt && <p>到期：{fmt(t.dueAt)}</p>}
+              </div>
+              {t.note && <p className="text-sm">{t.note}</p>}
+              {t.completionNote && <p className="text-sm text-muted-foreground">完成备注:{t.completionNote}</p>}
+              {t.attachments.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {t.attachments.map((a) => (
+                    <Button key={a.id} variant="outline" size="sm" onClick={() => downloadFile(a.id, a.filename)}>
+                      <Paperclip className="size-3.5" /> {a.filename}
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ))
+      )}
+
+      <FormOverlay open={createOpen} onOpenChange={setCreateOpen} title="新建待办">
+        <form onSubmit={create} className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="todo-title">标题</Label>
+            <Input
+              id="todo-title"
+              required
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+            />
           </div>
-          <div className="muted">
-            {t.assignees.map((a) => a.name).join('、') || '未指派'}
-            {t.nodeAt && ` ｜ 节点 ${fmt(t.nodeAt)}`}
-            {t.dueAt && ` ｜ 到期 ${fmt(t.dueAt)}`}
+          <div className="space-y-1.5">
+            <Label htmlFor="todo-category">类别</Label>
+            <Input
+              id="todo-category"
+              placeholder="如 美工/宣发"
+              value={form.category}
+              onChange={(e) => setForm({ ...form, category: e.target.value })}
+            />
           </div>
-          {t.note && <p>{t.note}</p>}
-          {t.status === 'done' && t.completionNote && <p className="muted">完成备注：{t.completionNote}</p>}
-          {t.attachments.length > 0 && (
-            <div className="row">
-              {t.attachments.map((a) => (
-                <button key={a.id} className="ghost" onClick={() => downloadFile(a.id, a.filename)}>
-                  {a.filename}
-                </button>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="todo-node">节点时间</Label>
+              <Input
+                id="todo-node"
+                type="datetime-local"
+                value={form.nodeAt}
+                onChange={(e) => setForm({ ...form, nodeAt: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="todo-due">到期时间</Label>
+              <Input
+                id="todo-due"
+                type="datetime-local"
+                value={form.dueAt}
+                onChange={(e) => setForm({ ...form, dueAt: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="todo-remind">提醒时间</Label>
+            <Input
+              id="todo-remind"
+              type="datetime-local"
+              value={form.remindAt}
+              onChange={(e) => setForm({ ...form, remindAt: e.target.value })}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>指派人</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {members.map((m) => (
+                <label
+                  key={m.userId}
+                  className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-sm ${
+                    assigneeIds.includes(m.userId)
+                      ? 'border-primary bg-accent text-accent-foreground'
+                      : 'border-border text-muted-foreground'
+                  }`}
+                >
+                  <Checkbox
+                    checked={assigneeIds.includes(m.userId)}
+                    onCheckedChange={(c) =>
+                      setAssigneeIds(c ? [...assigneeIds, m.userId] : assigneeIds.filter((x) => x !== m.userId))
+                    }
+                  />
+                  {m.name}
+                </label>
               ))}
             </div>
-          )}
-          {t.status === 'open' && completingId !== t.id && (
-            <button className="ghost" onClick={() => setCompletingId(t.id)}>完成</button>
-          )}
-          {completingId === t.id && (
-            <div>
-              <textarea placeholder="完成备注（可选）" value={completionNote} onChange={(e) => setCompletionNote(e.target.value)} />
-              <input type="file" multiple onChange={(e) => setCompletionFiles(e.target.files)} />
-              <div className="row">
-                <button onClick={() => complete(t.id)}>确认完成</button>
-                <button className="ghost" onClick={() => setCompletingId(null)}>取消</button>
-              </div>
-            </div>
-          )}
-          {canManage && t.status === 'open' && (
-            <button
-              className="danger"
-              style={{ marginLeft: 8 }}
-              onClick={async () => {
-                if (!confirm('删除该待办？')) return;
-                await api(`/api/projects/${project.id}/todos/${t.id}`, { method: 'DELETE' });
-                await load();
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="todo-note">备注</Label>
+            <Textarea
+              id="todo-note"
+              value={form.note}
+              onChange={(e) => setForm({ ...form, note: e.target.value })}
+            />
+          </div>
+          <Button type="submit" className="w-full">创建</Button>
+        </form>
+      </FormOverlay>
+
+      <FormOverlay
+        open={!!completingId}
+        onOpenChange={(o) => !o && setCompletingId(null)}
+        title="完成待办"
+      >
+        <form
+          className="space-y-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (completingId) void complete(completingId);
+          }}
+        >
+          <div className="space-y-1.5">
+            <Label htmlFor="completion-note">完成备注（可选）</Label>
+            <Textarea
+              id="completion-note"
+              value={completionNote}
+              onChange={(e) => setCompletionNote(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="completion-files">附件</Label>
+            <Input
+              id="completion-files"
+              type="file"
+              multiple
+              onChange={(e) => setCompletionFiles(e.target.files)}
+            />
+          </div>
+          <Button type="submit" className="w-full">确认完成</Button>
+        </form>
+      </FormOverlay>
+
+      <FormOverlay open={importOpen} onOpenChange={setImportOpen} title="导入模板" description="按模板批量生成待办">
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>锚定方式</Label>
+            <Select value={importAnchor} onValueChange={(v) => setImportAnchor(v as 'start' | 'end')}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="start">锚定开始时间</SelectItem>
+                <SelectItem value="end">锚定结束时间</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="import-date">锚定日期</Label>
+            <Input id="import-date" type="date" value={importDate} onChange={(e) => setImportDate(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="import-file">模板文件（JSON）</Label>
+            {/* shadcn Input 不转发 ref（React 18），此处需 ref 读取文件，故用原生 input */}
+            <input
+              id="import-file"
+              type="file"
+              accept="application/json"
+              ref={importFile}
+              className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground dark:bg-input/30"
+            />
+          </div>
+          <Button className="w-full" onClick={importTemplate}>导入模板生成待办</Button>
+        </div>
+      </FormOverlay>
+
+      <AlertDialog open={!!deletingId} onOpenChange={(o) => !o && setDeletingId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除待办？</AlertDialogTitle>
+            <AlertDialogDescription>该操作不可撤销。</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deletingId) void remove(deletingId);
+                setDeletingId(null);
               }}
             >
               删除
-            </button>
-          )}
-        </div>
-      ))}
-      {!todos.length && <p className="muted">暂无待办。</p>}
-
-      <div className="card">
-        <label className="field">模板</label>
-        <div className="row">
-          <button className="ghost" onClick={exportTemplate}>导出为模板</button>
-        </div>
-        <hr style={{ border: 'none', borderTop: '1px solid var(--border)' }} />
-        <div className="grid-2">
-          <select value={importAnchor} onChange={(e) => setImportAnchor(e.target.value as 'start' | 'end')}>
-            <option value="start">锚定开始时间</option>
-            <option value="end">锚定结束时间</option>
-          </select>
-          <input type="date" value={importDate} onChange={(e) => setImportDate(e.target.value)} />
-        </div>
-        <input type="file" accept="application/json" ref={importFile} />
-        <button className="ghost" onClick={importTemplate}>导入模板生成待办</button>
-      </div>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
