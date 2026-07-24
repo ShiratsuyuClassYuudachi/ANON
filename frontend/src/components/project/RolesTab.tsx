@@ -1,6 +1,22 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
+import { Trash2 } from 'lucide-react';
 import { api } from '../../api/client';
 import type { ProjectDetail } from '../../types';
+import { Button } from '@/components/ui/button';
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const PERMISSIONS = [
   { key: 'project:manage', label: '项目管理' },
@@ -22,15 +38,13 @@ interface Props {
 
 function PermissionChecks({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
   return (
-    <div className="row" style={{ marginBottom: 8 }}>
+    <div className="grid grid-cols-2 gap-2">
       {PERMISSIONS.map((p) => (
-        <label key={p.key} className="chip" style={{ cursor: 'pointer' }}>
-          <input
-            type="checkbox"
-            style={{ width: 'auto', margin: '0 4px 0 0' }}
+        <label key={p.key} className="flex cursor-pointer items-center gap-2 text-sm">
+          <Checkbox
             checked={value.includes(p.key)}
-            onChange={(e) =>
-              onChange(e.target.checked ? [...value, p.key] : value.filter((x) => x !== p.key))
+            onCheckedChange={(c) =>
+              onChange(c ? [...value, p.key] : value.filter((x) => x !== p.key))
             }
           />
           {p.label}
@@ -44,63 +58,87 @@ export default function RolesTab({ project, onChanged }: Props) {
   const [newName, setNewName] = useState('');
   const [newPerms, setNewPerms] = useState<string[]>([]);
   const [editPerms, setEditPerms] = useState<Record<string, string[]>>({});
-  const [err, setErr] = useState('');
+  const [deletingName, setDeletingName] = useState<string | null>(null);
 
-  const run = (fn: () => Promise<void>) => fn().catch((e) => setErr(e.message));
+  const run = (fn: () => Promise<void>) => fn().catch((e) => toast.error(e.message));
   const permsOf = (name: string, fallback: string[]) => editPerms[name] ?? fallback;
 
   return (
-    <div>
-      <div className="card">
-        <label className="field">新建角色</label>
-        <input placeholder="角色名" value={newName} onChange={(e) => setNewName(e.target.value)} />
-        <PermissionChecks value={newPerms} onChange={setNewPerms} />
-        <button
-          onClick={() =>
-            run(async () => {
-              await api(`/api/projects/${project.id}/roles`, {
-                body: { name: newName, permissions: newPerms },
-              });
-              setNewName('');
-              setNewPerms([]);
-              await onChanged();
-            })
-          }
-        >
-          创建
-        </button>
-      </div>
-
-      {err && <p className="error">{err}</p>}
+    <div className="space-y-3">
+      <Card>
+        <CardHeader className="pb-2"><CardTitle className="text-base">新建角色</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <Input placeholder="角色名" value={newName} onChange={(e) => setNewName(e.target.value)} />
+          <PermissionChecks value={newPerms} onChange={setNewPerms} />
+          <Button
+            onClick={() =>
+              run(async () => {
+                await api(`/api/projects/${project.id}/roles`, {
+                  body: { name: newName, permissions: newPerms },
+                });
+                setNewName('');
+                setNewPerms([]);
+                await onChanged();
+              })
+            }
+          >
+            创建
+          </Button>
+        </CardContent>
+      </Card>
 
       {project.roles.map((r) => (
-        <div className="card" key={r.name}>
-          <strong>{r.name}</strong>
-          <PermissionChecks
-            value={permsOf(r.name, r.permissions)}
-            onChange={(v) => setEditPerms({ ...editPerms, [r.name]: v })}
-          />
-          <div className="row">
-            <button
-              className="ghost"
+        <Card key={r.name}>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">{r.name}</CardTitle>
+            <CardAction className="flex items-center gap-1">
+              <Button
+                size="sm"
+                onClick={() =>
+                  run(async () => {
+                    await api(`/api/projects/${project.id}/roles/${encodeURIComponent(r.name)}`, {
+                      method: 'PATCH',
+                      body: { permissions: permsOf(r.name, r.permissions) },
+                    });
+                    toast.success('已保存');
+                    await onChanged();
+                  })
+                }
+              >
+                保存
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="删除角色"
+                onClick={() => setDeletingName(r.name)}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            </CardAction>
+          </CardHeader>
+          <CardContent>
+            <PermissionChecks
+              value={permsOf(r.name, r.permissions)}
+              onChange={(v) => setEditPerms({ ...editPerms, [r.name]: v })}
+            />
+          </CardContent>
+        </Card>
+      ))}
+
+      <AlertDialog open={!!deletingName} onOpenChange={(o) => !o && setDeletingName(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除角色「{deletingName}」？</AlertDialogTitle>
+            <AlertDialogDescription>该操作不可撤销。</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
               onClick={() =>
+                deletingName &&
                 run(async () => {
-                  await api(`/api/projects/${project.id}/roles/${encodeURIComponent(r.name)}`, {
-                    method: 'PATCH',
-                    body: { permissions: permsOf(r.name, r.permissions) },
-                  });
-                  await onChanged();
-                })
-              }
-            >
-              保存
-            </button>
-            <button
-              className="danger"
-              onClick={() =>
-                run(async () => {
-                  if (!confirm(`删除角色 ${r.name}？`)) return;
-                  await api(`/api/projects/${project.id}/roles/${encodeURIComponent(r.name)}`, {
+                  await api(`/api/projects/${project.id}/roles/${encodeURIComponent(deletingName)}`, {
                     method: 'DELETE',
                   });
                   await onChanged();
@@ -108,10 +146,10 @@ export default function RolesTab({ project, onChanged }: Props) {
               }
             >
               删除
-            </button>
-          </div>
-        </div>
-      ))}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
