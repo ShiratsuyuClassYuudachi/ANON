@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth';
 import Layout from './components/Layout';
+import { Skeleton } from './components/ui/skeleton';
 import Admin from './pages/Admin';
 import InviteAccept from './pages/InviteAccept';
 import Login from './pages/Login';
@@ -12,7 +13,14 @@ import Register from './pages/Register';
 
 function RequireAuth({ children }: { children: ReactElement }) {
   const { user, loading } = useAuth();
-  if (loading) return <div className="page">加载中…</div>;
+  if (loading)
+    return (
+      <div className="mx-auto w-full max-w-3xl space-y-3 px-4 py-6">
+        <Skeleton className="h-10 w-1/3" />
+        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-32 w-full" />
+      </div>
+    );
   if (!user) return <Navigate to="/login" replace />;
   return children;
 }
