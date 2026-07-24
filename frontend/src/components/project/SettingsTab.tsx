@@ -1,6 +1,12 @@
 import { useState, type FormEvent } from 'react';
+import { toast } from 'sonner';
 import { api } from '../../api/client';
 import type { ProjectDetail } from '../../types';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 interface Props {
   project: ProjectDetail;
@@ -18,11 +24,9 @@ export default function SettingsTab({ project, onChanged }: Props) {
     startDate: toDateInput(project.startDate),
     endDate: toDateInput(project.endDate),
   });
-  const [msg, setMsg] = useState('');
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    setMsg('');
     try {
       await api(`/api/projects/${project.id}`, {
         method: 'PATCH',
@@ -34,30 +38,56 @@ export default function SettingsTab({ project, onChanged }: Props) {
         },
       });
       await onChanged();
-      setMsg('已保存');
+      toast.success('已保存');
     } catch (e2) {
-      setMsg((e2 as Error).message);
+      toast.error((e2 as Error).message);
     }
   };
 
   return (
-    <form className="card" onSubmit={submit}>
-      <label className="field">项目名称</label>
-      <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-      <label className="field">描述</label>
-      <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-      <div className="grid-2">
-        <div>
-          <label className="field">开始日期</label>
-          <input type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} />
-        </div>
-        <div>
-          <label className="field">结束日期</label>
-          <input type="date" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} />
-        </div>
-      </div>
-      {msg && <p className="muted">{msg}</p>}
-      <button>保存</button>
-    </form>
+    <Card>
+      <CardContent>
+        <form onSubmit={submit} className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="settings-name">项目名称</Label>
+            <Input
+              id="settings-name"
+              required
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="settings-desc">描述</Label>
+            <Textarea
+              id="settings-desc"
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="settings-start">开始日期</Label>
+              <Input
+                id="settings-start"
+                type="date"
+                value={form.startDate}
+                onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="settings-end">结束日期</Label>
+              <Input
+                id="settings-end"
+                type="date"
+                value={form.endDate}
+                onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+              />
+            </div>
+          </div>
+          <Button type="submit">保存</Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
