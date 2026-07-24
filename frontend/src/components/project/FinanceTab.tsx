@@ -1,7 +1,40 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { ArrowRight, Download, MoreHorizontal, Paperclip, Plus } from 'lucide-react';
+import { toast } from 'sonner';
 import { api, downloadFile, getToken } from '../../api/client';
 import { useAuth } from '../../auth';
 import type { FinanceSummary, Member, ProjectDetail, TransactionItem } from '../../types';
+import { FormOverlay } from '@/components/FormOverlay';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 
 interface Props {
   project: ProjectDetail;
@@ -29,6 +62,10 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
   const [ticketPrice, setTicketPrice] = useState('');
   const [ticketCount, setTicketCount] = useState('');
   const [exportUserId, setExportUserId] = useState('');
+  const [ticketOpen, setTicketOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [entryOpen, setEntryOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const d = await api<{ transactions: TransactionItem[]; summary: FinanceSummary | null }>(
@@ -50,7 +87,7 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
     e.preventDefault();
     setErr('');
     if (!form.payerUserId) {
-      setErr('请选择付款人');
+      toast.error('请选择付款人');
       return;
     }
     try {
@@ -65,9 +102,11 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
       setForm({ type: 'expense', amount: '', note: '', payerUserId: '' });
       setSplitAmong([]);
       setFiles(null);
+      setEntryOpen(false);
+      toast.success('已记账');
       await load();
     } catch (e2) {
-      setErr((e2 as Error).message);
+      toast.error((e2 as Error).message);
     }
   };
 
@@ -78,9 +117,10 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
         method: 'PATCH',
         body: { ticketPrice: ticketPrice || 0, ticketCount: Number(ticketCount || 0) },
       });
+      setTicketOpen(false);
       await load();
     } catch (e2) {
-      setErr((e2 as Error).message);
+      toast.error((e2 as Error).message);
     }
   };
 
@@ -101,20 +141,143 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
       a.download = `finance-${name}.csv`;
       a.click();
       URL.revokeObjectURL(url);
+      setExportOpen(false);
     } catch (e2) {
-      setErr((e2 as Error).message);
+      toast.error((e2 as Error).message);
+    }
+  };
+
+  const remove = async (txId: string) => {
+    try {
+      await api(`/api/projects/${project.id}/finance/${txId}`, { method: 'DELETE' });
+      toast.success('已删除');
+      await load();
+    } catch (e2) {
+      toast.error((e2 as Error).message);
     }
   };
 
   return (
-    <div>
-      {canManage && (
-        <div className="card">
-          <label className="field">门票设置</label>
-          <div className="grid-2">
-            <div>
-              <label className="field">门票单价（元）</label>
-              <input
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-lg font-semibold">财务</h3>
+        <div className="flex gap-2">
+          {canManage && (
+            <Button variant="outline" size="sm" onClick={() => setTicketOpen(true)}>门票设置</Button>
+          )}
+          {canManage && (
+            <Button variant="outline" size="sm" onClick={() => setExportOpen(true)}><Download className="size-4" /> 导出 CSV</Button>
+          )}
+          {canAdd && (
+            <Button size="sm" onClick={() => setEntryOpen(true)}><Plus className="size-4" /> 记一笔</Button>
+          )}
+        </div>
+      </div>
+
+      {err && <Card className="p-4 text-sm text-destructive">{err}</Card>}
+
+      {summary && (
+        <>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            {[
+              { label: '门票收入', value: yuan(summary.ticketIncomeCents), cls: '' },
+              { label: '记账收入', value: yuan(summary.incomeCents), cls: '' },
+              { label: '总支出', value: yuan(summary.expenseCents), cls: '' },
+              { label: '盈亏', value: signed(summary.profitCents), cls: summary.profitCents < 0 ? 'text-destructive' : 'text-green-600 dark:text-green-400' },
+            ].map((s) => (
+              <Card key={s.label}>
+                <CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">{s.label}</p>
+                  <p className={`mt-1 text-lg font-semibold tabular-nums ${s.cls}`}>¥{s.value}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-base">按人净额</CardTitle></CardHeader>
+            <CardContent className="divide-y">
+              {summary.perUser.map((u) => (
+                <div key={u.userId} className="flex items-center justify-between py-2 text-sm">
+                  <span>{u.name}</span>
+                  <span className={`tabular-nums ${u.netCents < 0 ? 'text-destructive' : ''}`}>{signed(u.netCents)}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-base">建议转账</CardTitle></CardHeader>
+            <CardContent className="space-y-1.5">
+              {summary.settlement.length === 0 ? (
+                <p className="text-sm text-muted-foreground">无需转账</p>
+              ) : (
+                summary.settlement.map((s, i) => (
+                  <p key={i} className="text-sm">
+                    {s.from.name} <ArrowRight className="inline size-3.5" /> {s.to.name}：
+                    <span className="font-medium tabular-nums">¥{yuan(s.amountCents)}</span>
+                  </p>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {transactions.map((t) => (
+        <Card key={t.id}>
+          <CardContent className="space-y-2 p-4">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2">
+                {t.type === 'income' ? (
+                  <Badge variant="outline" className="border-green-500 text-green-600 dark:text-green-400">收入</Badge>
+                ) : (
+                  <Badge variant="destructive">支出</Badge>
+                )}
+                <span className="font-semibold tabular-nums">¥{yuan(t.amountCents)}</span>
+              </div>
+              {(canManage || t.createdBy === user?.id) && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon"><MoreHorizontal className="size-4" /></Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem variant="destructive" onClick={() => setDeletingId(t.id)}>删除</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              <p>{t.type === 'income' ? '收款' : '付款'}：{t.payer.name}</p>
+              {t.type === 'expense' && (
+                <p>平摊：{t.splitAmong.length ? t.splitAmong.map((u) => u.name).join('、') : '全员'}</p>
+              )}
+              <p>添加人 {t.createdByName} ｜ {t.createdAt.slice(0, 10)}</p>
+            </div>
+            {t.note && <p className="text-sm">{t.note}</p>}
+            {t.attachments.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {t.attachments.map((a) => (
+                  <Button key={a.id} variant="outline" size="sm" onClick={() => downloadFile(a.id, a.filename)}>
+                    <Paperclip className="size-3.5" /> {a.filename}
+                  </Button>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ))}
+      {!transactions.length && (
+        <Card className="p-8 text-center text-sm text-muted-foreground">暂无账目。</Card>
+      )}
+
+      <FormOverlay open={ticketOpen} onOpenChange={setTicketOpen} title="门票设置">
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="ticket-price">门票单价（元）</Label>
+              <Input
+                id="ticket-price"
                 type="number"
                 step="0.01"
                 min="0"
@@ -122,9 +285,10 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
                 onChange={(e) => setTicketPrice(e.target.value)}
               />
             </div>
-            <div>
-              <label className="field">售票数量</label>
-              <input
+            <div className="space-y-1.5">
+              <Label htmlFor="ticket-count">售票数量</Label>
+              <Input
+                id="ticket-count"
                 type="number"
                 min="0"
                 value={ticketCount}
@@ -132,49 +296,80 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
               />
             </div>
           </div>
-          <button onClick={saveTicket}>保存门票设置</button>
-          {summary && <p className="muted">门票收入：¥{yuan(summary.ticketIncomeCents)}（实时计入盈亏）</p>}
+          {summary && <p className="text-sm text-muted-foreground">门票收入：¥{yuan(summary.ticketIncomeCents)}（实时计入盈亏）</p>}
+          <Button className="w-full" onClick={saveTicket}>保存门票设置</Button>
         </div>
-      )}
+      </FormOverlay>
 
-      {canAdd && (
-        <form className="card" onSubmit={create}>
-          <label className="field">记一笔</label>
-          <div className="grid-2">
-            <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as 'income' | 'expense' })}>
-              <option value="expense">支出</option>
-              <option value="income">收入</option>
-            </select>
-            <input
-              type="number"
-              step="0.01"
-              min="0.01"
-              placeholder="金额（元）"
-              value={form.amount}
-              onChange={(e) => setForm({ ...form, amount: e.target.value })}
-              required
-            />
+      <FormOverlay open={exportOpen} onOpenChange={setExportOpen} title="导出 CSV">
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>成员</Label>
+            <Select value={exportUserId || 'me'} onValueChange={(v) => setExportUserId(v === 'me' ? '' : v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="me">我自己</SelectItem>
+                {members.map((m) => <SelectItem key={m.userId} value={m.userId}>{m.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
-          <select value={form.payerUserId} onChange={(e) => setForm({ ...form, payerUserId: e.target.value })} required>
-            <option value="">{form.type === 'expense' ? '付款人' : '收款人'}</option>
-            {members.map((m) => (
-              <option key={m.userId} value={m.userId}>{m.name}</option>
-            ))}
-          </select>
+          <Button className="w-full" onClick={exportCsv}>导出该成员账目</Button>
+        </div>
+      </FormOverlay>
+
+      <FormOverlay open={entryOpen} onOpenChange={setEntryOpen} title="记一笔">
+        <form onSubmit={create} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>类型</Label>
+              <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v as 'income' | 'expense' })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="expense">支出</SelectItem>
+                  <SelectItem value="income">收入</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="entry-amount">金额（元）</Label>
+              <Input
+                id="entry-amount"
+                type="number"
+                step="0.01"
+                min="0.01"
+                placeholder="金额（元）"
+                value={form.amount}
+                onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                required
+              />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>{form.type === 'expense' ? '付款人' : '收款人'}</Label>
+            <Select value={form.payerUserId} onValueChange={(v) => setForm({ ...form, payerUserId: v })}>
+              <SelectTrigger><SelectValue placeholder={form.type === 'expense' ? '付款人' : '收款人'} /></SelectTrigger>
+              <SelectContent>
+                {members.map((m) => <SelectItem key={m.userId} value={m.userId}>{m.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
           {form.type === 'expense' && (
-            <div>
-              <label className="field">参与平摊人（不选 = 全员）</label>
-              <div className="row" style={{ marginBottom: 8 }}>
+            <div className="space-y-1.5">
+              <Label>参与平摊人（不选 = 全员）</Label>
+              <div className="flex flex-wrap gap-1.5">
                 {members.map((m) => (
-                  <label key={m.userId} className="chip" style={{ cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      style={{ width: 'auto', margin: '0 4px 0 0' }}
+                  <label
+                    key={m.userId}
+                    className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-sm ${
+                      splitAmong.includes(m.userId)
+                        ? 'border-primary bg-accent text-accent-foreground'
+                        : 'border-border text-muted-foreground'
+                    }`}
+                  >
+                    <Checkbox
                       checked={splitAmong.includes(m.userId)}
-                      onChange={(e) =>
-                        setSplitAmong(
-                          e.target.checked ? [...splitAmong, m.userId] : splitAmong.filter((x) => x !== m.userId),
-                        )
+                      onCheckedChange={(c) =>
+                        setSplitAmong(c ? [...splitAmong, m.userId] : splitAmong.filter((x) => x !== m.userId))
                       }
                     />
                     {m.name}
@@ -183,97 +378,48 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
               </div>
             </div>
           )}
-          <textarea placeholder="备注" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
-          <input type="file" multiple onChange={(e) => setFiles(e.target.files)} />
-          <button>保存账目</button>
+          <div className="space-y-1.5">
+            <Label htmlFor="entry-note">备注</Label>
+            <Textarea
+              id="entry-note"
+              value={form.note}
+              onChange={(e) => setForm({ ...form, note: e.target.value })}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="entry-files">凭证</Label>
+            {/* shadcn Input 不转发 ref（React 18），文件选择用原生 input 加 Input 同款类名 */}
+            <input
+              id="entry-files"
+              type="file"
+              multiple
+              onChange={(e) => setFiles(e.target.files)}
+              className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground dark:bg-input/30"
+            />
+          </div>
+          <Button type="submit" className="w-full">保存账目</Button>
         </form>
-      )}
+      </FormOverlay>
 
-      {err && <p className="error">{err}</p>}
-
-      {summary && (
-        <div className="card">
-          <label className="field">汇总</label>
-          <div className="row">
-            <span className="chip">门票收入 ¥{yuan(summary.ticketIncomeCents)}</span>
-            <span className="chip">账目收入 ¥{yuan(summary.incomeCents)}</span>
-            <span className="chip">账目支出 ¥{yuan(summary.expenseCents)}</span>
-            <span className="chip">盈亏 {signed(summary.profitCents)}</span>
-          </div>
-          <label className="field">按人净额（实付 − 应摊，含盈亏均摊）</label>
-          {summary.perUser.map((p) => (
-            <div className="row" key={p.userId}>
-              <span>{p.name}</span>
-              <span className={p.netCents >= 0 ? '' : 'error'}>{signed(p.netCents)}</span>
-            </div>
-          ))}
-          <label className="field">建议转账</label>
-          {summary.settlement.length === 0 && <p className="muted">无需转账。</p>}
-          {summary.settlement.map((s, i) => (
-            <p key={i}>
-              {s.from.name} → {s.to.name}：¥{yuan(s.amountCents)}
-            </p>
-          ))}
-        </div>
-      )}
-
-      {canManage && (
-        <div className="card">
-          <label className="field">导出 CSV</label>
-          <div className="row">
-            <select value={exportUserId} onChange={(e) => setExportUserId(e.target.value)}>
-              <option value="">我自己</option>
-              {members.map((m) => (
-                <option key={m.userId} value={m.userId}>{m.name}</option>
-              ))}
-            </select>
-            <button className="ghost" onClick={exportCsv}>导出该成员账目</button>
-          </div>
-        </div>
-      )}
-
-      {transactions.map((t) => (
-        <div className="card" key={t.id}>
-          <div className="row">
-            <span className="chip">{t.type === 'income' ? '收入' : '支出'}</span>
-            <strong>¥{yuan(t.amountCents)}</strong>
-            <span className="muted">
-              {t.type === 'income' ? '收款' : '付款'}：{t.payer.name}
-            </span>
-            {t.type === 'expense' && (
-              <span className="muted">
-                平摊：{t.splitAmong.length ? t.splitAmong.map((u) => u.name).join('、') : '全员'}
-              </span>
-            )}
-          </div>
-          {t.note && <p>{t.note}</p>}
-          <div className="muted">
-            添加人 {t.createdByName} ｜ {t.createdAt.slice(0, 16).replace('T', ' ')}
-          </div>
-          {t.attachments.length > 0 && (
-            <div className="row">
-              {t.attachments.map((a) => (
-                <button key={a.id} className="ghost" onClick={() => downloadFile(a.id, a.filename)}>
-                  {a.filename}
-                </button>
-              ))}
-            </div>
-          )}
-          {(canManage || t.createdBy === user?.id) && (
-            <button
-              className="danger"
-              onClick={async () => {
-                if (!confirm('删除该账目？')) return;
-                await api(`/api/projects/${project.id}/finance/${t.id}`, { method: 'DELETE' });
-                await load();
+      <AlertDialog open={!!deletingId} onOpenChange={(o) => !o && setDeletingId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除账目？</AlertDialogTitle>
+            <AlertDialogDescription>该操作不可撤销。</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deletingId) void remove(deletingId);
+                setDeletingId(null);
               }}
             >
               删除
-            </button>
-          )}
-        </div>
-      ))}
-      {!transactions.length && <p className="muted">暂无账目。</p>}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
