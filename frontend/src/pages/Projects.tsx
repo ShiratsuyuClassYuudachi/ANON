@@ -14,15 +14,22 @@ import { FormOverlay } from '@/components/FormOverlay';
 
 export default function Projects() {
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [name, setName] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
 
   const load = () =>
-    api<{ projects: ProjectSummary[] }>('/api/projects').then((d) => setProjects(d.projects));
+    api<{ projects: ProjectSummary[] }>('/api/projects').then((d) => {
+      setProjects(d.projects);
+      setLoadFailed(false);
+    });
   useEffect(() => {
-    load().catch((e) => toast.error((e as Error).message));
+    load().catch((e) => {
+      setLoadFailed(true);
+      toast.error((e as Error).message);
+    });
   }, []);
 
   const create = async (e: FormEvent) => {
@@ -54,7 +61,21 @@ export default function Projects() {
         </Button>
       </div>
 
-      {projects === null ? (
+      {loadFailed ? (
+        <Card className="flex flex-col items-center gap-3 py-12 text-center">
+          <p className="text-sm text-destructive">加载项目列表失败</p>
+          <Button
+            onClick={() =>
+              load().catch((e) => {
+                setLoadFailed(true);
+                toast.error((e as Error).message);
+              })
+            }
+          >
+            重试
+          </Button>
+        </Card>
+      ) : projects === null ? (
         <div className="space-y-3">
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-24 w-full" />

@@ -62,7 +62,7 @@ export default function Register() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="password">密码</Label>
-              <Input id="password" type="password" required minLength={8} value={form.password} onChange={set('password')} />
+              <Input id="password" type="password" placeholder="至少 8 位" required minLength={8} value={form.password} onChange={set('password')} />
             </div>
             {err && <p className="text-sm text-destructive">{err}</p>}
             <Button type="submit" className="w-full" disabled={busy}>

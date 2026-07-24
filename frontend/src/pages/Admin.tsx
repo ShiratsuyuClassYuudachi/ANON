@@ -18,12 +18,19 @@ interface InviteCode {
 export default function Admin() {
   const { user } = useAuth();
   const [codes, setCodes] = useState<InviteCode[]>([]);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [custom, setCustom] = useState('');
 
   const load = () =>
-    api<{ inviteCodes: InviteCode[] }>('/api/admin/invite-codes').then((d) => setCodes(d.inviteCodes));
+    api<{ inviteCodes: InviteCode[] }>('/api/admin/invite-codes').then((d) => {
+      setCodes(d.inviteCodes);
+      setLoadFailed(false);
+    });
   useEffect(() => {
-    load().catch((e) => toast.error((e as Error).message));
+    load().catch((e) => {
+      setLoadFailed(true);
+      toast.error((e as Error).message);
+    });
   }, []);
 
   if (!user?.isSuperAdmin) return <p className="text-sm text-destructive">需要超级管理员权限</p>;
@@ -52,23 +59,39 @@ export default function Admin() {
           <Button onClick={create}>创建</Button>
         </CardContent>
       </Card>
-      {codes.map((c) => (
-        <Card key={c.id}>
-          <CardContent className="flex items-center gap-3">
-            <code className="rounded bg-muted px-2 py-0.5">{c.code}</code>
-            {c.used ? (
-              <Badge variant="secondary">已使用</Badge>
-            ) : (
-              <Badge variant="outline" className="border-green-600 text-green-600">
-                可用
-              </Badge>
-            )}
-            <span className="ml-auto text-sm text-muted-foreground">
-              创建于 {c.createdAt?.slice(0, 10) ?? '-'}
-            </span>
-          </CardContent>
+      {loadFailed ? (
+        <Card className="flex flex-col items-center gap-3 py-12 text-center">
+          <p className="text-sm text-destructive">加载邀请码列表失败</p>
+          <Button
+            onClick={() =>
+              load().catch((e) => {
+                setLoadFailed(true);
+                toast.error((e as Error).message);
+              })
+            }
+          >
+            重试
+          </Button>
         </Card>
-      ))}
+      ) : (
+        codes.map((c) => (
+          <Card key={c.id}>
+            <CardContent className="flex items-center gap-3">
+              <code className="rounded bg-muted px-2 py-0.5">{c.code}</code>
+              {c.used ? (
+                <Badge variant="secondary">已使用</Badge>
+              ) : (
+                <Badge variant="outline" className="border-green-600 text-green-600">
+                  可用
+                </Badge>
+              )}
+              <span className="ml-auto text-sm text-muted-foreground">
+                创建于 {c.createdAt?.slice(0, 10) ?? '-'}
+              </span>
+            </CardContent>
+          </Card>
+        ))
+      )}
     </div>
   );
 }

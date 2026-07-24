@@ -166,29 +166,31 @@ function ResourceCard({
             <AuthImg src={`${base}/preview`} alt={resource.name} style={{ width: '100%', display: 'block' }} />
           </button>
         )}
-        <div className="flex items-center gap-2">
-          <Select value={String(selected)} onValueChange={(v) => setSelected(Number(v))}>
-            <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {versions.map((v) => (
-                <SelectItem key={v.version} value={String(v.version)}>v{v.version}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!selectedVersion?.file}
-            onClick={() =>
-              selectedVersion?.file &&
-              downloadUrl(`${base}/versions/${selected}/download`, selectedVersion.file.filename).catch((e) =>
-                toast.error((e as Error).message),
-              )
-            }
-          >
-            <Download className="size-4" /> 下载该版本
-          </Button>
-        </div>
+        {versions.length > 0 && (
+          <div className="flex items-center gap-2">
+            <Select value={String(selected)} onValueChange={(v) => setSelected(Number(v))}>
+              <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {versions.map((v) => (
+                  <SelectItem key={v.version} value={String(v.version)}>v{v.version}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!selectedVersion?.file}
+              onClick={() =>
+                selectedVersion?.file &&
+                downloadUrl(`${base}/versions/${selected}/download`, selectedVersion.file.filename).catch((e) =>
+                  toast.error((e as Error).message),
+                )
+              }
+            >
+              <Download className="size-4" /> 下载该版本
+            </Button>
+          </div>
+        )}
         {canManage && showVis && (
           <div className="space-y-2 rounded-lg border p-3">
             <VisibilityPicker members={members} roles={roles} value={visDraft} onChange={setVisDraft} />
