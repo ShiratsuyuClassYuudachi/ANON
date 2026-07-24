@@ -89,3 +89,23 @@
 - `backend/src/routes/finance.ts`：非管理者仅可见/改/删自己创建的账目（summary 为 null）；POST 鉴权前置 multer 防孤儿文件；导出仅限 `finance:manage`
 - 前端 `FinanceTab.tsx` 按权限隐藏门票卡/汇总卡/导出卡/删除按钮
 - 测试：`backend/tests/finance.test.ts` 61/61
+
+## 2026-07-24 前端 UI 焕新（Tailwind v4 + shadcn/ui）
+
+前端全部页面由手写 CSS 迁移至 Tailwind CSS v4 + shadcn/ui，14 个任务（基座 → 各页面/Tab → 清理收尾）全部完成并逐任务评审通过。`tsc --noEmit` + `vite build` 通过。
+
+### 技术选型
+- Tailwind CSS v4（`@tailwindcss/vite`）+ shadcn/ui（new-york 风格 / neutral 基色，`components/ui/` 共 20 个组件，`cn()` = clsx + tailwind-merge）
+- lucide-react 图标；sonner 通知——全部 `alert()`/`confirm()` 替换为 toast / AlertDialog，全局零残留
+
+### 双风格主题
+- 简洁/明快（`localStorage` 键 `anon-style`：minimal/playful → `<html data-style>`）× 日/夜（键 `anon-theme`：light/dark → `.dark` 类），共 4 种组合即时切换
+- `index.html` 内联脚本首屏应用，无闪烁；`theme-color` meta 随模式更新；旧值 `anon-theme=dark` 用户升级后仍为暗色
+
+### 布局与页面
+- 响应式布局：移动端（<768px）底部导航 + 桌面端顶栏；表单弹层统一走 `FormOverlay`（移动端底部 Sheet / 桌面端居中 Dialog，`useMediaQuery` 判定）
+- 重写范围：登录/注册/邀请接受、项目列表、工作台 7 Tab（待办/财务/物料/账号/成员/角色/设置）、个人资料、管理页
+
+### 收尾验证（Task 14）
+- 旧手写 CSS 类（page/card/row/chip/muted/error/field/grid-2/tabs/active/ghost/danger/theme-toggle/app-header/spacer）全库核对零残留（修复 `AuthImg.tsx` 一处 `className="muted"`）
+- `npm run build` 通过；浏览器人工走查清单（主题 4 组合 / 页面 × 视口 / 主流程冒烟 / 移动端专项）留待用户执行

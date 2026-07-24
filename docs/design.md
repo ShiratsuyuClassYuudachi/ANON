@@ -304,3 +304,16 @@
 ### 2026-07-21 财务权限拆分
 
 * 财务权限点拆分为 `finance:manage`（完整管理与查看、门票设置、按人导出 CSV）与 `finance:add`（仅可添加并管理自己添加的账目，无项目级汇总与导出权限）；预置角色 美工/宣发/一般staff 默认带 `finance:add`。
+
+
+---
+
+### 2026-07-24 前端 UI 焕新
+
+* 前端全部页面（登录/注册/邀请接受、项目列表、工作台 7 Tab、个人资料、管理页）由手写 CSS 迁移至 **Tailwind CSS v4 + shadcn/ui**（new-york / neutral），图标 lucide-react，通知 sonner（`alert()`/`confirm()` 全部替换为 toast / AlertDialog）；旧手写 CSS 类（page/card/row/chip/muted/error/field/grid-2/tabs/active/ghost/danger/theme-toggle/app-header/spacer）删除后核对零残留。
+
+* **双风格主题**：`localStorage` 键 `anon-theme`（light/dark → `<html>` 的 `.dark` 类）与 `anon-style`（minimal/playful → `data-style` 属性），简洁/明快 × 日/夜共 4 种组合即时切换；`index.html` 内联脚本首屏应用防闪烁，`theme-color` meta 随模式更新；旧用户 `anon-theme=dark` 升级后仍为暗色。
+
+* **响应式布局**：移动端（<768px）底部导航 + 桌面端顶栏；新建/编辑表单统一走 `FormOverlay` 模式——移动端底部 Sheet、桌面端居中 Dialog（`useMediaQuery` 判定）。
+
+* 运维约束：新增 shadcn 组件须使用 `npx shadcn@3`（v4 CLI 移除了 `--base-color` 参数，与当前 `components.json` 不兼容）；`shadcn` devDependency 已固定为精确版本 4.14.1（`index.css` 引用其内部 CSS，防止语义化升级破坏）。

@@ -38,6 +38,6 @@ export default function AuthImg({ src, alt, style, onClick }: Props) {
   }, [src]);
 
   if (failed) return null;
-  if (!url) return <span className="muted">加载中…</span>;
+  if (!url) return <span className="text-sm text-muted-foreground">加载中…</span>;
   return <img src={url} alt={alt ?? ''} style={style} onClick={onClick} />;
 }

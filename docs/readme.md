@@ -91,4 +91,6 @@ curl -X POST localhost:4000/api/admin/invite-codes \
 ## 备注
 
 - 「可见范围」已在第二阶段启用（物料类型/资源、平台账号），优先于权限点；File 模型的预留字段仍未启用。
+- 前端技术栈：Vite + React + TypeScript + Tailwind CSS v4（`@tailwindcss/vite`）+ shadcn/ui（`frontend/components.json`，new-york / neutral）+ lucide-react + sonner；主题双风格（简洁/明快 × 日/夜）保存在本机 localStorage（`anon-theme` / `anon-style`）。依赖无新增命令，`npm install` 即可。
+- 运维约束：新增 shadcn 组件必须使用 `npx shadcn@3`（v4 CLI 移除了 `--base-color` 参数，与当前 `components.json` 不兼容）。
 - `backend/uploads/` 与 `backend/.env` 均已 gitignore，勿提交。
