@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { Download, MoreHorizontal, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { api, downloadUrl } from '../../api/client';
 import AuthImg from '../AuthImg';
 import type {
@@ -9,64 +11,43 @@ import type {
   ResourceVersionItem,
   Visibility,
 } from '../../types';
+import { FormOverlay } from '@/components/FormOverlay';
+import { VisibilityPicker } from './VisibilityPicker';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 
 interface Props {
   project: ProjectDetail;
   members: Member[];
   myPermissions: string[];
-}
-
-function VisibilityEditor({
-  value,
-  members,
-  roles,
-  onSave,
-}: {
-  value: Visibility;
-  members: Member[];
-  roles: string[];
-  onSave: (v: Visibility) => Promise<void>;
-}) {
-  const [userIds, setUserIds] = useState<string[]>(value.userIds);
-  const [roleNames, setRoleNames] = useState<string[]>(value.roleNames);
-  const toggle = (list: string[], set: (v: string[]) => void, id: string) =>
-    set(list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
-  return (
-    <div style={{ marginTop: 8 }}>
-      <div className="muted" style={{ fontSize: 13 }}>
-        可见范围（不勾选 = 不限制；勾选后仅列出的成员/角色可见）
-      </div>
-      <div className="row" style={{ margin: '4px 0' }}>
-        {members.map((m) => (
-          <label key={m.userId} className="chip" style={{ cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              style={{ width: 'auto', margin: '0 4px 0 0' }}
-              checked={userIds.includes(m.userId)}
-              onChange={() => toggle(userIds, setUserIds, m.userId)}
-            />
-            {m.name}
-          </label>
-        ))}
-      </div>
-      <div className="row" style={{ margin: '4px 0' }}>
-        {roles.map((r) => (
-          <label key={r} className="chip" style={{ cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              style={{ width: 'auto', margin: '0 4px 0 0' }}
-              checked={roleNames.includes(r)}
-              onChange={() => toggle(roleNames, setRoleNames, r)}
-            />
-            {r}
-          </label>
-        ))}
-      </div>
-      <button className="ghost" onClick={() => onSave({ userIds, roleNames })}>
-        保存可见范围
-      </button>
-    </div>
-  );
 }
 
 function ResourceCard({
@@ -77,7 +58,6 @@ function ResourceCard({
   roles,
   canManage,
   onChanged,
-  onError,
 }: {
   project: ProjectDetail;
   resource: ResourceItem;
@@ -86,7 +66,6 @@ function ResourceCard({
   roles: string[];
   canManage: boolean;
   onChanged: () => Promise<void>;
-  onError: (msg: string) => void;
 }) {
   const base = `/api/projects/${project.id}/materials/${resource.id}`;
   const [versions, setVersions] = useState<ResourceVersionItem[]>([]);
@@ -95,6 +74,9 @@ function ResourceCard({
   const [showVis, setShowVis] = useState(false);
   const [note, setNote] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const [visDraft, setVisDraft] = useState<Visibility>(resource.visibility);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const loadVersions = useCallback(async () => {
     const d = await api<{ versions: ResourceVersionItem[] }>(`${base}/versions`);
@@ -103,16 +85,15 @@ function ResourceCard({
   }, [base]);
 
   useEffect(() => {
-    if (resource.latestVersion > 0) loadVersions().catch((e) => onError((e as Error).message));
+    if (resource.latestVersion > 0) loadVersions().catch((e) => toast.error((e as Error).message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resource.latestVersion]);
 
   const uploadVersion = async () => {
     if (!file) {
-      onError('请选择文件');
+      toast.error('请选择文件');
       return;
     }
-    onError('');
     try {
       const fd = new FormData();
       fd.set('note', note);
@@ -120,119 +101,155 @@ function ResourceCard({
       await api(`${base}/versions`, { formData: fd });
       setFile(null);
       setNote('');
+      setUploadOpen(false);
       await onChanged();
     } catch (e) {
-      onError((e as Error).message);
+      toast.error((e as Error).message);
+    }
+  };
+
+  const saveVisibility = async () => {
+    try {
+      await api(base, { method: 'PATCH', body: { visibility: visDraft } });
+      setShowVis(false);
+      await onChanged();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
+  const remove = async () => {
+    try {
+      await api(base, { method: 'DELETE' });
+      await onChanged();
+    } catch (e) {
+      toast.error((e as Error).message);
     }
   };
 
   const selectedVersion = versions.find((v) => v.version === selected);
 
   return (
-    <div className="card">
-      <div className="row">
-        <strong>{resource.name}</strong>
-        {typeName && <span className="chip">{typeName}</span>}
-        <span className="chip">v{resource.latestVersion || '—'}</span>
-      </div>
-      {resource.description && <p className="muted">{resource.description}</p>}
-
-      {resource.hasPreview && (
-        <AuthImg
-          src={`${base}/preview`}
-          alt={resource.name}
-          style={{ maxWidth: 240, borderRadius: 8, cursor: 'zoom-in', display: 'block' }}
-          onClick={() => setZoom(true)}
-        />
-      )}
-      {zoom && (
-        <div
-          onClick={() => setZoom(false)}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,.8)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 100,
-            cursor: 'zoom-out',
-          }}
-        >
-          <AuthImg
-            src={`${base}/versions/${selected}/download`}
-            alt={resource.name}
-            style={{ maxWidth: '92vw', maxHeight: '92vh' }}
-          />
+    <Card>
+      <CardContent className="space-y-2 p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <p className="font-medium">{resource.name}</p>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              <Badge variant="secondary">{typeName}</Badge>
+              <Badge variant="outline">v{resource.latestVersion || '—'}</Badge>
+            </div>
+          </div>
+          {canManage && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon"><MoreHorizontal className="size-4" /></Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setUploadOpen(true)}>上传新版本</DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (!showVis) setVisDraft(resource.visibility);
+                    setShowVis(!showVis);
+                  }}
+                >
+                  可见范围
+                </DropdownMenuItem>
+                <DropdownMenuItem variant="destructive" onClick={() => setDeleteOpen(true)}>删除</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
-      )}
-
-      {versions.length > 0 && (
-        <div className="row" style={{ marginTop: 8 }}>
-          <select value={selected} onChange={(e) => setSelected(Number(e.target.value))} style={{ width: 'auto' }}>
-            {versions.map((v) => (
-              <option key={v.version} value={v.version}>
-                v{v.version} {v.file?.filename ?? ''}
-                {v.note ? `（${v.note}）` : ''}
-              </option>
-            ))}
-          </select>
-          <button
-            className="ghost"
+        {resource.description && <p className="text-sm text-muted-foreground">{resource.description}</p>}
+        {resource.hasPreview && (
+          <button onClick={() => setZoom(true)} className="block w-full overflow-hidden rounded-lg border">
+            <AuthImg src={`${base}/preview`} alt={resource.name} style={{ width: '100%', display: 'block' }} />
+          </button>
+        )}
+        <div className="flex items-center gap-2">
+          <Select value={String(selected)} onValueChange={(v) => setSelected(Number(v))}>
+            <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {versions.map((v) => (
+                <SelectItem key={v.version} value={String(v.version)}>v{v.version}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!selectedVersion?.file}
             onClick={() =>
               selectedVersion?.file &&
               downloadUrl(`${base}/versions/${selected}/download`, selectedVersion.file.filename).catch((e) =>
-                onError((e as Error).message),
+                toast.error((e as Error).message),
               )
             }
           >
-            下载该版本
-          </button>
+            <Download className="size-4" /> 下载该版本
+          </Button>
         </div>
-      )}
+        {canManage && showVis && (
+          <div className="space-y-2 rounded-lg border p-3">
+            <VisibilityPicker members={members} roles={roles} value={visDraft} onChange={setVisDraft} />
+            <div className="flex gap-2">
+              <Button size="sm" onClick={saveVisibility}>保存</Button>
+              <Button size="sm" variant="ghost" onClick={() => setShowVis(false)}>取消</Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
 
-      {canManage && (
-        <div style={{ marginTop: 8 }}>
-          <div className="row">
-            <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+      <Dialog open={zoom} onOpenChange={setZoom}>
+        <DialogContent className="max-w-3xl p-2">
+          <DialogTitle className="sr-only">{resource.name}</DialogTitle>
+          <AuthImg
+            src={`${base}/versions/${selected}/download`}
+            alt={resource.name}
+            style={{ width: '100%' }}
+            onClick={() => setZoom(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <FormOverlay open={uploadOpen} onOpenChange={setUploadOpen} title="上传新版本">
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor={`upload-file-${resource.id}`}>文件</Label>
+            {/* shadcn Input 不转发 ref（React 18），文件选择用原生 input 加 Input 同款类名 */}
             <input
+              id={`upload-file-${resource.id}`}
+              type="file"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground dark:bg-input/30"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor={`upload-note-${resource.id}`}>版本备注（可选）</Label>
+            <Input
+              id={`upload-note-${resource.id}`}
               placeholder="版本备注（可选）"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              style={{ flex: 1 }}
             />
-            <button onClick={uploadVersion}>上传新版本</button>
           </div>
-          <div className="row" style={{ marginTop: 4 }}>
-            <button className="ghost" onClick={() => setShowVis(!showVis)}>
-              可见范围
-            </button>
-            <button
-              className="danger"
-              onClick={async () => {
-                if (!confirm('删除该资源及其全部版本？')) return;
-                await api(base, { method: 'DELETE' });
-                await onChanged();
-              }}
-            >
-              删除
-            </button>
-          </div>
-          {showVis && (
-            <VisibilityEditor
-              value={resource.visibility}
-              members={members}
-              roles={roles}
-              onSave={async (v) => {
-                await api(base, { method: 'PATCH', body: { visibility: v } });
-                setShowVis(false);
-                await onChanged();
-              }}
-            />
-          )}
+          <Button className="w-full" onClick={uploadVersion}>上传</Button>
         </div>
-      )}
-    </div>
+      </FormOverlay>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除该资源及其全部版本？</AlertDialogTitle>
+            <AlertDialogDescription>该操作不可撤销。</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void remove()}>删除</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
   );
 }
 
@@ -247,6 +264,8 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
   const [newTypeName, setNewTypeName] = useState('');
   const [resForm, setResForm] = useState({ name: '', typeId: '', description: '' });
   const [typeVisFor, setTypeVisFor] = useState<string | null>(null);
+  const [typeVisDraft, setTypeVisDraft] = useState<Visibility>({ userIds: [], roleNames: [] });
+  const [deleteTypeFor, setDeleteTypeFor] = useState<ResourceTypeItem | null>(null);
 
   const load = useCallback(async () => {
     const [t, r] = await Promise.all([
@@ -269,7 +288,7 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
       setNewTypeName('');
       await load();
     } catch (e2) {
-      setErr((e2 as Error).message);
+      toast.error((e2 as Error).message);
     }
   };
 
@@ -287,7 +306,29 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
       setResForm({ name: '', typeId: '', description: '' });
       await load();
     } catch (e2) {
-      setErr((e2 as Error).message);
+      toast.error((e2 as Error).message);
+    }
+  };
+
+  const removeType = async (t: ResourceTypeItem) => {
+    try {
+      await api(`/api/projects/${project.id}/materials/types/${t.id}`, { method: 'DELETE' });
+      await load();
+    } catch (e2) {
+      toast.error((e2 as Error).message);
+    }
+  };
+
+  const saveTypeVisibility = async (t: ResourceTypeItem) => {
+    try {
+      await api(`/api/projects/${project.id}/materials/types/${t.id}`, {
+        method: 'PATCH',
+        body: { visibility: typeVisDraft },
+      });
+      setTypeVisFor(null);
+      await load();
+    } catch (e2) {
+      toast.error((e2 as Error).message);
     }
   };
 
@@ -295,126 +336,154 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
   const visible = filterType ? resources.filter((r) => r.typeId === filterType) : resources;
 
   return (
-    <div>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-lg font-semibold">物料</h3>
+      </div>
+
+      {err && <Card className="p-4 text-sm text-destructive">{err}</Card>}
+
       {canManage && (
-        <form className="card" onSubmit={createType}>
-          <label className="field">资源类型</label>
-          <div className="row">
-            <input
-              placeholder="新建类型（如 海报、宣传图）"
-              value={newTypeName}
-              onChange={(e) => setNewTypeName(e.target.value)}
-              required
-              style={{ flex: 1 }}
-            />
-            <button>新建类型</button>
-          </div>
-          {types.map((t) => (
-            <div key={t.id} style={{ marginTop: 8 }}>
-              <div className="row">
-                <span className="chip">{t.name}</span>
-                <button className="ghost" onClick={(e) => { e.preventDefault(); setTypeVisFor(typeVisFor === t.id ? null : t.id); }}>
-                  可见范围
-                </button>
-                <button
-                  className="danger"
-                  onClick={async (e) => {
-                    e.preventDefault();
-                    if (!confirm(`删除类型「${t.name}」？`)) return;
-                    try {
-                      await api(`/api/projects/${project.id}/materials/types/${t.id}`, { method: 'DELETE' });
-                      await load();
-                    } catch (e2) {
-                      setErr((e2 as Error).message);
-                    }
-                  }}
-                >
-                  删除
-                </button>
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-base">类型管理</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <form onSubmit={createType} className="flex gap-2">
+              <Input
+                placeholder="新建类型（如 海报、宣传图）"
+                value={newTypeName}
+                onChange={(e) => setNewTypeName(e.target.value)}
+                required
+                className="flex-1"
+              />
+              <Button type="submit">新建类型</Button>
+            </form>
+            {types.map((t) => (
+              <div key={t.id} className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">{t.name}</Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      if (typeVisFor === t.id) {
+                        setTypeVisFor(null);
+                      } else {
+                        setTypeVisDraft(t.visibility);
+                        setTypeVisFor(t.id);
+                      }
+                    }}
+                  >
+                    可见范围
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => setDeleteTypeFor(t)}>
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
+                {typeVisFor === t.id && (
+                  <div className="space-y-2 rounded-lg border p-3">
+                    <VisibilityPicker members={members} roles={roles} value={typeVisDraft} onChange={setTypeVisDraft} />
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => saveTypeVisibility(t)}>保存</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setTypeVisFor(null)}>取消</Button>
+                    </div>
+                  </div>
+                )}
               </div>
-              {typeVisFor === t.id && (
-                <VisibilityEditor
-                  value={t.visibility}
-                  members={members}
-                  roles={roles}
-                  onSave={async (v) => {
-                    await api(`/api/projects/${project.id}/materials/types/${t.id}`, {
-                      method: 'PATCH',
-                      body: { visibility: v },
-                    });
-                    setTypeVisFor(null);
-                    await load();
-                  }}
-                />
-              )}
-            </div>
-          ))}
-        </form>
+            ))}
+          </CardContent>
+        </Card>
       )}
 
       {canManage && types.length > 0 && (
-        <form className="card" onSubmit={createResource}>
-          <label className="field">新建资源</label>
-          <div className="grid-2">
-            <input
-              placeholder="资源名称"
-              value={resForm.name}
-              onChange={(e) => setResForm({ ...resForm, name: e.target.value })}
-              required
-            />
-            <select
-              value={resForm.typeId || types[0]?.id || ''}
-              onChange={(e) => setResForm({ ...resForm, typeId: e.target.value })}
-            >
-              {types.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <textarea
-            placeholder="描述（可选）"
-            value={resForm.description}
-            onChange={(e) => setResForm({ ...resForm, description: e.target.value })}
-          />
-          <button>创建</button>
-        </form>
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-base">新建资源</CardTitle></CardHeader>
+          <CardContent>
+            <form onSubmit={createResource} className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Input
+                  placeholder="资源名称"
+                  value={resForm.name}
+                  onChange={(e) => setResForm({ ...resForm, name: e.target.value })}
+                  required
+                />
+                <Select
+                  value={resForm.typeId || types[0]?.id || ''}
+                  onValueChange={(v) => setResForm({ ...resForm, typeId: v })}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {types.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Textarea
+                placeholder="描述（可选）"
+                value={resForm.description}
+                onChange={(e) => setResForm({ ...resForm, description: e.target.value })}
+              />
+              <Button type="submit">创建</Button>
+            </form>
+          </CardContent>
+        </Card>
       )}
 
-      <div className="card">
-        <div className="row">
-          <button className={filterType === '' ? '' : 'ghost'} onClick={() => setFilterType('')}>
-            全部
-          </button>
-          {types.map((t) => (
-            <button
-              key={t.id}
-              className={filterType === t.id ? '' : 'ghost'}
-              onClick={() => setFilterType(t.id)}
-            >
-              {t.name}
-            </button>
-          ))}
-        </div>
+      <div className="flex flex-wrap gap-1.5">
+        <Badge
+          variant={filterType === '' ? 'default' : 'outline'}
+          className="cursor-pointer"
+          onClick={() => setFilterType('')}
+        >
+          全部
+        </Badge>
+        {types.map((t) => (
+          <Badge
+            key={t.id}
+            variant={filterType === t.id ? 'default' : 'outline'}
+            className="cursor-pointer"
+            onClick={() => setFilterType(t.id)}
+          >
+            {t.name}
+          </Badge>
+        ))}
       </div>
 
-      {err && <p className="error">{err}</p>}
+      <div className="grid gap-3 md:grid-cols-2">
+        {visible.map((r) => (
+          <ResourceCard
+            key={r.id}
+            project={project}
+            resource={r}
+            typeName={typeName(r.typeId)}
+            members={members}
+            roles={roles}
+            canManage={canManage}
+            onChanged={load}
+          />
+        ))}
+      </div>
+      {!visible.length && <p className="text-sm text-muted-foreground">暂无资源。</p>}
 
-      {visible.map((r) => (
-        <ResourceCard
-          key={r.id}
-          project={project}
-          resource={r}
-          typeName={typeName(r.typeId)}
-          members={members}
-          roles={roles}
-          canManage={canManage}
-          onChanged={load}
-          onError={setErr}
-        />
-      ))}
-      {!visible.length && <p className="muted">暂无资源。</p>}
+      <AlertDialog open={!!deleteTypeFor} onOpenChange={(o) => !o && setDeleteTypeFor(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除类型「{deleteTypeFor?.name}」？</AlertDialogTitle>
+            <AlertDialogDescription>该操作不可撤销。</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteTypeFor) void removeType(deleteTypeFor);
+                setDeleteTypeFor(null);
+              }}
+            >
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
