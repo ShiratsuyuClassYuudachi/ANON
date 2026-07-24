@@ -4,6 +4,10 @@ import { api } from '../api/client';
 import { useAuth } from '../auth';
 import { ModeToggle } from '../theme';
 import type { User } from '../types';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export default function Login() {
   const nav = useNavigate();
@@ -29,18 +33,35 @@ export default function Login() {
   };
 
   return (
-    <div className="page" style={{ maxWidth: 420 }}>
-      <div className="fixed right-3 top-3 z-50"><ModeToggle /></div>
-      <h1>ANON 登录</h1>
-      <form className="card" onSubmit={submit}>
-        <input type="email" placeholder="邮箱" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        <input type="password" placeholder="密码" value={password} onChange={(e) => setPassword(e.target.value)} required />
-        {err && <p className="error">{err}</p>}
-        <button disabled={busy}>{busy ? '登录中…' : '登录'}</button>
-      </form>
-      <p className="muted">
-        没有账号？<Link to="/register">使用邀请码注册</Link>
-      </p>
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="fixed right-3 top-3 z-50">
+        <ModeToggle />
+      </div>
+      <Card className="w-full max-w-sm">
+        <CardHeader>
+          <CardTitle className="text-2xl text-primary">ANON</CardTitle>
+          <CardDescription>登录你的账号</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={submit} className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="email">邮箱</Label>
+              <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="password">密码</Label>
+              <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+            </div>
+            {err && <p className="text-sm text-destructive">{err}</p>}
+            <Button type="submit" className="w-full" disabled={busy}>
+              {busy ? '登录中…' : '登录'}
+            </Button>
+          </form>
+          <p className="mt-4 text-sm text-muted-foreground">
+            没有账号？<Link to="/register" className="text-primary hover:underline">使用邀请码注册</Link>
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }

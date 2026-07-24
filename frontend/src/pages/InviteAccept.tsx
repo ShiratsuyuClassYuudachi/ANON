@@ -2,6 +2,10 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { ModeToggle } from '../theme';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface InviteInfo {
   projectName: string;
@@ -32,19 +36,29 @@ export default function InviteAccept() {
   };
 
   return (
-    <div className="page" style={{ maxWidth: 420 }}>
-      <div className="fixed right-3 top-3 z-50"><ModeToggle /></div>
-      <h1>项目邀请</h1>
-      {err && <p className="error">{err}</p>}
-      {info && (
-        <div className="card">
-          <p>
-            邀请你加入 <strong>{info.projectName}</strong>，身份为 <span className="chip">{info.roleName}</span>
-          </p>
-          <p className="muted">有效期至 {info.expiresAt.slice(0, 10)}</p>
-          <button onClick={accept}>接受邀请</button>
-        </div>
-      )}
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="fixed right-3 top-3 z-50">
+        <ModeToggle />
+      </div>
+      <Card className="w-full max-w-sm">
+        <CardHeader>
+          <CardTitle className="text-2xl text-primary">项目邀请</CardTitle>
+          <CardDescription>接受邀请以加入项目</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {err && <p className="text-sm text-destructive">{err}</p>}
+          {info ? (
+            <div className="space-y-3">
+              <p className="text-lg font-semibold">{info.projectName}</p>
+              <Badge variant="secondary">{info.roleName}</Badge>
+              <p className="text-sm text-muted-foreground">有效期至 {info.expiresAt.slice(0, 10)}</p>
+              <Button className="w-full" onClick={accept}>接受邀请</Button>
+            </div>
+          ) : (
+            !err && <Skeleton className="h-40 w-full" />
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
