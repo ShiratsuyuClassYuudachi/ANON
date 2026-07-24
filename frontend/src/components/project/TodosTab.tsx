@@ -260,9 +260,9 @@ export default function TodosTab({ project, members, myPermissions }: Props) {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     {t.status === 'open' /* 与现行行为一致：客户端不预检完成权限，由服务端校验 */ && (
-                      <DropdownMenuItem onClick={() => { setCompletingId(t.id); setCompletionNote(''); }}>完成</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => { setCompletingId(t.id); setCompletionNote(''); setCompletionFiles(null); }}>完成</DropdownMenuItem>
                     )}
-                    {canManage && (
+                    {canManage && t.status === 'open' && (
                       <DropdownMenuItem variant="destructive" onClick={() => setDeletingId(t.id)}>删除</DropdownMenuItem>
                     )}
                   </DropdownMenuContent>
