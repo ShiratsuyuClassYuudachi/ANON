@@ -3,14 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#ffffff" />
+    <meta name="theme-color" content="#f6f7f9" />
     <title>ANON</title>
     <script>
       try {
-        var t = localStorage.getItem('anon-theme') || 'light';
-        document.documentElement.dataset.theme = t;
+        var mode = localStorage.getItem('anon-theme') || 'light';
+        var style = localStorage.getItem('anon-style') || 'minimal';
+        var el = document.documentElement;
+        if (mode === 'dark') el.classList.add('dark');
+        el.dataset.style = style;
         var m = document.querySelector('meta[name=theme-color]');
-        if (m) m.content = t === 'dark' ? '#111418' : '#ffffff';
+        if (m) m.content = mode === 'dark' ? '#111418' : '#f6f7f9';
       } catch (e) {}
     </script>
   </head>
