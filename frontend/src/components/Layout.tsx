@@ -1,6 +1,6 @@
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth';
-import { ThemeToggle } from '../theme';
+import { ModeToggle } from '../theme';
 
 export default function Layout() {
   const { user, logout } = useAuth();
@@ -13,7 +13,7 @@ export default function Layout() {
         <Link to="/me">我的</Link>
         {user?.isSuperAdmin && <Link to="/admin">管理</Link>}
         <span className="spacer" />
-        <ThemeToggle />
+        <ModeToggle />
         <button
           className="ghost"
           onClick={() => {

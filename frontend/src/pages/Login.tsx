@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth';
-import { ThemeToggle } from '../theme';
+import { ModeToggle } from '../theme';
 import type { User } from '../types';
 
 export default function Login() {
@@ -30,7 +30,7 @@ export default function Login() {
 
   return (
     <div className="page" style={{ maxWidth: 420 }}>
-      <div className="theme-toggle-fixed"><ThemeToggle /></div>
+      <div className="fixed right-3 top-3 z-50"><ModeToggle /></div>
       <h1>ANON 登录</h1>
       <form className="card" onSubmit={submit}>
         <input type="email" placeholder="邮箱" value={email} onChange={(e) => setEmail(e.target.value)} required />

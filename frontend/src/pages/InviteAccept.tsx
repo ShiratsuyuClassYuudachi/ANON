@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
-import { ThemeToggle } from '../theme';
+import { ModeToggle } from '../theme';
 
 interface InviteInfo {
   projectName: string;
@@ -33,7 +33,7 @@ export default function InviteAccept() {
 
   return (
     <div className="page" style={{ maxWidth: 420 }}>
-      <div className="theme-toggle-fixed"><ThemeToggle /></div>
+      <div className="fixed right-3 top-3 z-50"><ModeToggle /></div>
       <h1>项目邀请</h1>
       {err && <p className="error">{err}</p>}
       {info && (

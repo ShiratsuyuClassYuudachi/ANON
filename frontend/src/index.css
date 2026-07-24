@@ -28,6 +28,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: #111418;
   --foreground: #e5e7eb;
   --card: #1b1f26;
