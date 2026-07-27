@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LogOut, ShieldCheck, Sparkles, UserRound } from 'lucide-react';
+import { BookOpen, LogOut, ShieldCheck, Sparkles, UserRound } from 'lucide-react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth';
 import Logo from './Logo';
@@ -45,12 +45,15 @@ export default function Layout() {
               <DropdownMenuItem onClick={() => nav('/me')}>
                 <UserRound className="size-4" /> 个人资料
               </DropdownMenuItem>
+              <DropdownMenuItem data-tour="help-entry" onClick={() => nav('/help')}>
+                <BookOpen className="size-4" /> 帮助文档
+              </DropdownMenuItem>
               {user?.isSuperAdmin && (
                 <DropdownMenuItem onClick={() => nav('/admin')}>
                   <ShieldCheck className="size-4" /> 管理
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem data-tour="help-entry" onClick={() => setReplayOpen(true)}>
+              <DropdownMenuItem onClick={() => setReplayOpen(true)}>
                 <Sparkles className="size-4" /> 重看引导
               </DropdownMenuItem>
               <DropdownMenuSeparator />

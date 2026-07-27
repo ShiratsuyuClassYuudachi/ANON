@@ -7,6 +7,7 @@ import { OnboardingDialog } from './components/onboarding/OnboardingDialog';
 import { startTour } from './components/onboarding/tour';
 import { Skeleton } from './components/ui/skeleton';
 import Admin from './pages/Admin';
+import DocsPage from './pages/DocsPage';
 import InviteAccept from './pages/InviteAccept';
 import Login from './pages/Login';
 import Me from './pages/Me';
@@ -84,6 +85,7 @@ export default function App() {
           <Route path="/projects" element={<Projects />} />
           <Route path="/p/:id" element={<ProjectHome />} />
           <Route path="/me" element={<Me />} />
+          <Route path="/help" element={<DocsPage />} />
           <Route path="/admin" element={<Admin />} />
         </Route>
       </Routes>
