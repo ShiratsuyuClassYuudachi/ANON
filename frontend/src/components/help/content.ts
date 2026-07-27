@@ -72,7 +72,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
       {
         heading: '门票与记账',
         paragraphs: [
-          '在「财务」Tab 顶部设置门票单价与售票数量，门票收入实时计入项目盈亏。',
+          '点「门票设置」可维护多个票种（如 预售票/现场票），各设单价与数量；门票收入实时计入项目盈亏。',
           '记一笔账：选择支出/收入与金额，指定实际付款人；可勾选参与平摊人（不勾选 = 全体成员平摊），并可上传凭证附件。',
         ],
         image: { src: '/help/tab-finance.png', alt: '财务 Tab', caption: '财务 Tab：记账与汇总' },
