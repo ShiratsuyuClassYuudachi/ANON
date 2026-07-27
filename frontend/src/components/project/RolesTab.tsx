@@ -29,6 +29,7 @@ const PERMISSIONS = [
   { key: 'finance:add', label: '记账' },
   { key: 'materials:manage', label: '物料管理' },
   { key: 'accounts:manage', label: '账号管理' },
+  { key: 'work:manage', label: '现场分工管理' },
 ];
 
 interface Props {

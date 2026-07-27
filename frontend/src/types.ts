@@ -58,3 +58,18 @@ export interface PlatformAccountItem {
   visibility: { userIds: string[]; roleNames: string[] };
   createdAt: string;
 }
+export interface WorkAssignee {
+  userId: string; name: string;
+  confirmedAt: string | null; confirmedBy: string | null;
+}
+export interface WorkModuleItem {
+  id: string; name: string; description: string; location: string;
+  startAt: string | null; endAt: string | null; requiredCount: number;
+  assignees: WorkAssignee[]; createdBy: string; createdAt: string;
+}
+export interface WorkSheetData {
+  project: { id: string; name: string };
+  user: { id: string; name: string };
+  generatedAt: string;
+  items: WorkModuleItem[];
+}
