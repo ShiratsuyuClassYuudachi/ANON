@@ -9,3 +9,4 @@ backend/uploads/
 
 # 运行日志
 *.log
+.walkthrough/
