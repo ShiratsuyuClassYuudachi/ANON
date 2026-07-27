@@ -186,20 +186,22 @@ export default function TodosTab({ project, members, myPermissions }: Props) {
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-lg font-semibold">待办</h3>
-        <div className="flex gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm"><FileJson className="size-4" /> 模板</Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => exportTemplate().catch((e) => toast.error((e as Error).message))}>
-                导出为模板
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setImportOpen(true)}>导入模板…</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button size="sm" onClick={() => setCreateOpen(true)}><Plus className="size-4" /> 新建待办</Button>
-        </div>
+        {canManage && (
+          <div className="flex gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm"><FileJson className="size-4" /> 模板</Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => exportTemplate().catch((e) => toast.error((e as Error).message))}>
+                  导出为模板
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setImportOpen(true)}>导入模板…</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button size="sm" onClick={() => setCreateOpen(true)}><Plus className="size-4" /> 新建待办</Button>
+          </div>
+        )}
       </div>
 
       <Card>
