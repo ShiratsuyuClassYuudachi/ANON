@@ -1,8 +1,17 @@
 # ANON
 
-ANON 是一个「活动全流程追踪」协作系统。第一阶段已实现：用户认证（邀请码注册制 + 首超管引导）、项目与角色权限、成员邀请链接、文件上传与鉴权下载、待办模块（CRUD / 筛选 / 排序 / 完成带附件 / 模板导入导出）、到期与节点提醒（cron 接口 + SMTP 存根）。第二阶段新增项目工作台三个 Tab：**财务**（收支/门票盈亏/转账建议/CSV 导出）、**物料**（类型/版本/WebP 预览/可见范围）、**账号**（三模式平台账号，浏览器端或服务端加密）。2026-07-27 新增「现场」Tab：**现场任务单**（任务模块分工、成员确认、打印版式任务单含签字栏，可另存 PDF）。
+ANON 是一个「活动全流程追踪」协作系统，面向展会/同人活动/演出等组织团队。功能：
 
-完整接口契约见 [`docs/api.md`](./api.md)；设计说明见 [`docs/design.md`](./design.md)；迭代日志见 [`docs/progress.md`](./progress.md)。
+- **账号与权限**：邀请码注册制（首超管引导）、项目内预置/自定义角色与权限点、成员邀请链接；资源可见范围优先于权限点
+- **待办**：CRUD / 筛选 / 排序 / 完成带附件 / 模板导入导出 / 到期与节点邮件提醒（cron + SMTP）
+- **财务**：收支记账、多票种门票盈亏、按人净额与转账建议、CSV 导出
+- **物料**：类型 / 多版本 / WebP 预览 / 可见范围
+- **账号**：三模式平台账号（完整 / OTP 辅助 / 联系人），浏览器端或服务端加密
+- **现场**：任务模块分工（名称/时间/地点/所需人力/分配成员）、成员确认、可打印任务单（含签字栏，浏览器另存 PDF）
+
+界面：移动端优先，双风格主题（简洁/明快 × 日/夜），工作台 Tab 与按钮按项目内权限点过滤可见性。
+
+完整接口契约见 [`docs/api.md`](./api.md)；功能使用指南见 [`docs/features.md`](./features.md)；设计说明见 [`docs/design.md`](./design.md)。
 
 ## 环境要求
 
@@ -31,6 +40,8 @@ cd frontend && npm install && npm run dev
 #    用 SUPER_ADMIN_EMAIL 注册首个账号（无需邀请码，自动成为超管）
 #    → 在「管理」页创建邀请码 → 其他用户凭码注册
 ```
+
+局域网内其他设备访问：`cd frontend && npm run dev -- --host 0.0.0.0`，然后访问 `http://<本机局域网 IP>:5173`（API 由 Vite 代理转发，无需额外开放后端端口）。
 
 ## 环境变量（backend/.env）
 
@@ -61,12 +72,14 @@ curl -X POST -H "Authorization: Bearer $CRON_SECRET" \
 cd backend  && npm test          # vitest + mongodb-memory-server（无需 Docker/真实 Mongo）
 cd backend  && npm run typecheck # tsc --noEmit
 cd backend  && npm run build     # tsc 输出到 dist/
-cd frontend && npm run build     # vite build（含 tsc）
+cd frontend && npm run build     # vite build（含 tsc --noEmit）
 ```
 
-## 端到端冒烟（无 Docker）
+生产部署：`npm run build` 后，后端 `node dist/index.js`，前端 `dist/` 为静态文件（任意静态托管或 `npx vite preview`）。
 
-冒烟脚本（基于 `mongodb-memory-server`）已在 Task 15 验证过一遍完整流程：首超管注册 → 建邀请码 → 第二用户注册 → 建项目 → 建邀请 → 接受 → 建待办（指派 + 已过期 dueAt）→ 带附件完成 → 模板导出/导入 → cron 提醒 → 文件下载。冒烟覆盖：注册/邀请码/项目/邀请接受/待办/完成含附件/模板导入导出/cron/文件下载，全部通过。核心 curl 流程（假设后端已用内存 Mongo 启动）：
+## 端到端冒烟
+
+核心 curl 流程（后端已启动时）：
 
 ```bash
 # 1. 首超管注册（无邀请码）
@@ -84,13 +97,12 @@ curl -X POST localhost:4000/api/admin/invite-codes \
 # 8. POST /api/projects/:id/todos/:todoId/complete（curl -F completionNote=... -F files=@file）
 # 9. GET /api/projects/:id/todos/template/export → POST .../template/import
 # 10. POST /api/cron/reminders -H "Authorization: Bearer $CRON_SECRET" → {"sent":0}
-#    （到期待办已在第 8 步完成，cron 只扫 status=open 故无提醒；第 9 步导入的待办锚定未来日期未到期）
 # 11. GET /api/files/:id -H "Authorization: Bearer $TOKEN" → 200 文件流
 ```
 
 ## 备注
 
-- 「可见范围」已在第二阶段启用（物料类型/资源、平台账号），优先于权限点；File 模型的预留字段仍未启用。
-- 前端技术栈：Vite + React + TypeScript + Tailwind CSS v4（`@tailwindcss/vite`）+ shadcn/ui（`frontend/components.json`，new-york / neutral）+ lucide-react + sonner；主题双风格（简洁/明快 × 日/夜）保存在本机 localStorage（`anon-theme` / `anon-style`）。依赖无新增命令，`npm install` 即可。
+- 「可见范围」（物料类型/资源、平台账号）优先于权限点；File 模型的预留字段仍未启用。
+- 前端技术栈：Vite + React + TypeScript + Tailwind CSS v4（`@tailwindcss/vite`）+ shadcn/ui（`frontend/components.json`，new-york / neutral）+ lucide-react + sonner；主题双风格（简洁/明快 × 日/夜）保存在本机 localStorage（`anon-theme` / `anon-style`）。
 - 运维约束：新增 shadcn 组件必须使用 `npx shadcn@3`（v4 CLI 移除了 `--base-color` 参数，与当前 `components.json` 不兼容）。
 - `backend/uploads/` 与 `backend/.env` 均已 gitignore，勿提交。
