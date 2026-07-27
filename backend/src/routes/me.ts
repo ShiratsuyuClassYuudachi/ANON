@@ -34,3 +34,15 @@ meRouter.patch(
     res.json({ user: publicUser(user) });
   }),
 );
+
+meRouter.post(
+  '/onboarded',
+  ah(async (req, res) => {
+    const u = req.user!;
+    if (!u.onboardedAt) {
+      u.onboardedAt = new Date();
+      await u.save();
+    }
+    res.json({ user: publicUser(u) });
+  }),
+);

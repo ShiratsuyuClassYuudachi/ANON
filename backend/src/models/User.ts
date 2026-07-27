@@ -7,6 +7,7 @@ export interface IUser {
   isSuperAdmin: boolean;
   contacts: { platform: string; value: string }[];
   inviteCodeId?: Types.ObjectId;
+  onboardedAt: Date | null;
 }
 
 export type UserDoc = HydratedDocument<IUser>;
@@ -19,6 +20,7 @@ const userSchema = new Schema<IUser>(
     isSuperAdmin: { type: Boolean, default: false },
     contacts: [{ platform: String, value: String, _id: false }],
     inviteCodeId: { type: Schema.Types.ObjectId, ref: 'InviteCode' },
+    onboardedAt: { type: Date, default: null },
   },
   { timestamps: true },
 );
@@ -33,5 +35,6 @@ export function publicUser(u: UserDoc) {
     name: u.name,
     isSuperAdmin: u.isSuperAdmin,
     contacts: u.contacts,
+    onboardedAt: u.onboardedAt ?? null,
   };
 }
