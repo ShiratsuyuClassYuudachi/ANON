@@ -11,6 +11,7 @@ import { materialsRouter } from './routes/materials';
 import { meRouter } from './routes/me';
 import { projectsRouter } from './routes/projects';
 import { todosRouter } from './routes/todos';
+import { workModulesRouter } from './routes/workModules';
 
 export const app = express();
 app.use(express.json({ limit: '2mb' }));
@@ -24,6 +25,7 @@ app.use('/api/projects', projectsRouter);
 app.use('/api/invites', invitesRouter);
 app.use('/api/projects/:id/files', projectFilesRouter);
 app.use('/api/projects/:id/todos', todosRouter);
+app.use('/api/projects/:id/work-modules', workModulesRouter);
 app.use('/api/projects/:id/finance', financeRouter);
 app.use('/api/projects/:id/materials', materialsRouter);
 app.use('/api/projects/:id/accounts', accountsRouter);
