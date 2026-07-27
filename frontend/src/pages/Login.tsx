@@ -1,21 +1,26 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth';
+import Logo from '../components/Logo';
 import { ModeToggle } from '../theme';
 import type { User } from '../types';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 export default function Login() {
   const nav = useNavigate();
-  const { login } = useAuth();
+  const location = useLocation();
+  const { user, login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+
+  // 已登录用户直接跳过登录页
+  if (user) return <Navigate to={(location.state as any)?.from ?? '/projects'} replace />;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -24,7 +29,7 @@ export default function Login() {
     try {
       const d = await api<{ token: string; user: User }>('/api/auth/login', { body: { email, password } });
       login(d.token, d.user);
-      nav('/projects');
+      nav((location.state as any)?.from ?? '/projects', { replace: true });
     } catch (e2) {
       setErr((e2 as Error).message);
     } finally {
@@ -37,9 +42,9 @@ export default function Login() {
       <div className="fixed right-3 top-3 z-50">
         <ModeToggle />
       </div>
-      <Card className="w-full max-w-sm">
+      <Card className="w-full max-w-sm shadow-lg">
         <CardHeader>
-          <CardTitle className="text-2xl text-primary">ANON</CardTitle>
+          <Logo className="mb-1" />
           <CardDescription>登录你的账号</CardDescription>
         </CardHeader>
         <CardContent>

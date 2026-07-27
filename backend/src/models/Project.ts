@@ -5,6 +5,12 @@ export interface IRole {
   permissions: string[];
 }
 
+export interface ITicketType {
+  name: string;
+  priceCents: number;
+  count: number;
+}
+
 export interface IProject {
   name: string;
   description: string;
@@ -14,6 +20,7 @@ export interface IProject {
   roles: IRole[];
   ticketPriceCents: number;
   ticketCount: number;
+  ticketTypes: ITicketType[];
 }
 
 export type ProjectDoc = HydratedDocument<IProject>;
@@ -28,6 +35,7 @@ const schema = new Schema<IProject>(
     roles: [{ name: String, permissions: [String], _id: false }],
     ticketPriceCents: { type: Number, default: 0 },
     ticketCount: { type: Number, default: 0 },
+    ticketTypes: { type: [{ name: String, priceCents: Number, count: Number, _id: false }], default: [] },
   },
   { timestamps: true },
 );

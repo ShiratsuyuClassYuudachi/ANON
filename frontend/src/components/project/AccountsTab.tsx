@@ -77,6 +77,7 @@ export default function AccountsTab({ project, members, myPermissions }: Props) 
     const q = platformFilter ? `?platform=${encodeURIComponent(platformFilter)}` : '';
     const d = await api<{ accounts: PlatformAccountItem[] }>(`/api/projects/${project.id}/accounts${q}`);
     setAccounts(d.accounts);
+    setErr('');
   }, [project.id, platformFilter]);
 
   useEffect(() => {

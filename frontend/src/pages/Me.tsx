@@ -21,7 +21,9 @@ export default function Me() {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     try {
-      await api('/api/me', { method: 'PATCH', body: { name, contacts } });
+      const cleaned = contacts.filter((c) => c.platform.trim() && c.value.trim());
+      await api('/api/me', { method: 'PATCH', body: { name: name.trim(), contacts: cleaned } });
+      setContacts(cleaned);
       await refresh();
       toast.success('已保存');
     } catch (e2) {

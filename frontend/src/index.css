@@ -125,8 +125,47 @@
   * {
     @apply border-border;
   }
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
   body {
     @apply bg-background text-foreground;
     font-family: system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
+  /* 顶部极淡的品牌色光晕，随主题色自动变化 */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 60% 40% at 50% -10%, color-mix(in oklab, var(--primary) 7%, transparent), transparent),
+      radial-gradient(ellipse 40% 30% at 85% 0%, color-mix(in oklab, var(--primary) 4%, transparent), transparent);
+  }
+  .dark body::before {
+    background:
+      radial-gradient(ellipse 60% 40% at 50% -10%, color-mix(in oklab, var(--primary) 14%, transparent), transparent),
+      radial-gradient(ellipse 40% 30% at 85% 0%, color-mix(in oklab, var(--primary) 8%, transparent), transparent);
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--primary) 22%, transparent);
+  }
+  /* 细滚动条 */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-thumb {
+    border-radius: 8px;
+    background: color-mix(in oklab, var(--muted-foreground) 30%, transparent);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklab, var(--muted-foreground) 50%, transparent);
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
   }
 }

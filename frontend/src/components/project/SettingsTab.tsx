@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 
 interface Props {
   project: ProjectDetail;
+  myPermissions: string[];
   onChanged: () => Promise<void>;
 }
 
@@ -17,7 +18,8 @@ function toDateInput(v: string | null): string {
   return v ? v.slice(0, 10) : '';
 }
 
-export default function SettingsTab({ project, onChanged }: Props) {
+export default function SettingsTab({ project, myPermissions, onChanged }: Props) {
+  const canManage = myPermissions.includes('project:manage');
   const [form, setForm] = useState({
     name: project.name,
     description: project.description,
@@ -85,7 +87,7 @@ export default function SettingsTab({ project, onChanged }: Props) {
               />
             </div>
           </div>
-          <Button type="submit">保存</Button>
+          {canManage && <Button type="submit">保存</Button>}
         </form>
       </CardContent>
     </Card>

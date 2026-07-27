@@ -276,6 +276,7 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
     ]);
     setTypes(t.types);
     setResources(r.resources);
+    setErr('');
   }, [project.id]);
 
   useEffect(() => {

@@ -7,6 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 
+function fmtDate(v: string): string {
+  const d = new Date(v);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 interface InviteInfo {
   projectName: string;
   roleName: string;
@@ -19,6 +25,7 @@ export default function InviteAccept() {
   const nav = useNavigate();
   const [info, setInfo] = useState<InviteInfo | null>(null);
   const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     api<{ invite: InviteInfo }>(`/api/invites/${token}`)
@@ -27,11 +34,13 @@ export default function InviteAccept() {
   }, [token]);
 
   const accept = async () => {
+    setBusy(true);
     try {
       const d = await api<{ projectId: string }>(`/api/invites/${token}/accept`, { body: {} });
       nav(`/p/${d.projectId}`);
     } catch (e) {
       setErr((e as Error).message);
+      setBusy(false);
     }
   };
 
@@ -46,16 +55,27 @@ export default function InviteAccept() {
           <CardDescription>接受邀请以加入项目</CardDescription>
         </CardHeader>
         <CardContent>
-          {err && <p className="text-sm text-destructive">{err}</p>}
-          {info ? (
+          {err ? (
+            <div className="space-y-3 text-center">
+              <p className="text-sm text-destructive">{err}</p>
+              <Button variant="outline" className="w-full" onClick={() => nav('/projects')}>
+                返回项目列表
+              </Button>
+            </div>
+          ) : info ? (
             <div className="space-y-3">
               <p className="text-lg font-semibold">{info.projectName}</p>
-              <Badge variant="secondary">{info.roleName}</Badge>
-              <p className="text-sm text-muted-foreground">有效期至 {info.expiresAt.slice(0, 10)}</p>
-              <Button className="w-full" onClick={accept}>接受邀请</Button>
+              <div className="flex gap-2">
+                <Badge variant="secondary">{info.roleName}</Badge>
+                {info.targeted && <Badge variant="outline">定向邀请</Badge>}
+              </div>
+              <p className="text-sm text-muted-foreground">有效期至 {fmtDate(info.expiresAt)}</p>
+              <Button className="w-full" disabled={busy} onClick={accept}>
+                {busy ? '加入中…' : '接受邀请'}
+              </Button>
             </div>
           ) : (
-            !err && <Skeleton className="h-40 w-full" />
+            <Skeleton className="h-40 w-full" />
           )}
         </CardContent>
       </Card>

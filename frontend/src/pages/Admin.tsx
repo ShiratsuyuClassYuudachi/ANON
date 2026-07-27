@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../api/client';
 import { useAuth } from '../auth';
@@ -27,11 +28,12 @@ export default function Admin() {
       setLoadFailed(false);
     });
   useEffect(() => {
+    if (!user?.isSuperAdmin) return;
     load().catch((e) => {
       setLoadFailed(true);
       toast.error((e as Error).message);
     });
-  }, []);
+  }, [user?.isSuperAdmin]);
 
   if (!user?.isSuperAdmin) return <p className="text-sm text-destructive">需要超级管理员权限</p>;
 
@@ -88,6 +90,21 @@ export default function Admin() {
               <span className="ml-auto text-sm text-muted-foreground">
                 创建于 {c.createdAt?.slice(0, 10) ?? '-'}
               </span>
+              {!c.used && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="复制邀请码"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(c.code).then(
+                      () => toast.success('已复制'),
+                      () => toast.error('复制失败'),
+                    );
+                  }}
+                >
+                  <Copy className="size-4" />
+                </Button>
+              )}
             </CardContent>
           </Card>
         ))

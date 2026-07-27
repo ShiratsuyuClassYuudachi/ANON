@@ -36,11 +36,13 @@ import {
 interface Props {
   project: ProjectDetail;
   members: Member[];
+  myPermissions: string[];
   onChanged: () => Promise<void>;
 }
 
-export default function MembersTab({ project, members, onChanged }: Props) {
+export default function MembersTab({ project, members, myPermissions, onChanged }: Props) {
   const { user } = useAuth();
+  const canManage = myPermissions.includes('project:manage') || myPermissions.includes('member:manage');
   const [roleName, setRoleName] = useState(
     project.roles.find((r) => r.name === '一般staff')?.name ??
       project.roles[project.roles.length - 1]?.name ??
@@ -64,23 +66,25 @@ export default function MembersTab({ project, members, onChanged }: Props) {
 
   return (
     <div className="space-y-3">
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-base">邀请成员</CardTitle></CardHeader>
-        <CardContent className="flex flex-col gap-2 sm:flex-row">
-          <Select value={roleName} onValueChange={setRoleName}>
-            <SelectTrigger className="sm:w-40"><SelectValue placeholder="角色" /></SelectTrigger>
-            <SelectContent>
-              {project.roles.map((r) => <SelectItem key={r.name} value={r.name}>{r.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Input
-            placeholder="指定用户 ID（可留空）"
-            value={targetUserId}
-            onChange={(e) => setTargetUserId(e.target.value)}
-          />
-          <Button onClick={createInvite}><Link2 className="size-4" /> 生成链接</Button>
-        </CardContent>
-      </Card>
+      {canManage && (
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-base">邀请成员</CardTitle></CardHeader>
+          <CardContent className="flex flex-col gap-2 sm:flex-row">
+            <Select value={roleName} onValueChange={setRoleName}>
+              <SelectTrigger className="sm:w-40"><SelectValue placeholder="角色" /></SelectTrigger>
+              <SelectContent>
+                {project.roles.map((r) => <SelectItem key={r.name} value={r.name}>{r.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Input
+              placeholder="指定用户 ID（可留空）"
+              value={targetUserId}
+              onChange={(e) => setTargetUserId(e.target.value)}
+            />
+            <Button onClick={createInvite}><Link2 className="size-4" /> 生成链接</Button>
+          </CardContent>
+        </Card>
+      )}
 
       {members.map((m) => (
         <Card key={m.userId}>
@@ -93,6 +97,7 @@ export default function MembersTab({ project, members, onChanged }: Props) {
               <p className="truncate text-sm text-muted-foreground">{m.email}</p>
             </div>
             <Select
+              disabled={!canManage}
               value={m.roleName}
               onValueChange={(v) =>
                 run(async () => {
@@ -109,7 +114,7 @@ export default function MembersTab({ project, members, onChanged }: Props) {
                 {project.roles.map((r) => <SelectItem key={r.name} value={r.name}>{r.name}</SelectItem>)}
               </SelectContent>
             </Select>
-            {m.userId !== user?.id && (
+            {canManage && m.userId !== user?.id && (
               <Button
                 variant="ghost"
                 size="icon"
@@ -127,7 +132,7 @@ export default function MembersTab({ project, members, onChanged }: Props) {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>邀请链接已生成</DialogTitle>
-            <DialogDescription>把链接发给对方，登录后打开即可加入项目。</DialogDescription>
+            <DialogDescription>把链接发给对方，对方用已注册账号登录后打开即可加入项目。</DialogDescription>
           </DialogHeader>
           <div className="flex gap-2">
             <Input readOnly value={inviteUrl} onFocus={(e) => e.target.select()} />
@@ -154,15 +159,16 @@ export default function MembersTab({ project, members, onChanged }: Props) {
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() =>
-                removingMember &&
-                run(async () => {
-                  await api(`/api/projects/${project.id}/members/${removingMember.userId}`, {
-                    method: 'DELETE',
+              onClick={() => {
+                if (removingMember)
+                  run(async () => {
+                    await api(`/api/projects/${project.id}/members/${removingMember.userId}`, {
+                      method: 'DELETE',
+                    });
+                    await onChanged();
                   });
-                  await onChanged();
-                })
-              }
+                setRemovingId(null);
+              }}
             >
               移除
             </AlertDialogAction>

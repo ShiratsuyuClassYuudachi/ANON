@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { ArrowRight, Download, MoreHorizontal, Paperclip, Plus } from 'lucide-react';
+import { ArrowRight, Download, MoreHorizontal, Paperclip, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, downloadFile, getToken } from '../../api/client';
 import { useAuth } from '../../auth';
@@ -34,6 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 
 interface Props {
@@ -48,6 +49,17 @@ function yuan(cents: number): string {
 function signed(cents: number): string {
   return `${cents >= 0 ? '+' : '−'}${yuan(Math.abs(cents))}`;
 }
+function fmtDate(v: string): string {
+  const d = new Date(v);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+interface TicketRow {
+  name: string;
+  price: string;
+  count: string;
+}
 
 export default function FinanceTab({ project, members, myPermissions }: Props) {
   const canManage = myPermissions.includes('project:manage') || myPermissions.includes('finance:manage');
@@ -59,13 +71,13 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
   const [form, setForm] = useState({ type: 'expense' as 'income' | 'expense', amount: '', note: '', payerUserId: '' });
   const [splitAmong, setSplitAmong] = useState<string[]>([]);
   const [files, setFiles] = useState<FileList | null>(null);
-  const [ticketPrice, setTicketPrice] = useState('');
-  const [ticketCount, setTicketCount] = useState('');
+  const [ticketRows, setTicketRows] = useState<TicketRow[]>([]);
   const [exportUserId, setExportUserId] = useState('');
   const [ticketOpen, setTicketOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [entryOpen, setEntryOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     const d = await api<{ transactions: TransactionItem[]; summary: FinanceSummary | null }>(
@@ -73,14 +85,13 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
     );
     setTransactions(d.transactions);
     setSummary(d.summary);
-    if (d.summary) {
-      setTicketPrice(yuan(d.summary.ticketPriceCents));
-      setTicketCount(String(d.summary.ticketCount));
-    }
+    setErr('');
   }, [project.id]);
 
   useEffect(() => {
-    load().catch((e) => setErr(e.message));
+    load()
+      .catch((e) => setErr(e.message))
+      .finally(() => setLoading(false));
   }, [load]);
 
   const create = async (e: FormEvent) => {
@@ -110,14 +121,50 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
     }
   };
 
+  const openTicket = () => {
+    if (summary) {
+      const rows: TicketRow[] = (summary.ticketTypes ?? []).map((t) => ({
+        name: t.name,
+        price: yuan(t.priceCents),
+        count: String(t.count),
+      }));
+      // 兼容旧单票种数据：未迁移过时预填一行，保存后即并入多票种
+      if (summary.ticketPriceCents > 0 || summary.ticketCount > 0) {
+        rows.push({ name: rows.length ? '其他门票' : '门票', price: yuan(summary.ticketPriceCents), count: String(summary.ticketCount) });
+      }
+      setTicketRows(rows.length ? rows : [{ name: '', price: '', count: '' }]);
+    }
+    setTicketOpen(true);
+  };
+
+  const setTicketRow = (i: number, patch: Partial<TicketRow>) =>
+    setTicketRows((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+
+  const ticketTotalCents = ticketRows.reduce(
+    (sum, r) => sum + Math.round((Number(r.price) || 0) * 100) * (Number(r.count) || 0),
+    0,
+  );
+
   const saveTicket = async () => {
     setErr('');
+    const rows = ticketRows.filter((r) => r.name.trim() || r.price || r.count);
+    if (rows.some((r) => !r.name.trim())) {
+      toast.error('请填写票种名称');
+      return;
+    }
     try {
       await api(`/api/projects/${project.id}/finance/ticket`, {
         method: 'PATCH',
-        body: { ticketPrice: ticketPrice || 0, ticketCount: Number(ticketCount || 0) },
+        body: {
+          ticketTypes: rows.map((r) => ({
+            name: r.name.trim(),
+            price: Number(r.price) || 0,
+            count: Number(r.count) || 0,
+          })),
+        },
       });
       setTicketOpen(false);
+      toast.success('门票设置已保存');
       await load();
     } catch (e2) {
       toast.error((e2 as Error).message);
@@ -140,7 +187,7 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
       a.href = url;
       a.download = `finance-${name}.csv`;
       a.click();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
       setExportOpen(false);
     } catch (e2) {
       toast.error((e2 as Error).message);
@@ -163,13 +210,23 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
         <h3 className="text-lg font-semibold">财务</h3>
         <div className="flex gap-2">
           {canManage && (
-            <Button variant="outline" size="sm" onClick={() => setTicketOpen(true)}>门票设置</Button>
+            <Button variant="outline" size="sm" onClick={openTicket}>
+              门票设置
+            </Button>
           )}
           {canManage && (
             <Button variant="outline" size="sm" onClick={() => setExportOpen(true)}><Download className="size-4" /> 导出 CSV</Button>
           )}
           {canAdd && (
-            <Button size="sm" onClick={() => setEntryOpen(true)}><Plus className="size-4" /> 记一笔</Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                if (!form.payerUserId && user?.id) setForm({ ...form, payerUserId: user.id });
+                setEntryOpen(true);
+              }}
+            >
+              <Plus className="size-4" /> 记一笔
+            </Button>
           )}
         </div>
       </div>
@@ -179,19 +236,27 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
       {summary && (
         <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            {[
-              { label: '门票收入', value: yuan(summary.ticketIncomeCents), cls: '' },
-              { label: '记账收入', value: yuan(summary.incomeCents), cls: '' },
-              { label: '总支出', value: yuan(summary.expenseCents), cls: '' },
-              { label: '盈亏', value: signed(summary.profitCents), cls: summary.profitCents < 0 ? 'text-destructive' : 'text-green-600 dark:text-green-400' },
-            ].map((s) => (
-              <Card key={s.label}>
-                <CardContent className="p-3">
-                  <p className="text-xs text-muted-foreground">{s.label}</p>
-                  <p className={`mt-1 text-lg font-semibold tabular-nums ${s.cls}`}>¥{s.value}</p>
-                </CardContent>
-              </Card>
-            ))}
+            {(() => {
+              const legacyCount = summary.ticketPriceCents > 0 || summary.ticketCount > 0 ? summary.ticketCount : 0;
+              const breakdown = [
+                ...(summary.ticketTypes ?? []).map((t) => `${t.name}×${t.count}`),
+                ...(legacyCount > 0 ? [`门票×${legacyCount}`] : []),
+              ].join(' · ');
+              return [
+                { label: '门票收入', value: yuan(summary.ticketIncomeCents), cls: '', sub: breakdown },
+                { label: '记账收入', value: yuan(summary.incomeCents), cls: '', sub: '' },
+                { label: '总支出', value: yuan(summary.expenseCents), cls: '', sub: '' },
+                { label: '盈亏', value: signed(summary.profitCents), cls: summary.profitCents < 0 ? 'text-destructive' : 'text-green-600 dark:text-green-400', sub: '' },
+              ].map((s) => (
+                <Card key={s.label}>
+                  <CardContent className="p-3">
+                    <p className="text-xs text-muted-foreground">{s.label}</p>
+                    <p className={`mt-1 text-lg font-semibold tabular-nums ${s.cls}`}>¥{s.value}</p>
+                    {s.sub && <p className="mt-0.5 truncate text-xs text-muted-foreground" title={s.sub}>{s.sub}</p>}
+                  </CardContent>
+                </Card>
+              ));
+            })()}
           </div>
 
           <Card>
@@ -224,6 +289,12 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
         </>
       )}
 
+      {loading && (
+        <>
+          <Skeleton className="h-28 w-full" />
+          <Skeleton className="h-28 w-full" />
+        </>
+      )}
       {transactions.map((t) => (
         <Card key={t.id}>
           <CardContent className="space-y-2 p-4">
@@ -236,7 +307,7 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
                 )}
                 <span className="font-semibold tabular-nums">¥{yuan(t.amountCents)}</span>
               </div>
-              {(canManage || t.createdBy === user?.id) && (
+              {(canManage || (canAdd && t.createdBy === user?.id)) && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon"><MoreHorizontal className="size-4" /></Button>
@@ -252,7 +323,7 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
               {t.type === 'expense' && (
                 <p>平摊：{t.splitAmong.length ? t.splitAmong.map((u) => u.name).join('、') : '全员'}</p>
               )}
-              <p>添加人 {t.createdByName} ｜ {t.createdAt.slice(0, 10)}</p>
+              <p>添加人 {t.createdByName} ｜ {fmtDate(t.createdAt)}</p>
             </div>
             {t.note && <p className="text-sm">{t.note}</p>}
             {t.attachments.length > 0 && (
@@ -267,36 +338,68 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
           </CardContent>
         </Card>
       ))}
-      {!transactions.length && (
+      {!loading && !transactions.length && (
         <Card className="p-8 text-center text-sm text-muted-foreground">暂无账目。</Card>
       )}
 
       <FormOverlay open={ticketOpen} onOpenChange={setTicketOpen} title="门票设置">
         <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="ticket-price">门票单价（元）</Label>
-              <Input
-                id="ticket-price"
-                type="number"
-                step="0.01"
-                min="0"
-                value={ticketPrice}
-                onChange={(e) => setTicketPrice(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="ticket-count">售票数量</Label>
-              <Input
-                id="ticket-count"
-                type="number"
-                min="0"
-                value={ticketCount}
-                onChange={(e) => setTicketCount(e.target.value)}
-              />
-            </div>
+          <div className="space-y-2">
+            {ticketRows.map((r, i) => (
+              <div key={i} className="flex items-end gap-2">
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  {i === 0 && <Label>票种名称</Label>}
+                  <Input
+                    placeholder="如：预售票"
+                    value={r.name}
+                    onChange={(e) => setTicketRow(i, { name: e.target.value })}
+                  />
+                </div>
+                <div className="w-24 space-y-1.5">
+                  {i === 0 && <Label>单价（元）</Label>}
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    value={r.price}
+                    onChange={(e) => setTicketRow(i, { price: e.target.value })}
+                  />
+                </div>
+                <div className="w-20 space-y-1.5">
+                  {i === 0 && <Label>数量</Label>}
+                  <Input
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={r.count}
+                    onChange={(e) => setTicketRow(i, { count: e.target.value })}
+                  />
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="删除票种"
+                  disabled={ticketRows.length <= 1}
+                  onClick={() => setTicketRows((rows) => rows.filter((_, j) => j !== i))}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              </div>
+            ))}
           </div>
-          {summary && <p className="text-sm text-muted-foreground">门票收入：¥{yuan(summary.ticketIncomeCents)}（实时计入盈亏）</p>}
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full"
+            disabled={ticketRows.length >= 20}
+            onClick={() => setTicketRows((rows) => [...rows, { name: '', price: '', count: '' }])}
+          >
+            <Plus className="size-4" /> 添加票种
+          </Button>
+          <p className="text-sm text-muted-foreground">
+            门票收入：<span className="font-medium text-foreground tabular-nums">¥{yuan(ticketTotalCents)}</span>（实时计入盈亏）
+          </p>
           <Button className="w-full" onClick={saveTicket}>保存门票设置</Button>
         </div>
       </FormOverlay>

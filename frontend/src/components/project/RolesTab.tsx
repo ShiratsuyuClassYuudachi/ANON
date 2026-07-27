@@ -33,6 +33,7 @@ const PERMISSIONS = [
 
 interface Props {
   project: ProjectDetail;
+  myPermissions: string[];
   onChanged: () => Promise<void>;
 }
 
@@ -54,7 +55,8 @@ function PermissionChecks({ value, onChange }: { value: string[]; onChange: (v: 
   );
 }
 
-export default function RolesTab({ project, onChanged }: Props) {
+export default function RolesTab({ project, myPermissions, onChanged }: Props) {
+  const canManage = myPermissions.includes('project:manage') || myPermissions.includes('role:manage');
   const [newName, setNewName] = useState('');
   const [newPerms, setNewPerms] = useState<string[]>([]);
   const [editPerms, setEditPerms] = useState<Record<string, string[]>>({});
@@ -65,56 +67,62 @@ export default function RolesTab({ project, onChanged }: Props) {
 
   return (
     <div className="space-y-3">
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-base">新建角色</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          <Input placeholder="角色名" value={newName} onChange={(e) => setNewName(e.target.value)} />
-          <PermissionChecks value={newPerms} onChange={setNewPerms} />
-          <Button
-            onClick={() =>
-              run(async () => {
-                await api(`/api/projects/${project.id}/roles`, {
-                  body: { name: newName, permissions: newPerms },
-                });
-                setNewName('');
-                setNewPerms([]);
-                await onChanged();
-              })
-            }
-          >
-            创建
-          </Button>
-        </CardContent>
-      </Card>
+      {canManage && (
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-base">新建角色</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <Input placeholder="角色名" value={newName} onChange={(e) => setNewName(e.target.value)} />
+            <PermissionChecks value={newPerms} onChange={setNewPerms} />
+            <Button
+              onClick={() =>
+                run(async () => {
+                  await api(`/api/projects/${project.id}/roles`, {
+                    body: { name: newName, permissions: newPerms },
+                  });
+                  setNewName('');
+                  setNewPerms([]);
+                  await onChanged();
+                })
+              }
+            >
+              创建
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {project.roles.map((r) => (
         <Card key={r.name}>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">{r.name}</CardTitle>
             <CardAction className="flex items-center gap-1">
-              <Button
-                size="sm"
-                onClick={() =>
-                  run(async () => {
-                    await api(`/api/projects/${project.id}/roles/${encodeURIComponent(r.name)}`, {
-                      method: 'PATCH',
-                      body: { permissions: permsOf(r.name, r.permissions) },
-                    });
-                    toast.success('已保存');
-                    await onChanged();
-                  })
-                }
-              >
-                保存
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="删除角色"
-                onClick={() => setDeletingName(r.name)}
-              >
-                <Trash2 className="size-4" />
-              </Button>
+              {canManage && (
+                <>
+                  <Button
+                    size="sm"
+                    onClick={() =>
+                      run(async () => {
+                        await api(`/api/projects/${project.id}/roles/${encodeURIComponent(r.name)}`, {
+                          method: 'PATCH',
+                          body: { permissions: permsOf(r.name, r.permissions) },
+                        });
+                        toast.success('已保存');
+                        await onChanged();
+                      })
+                    }
+                  >
+                    保存
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="删除角色"
+                    onClick={() => setDeletingName(r.name)}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </>
+              )}
             </CardAction>
           </CardHeader>
           <CardContent>
@@ -135,15 +143,16 @@ export default function RolesTab({ project, onChanged }: Props) {
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() =>
-                deletingName &&
-                run(async () => {
-                  await api(`/api/projects/${project.id}/roles/${encodeURIComponent(deletingName)}`, {
-                    method: 'DELETE',
+              onClick={() => {
+                if (deletingName)
+                  run(async () => {
+                    await api(`/api/projects/${project.id}/roles/${encodeURIComponent(deletingName)}`, {
+                      method: 'DELETE',
+                    });
+                    await onChanged();
                   });
-                  await onChanged();
-                })
-              }
+                setDeletingName(null);
+              }}
             >
               删除
             </AlertDialogAction>

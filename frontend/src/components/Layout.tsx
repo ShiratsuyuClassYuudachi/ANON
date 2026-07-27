@@ -1,6 +1,7 @@
 import { LogOut, ShieldCheck, UserRound } from 'lucide-react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth';
+import Logo from './Logo';
 import { ModeToggle, StylePicker } from '../theme';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -18,8 +19,8 @@ export default function Layout() {
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur">
         <div className="mx-auto flex h-14 w-full max-w-3xl items-center gap-2 px-4 md:max-w-5xl">
-          <Link to="/projects" className="text-lg font-bold tracking-wide text-primary">
-            ANON
+          <Link to="/projects" aria-label="返回项目列表" className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <Logo />
           </Link>
           <span className="flex-1" />
           <StylePicker />
@@ -27,8 +28,10 @@ export default function Layout() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button aria-label="用户菜单" className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                <Avatar className="size-8">
-                  <AvatarFallback>{(user?.name ?? '?').slice(0, 1)}</AvatarFallback>
+                <Avatar className="size-8 ring-1 ring-border">
+                  <AvatarFallback className="bg-primary/10 font-semibold text-primary">
+                    {(user?.name ?? '?').slice(0, 1)}
+                  </AvatarFallback>
                 </Avatar>
               </button>
             </DropdownMenuTrigger>

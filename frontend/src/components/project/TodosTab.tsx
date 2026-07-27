@@ -46,7 +46,10 @@ function toIso(v: string): string | undefined {
   return v ? new Date(v).toISOString() : undefined;
 }
 function fmt(v: string | null): string {
-  return v ? v.slice(0, 16).replace('T', ' ') : '';
+  if (!v) return '';
+  const d = new Date(v);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 function isOverdue(t: TodoItem) {
@@ -71,17 +74,31 @@ export default function TodosTab({ project, members, myPermissions }: Props) {
   const [importOpen, setImportOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const loadSeq = useRef(0);
+
+  const load = useCallback(async (seq?: number) => {
     const q = new URLSearchParams();
     for (const [k, v] of Object.entries(filters)) if (v) q.set(k, v);
     const d = await api<{ todos: TodoItem[] }>(`/api/projects/${project.id}/todos?${q}`);
-    setTodos(d.todos);
+    // 只应用最新一次筛选请求的结果，丢弃慢响应覆盖新结果的过期响应
+    if (seq === undefined || seq === loadSeq.current) {
+      setTodos(d.todos);
+      setErr('');
+    }
   }, [project.id, filters]);
 
   useEffect(() => {
-    load()
-      .catch((e) => setErr(e.message))
-      .finally(() => setLoading(false));
+    const seq = ++loadSeq.current;
+    const timer = setTimeout(() => {
+      load(seq)
+        .catch((e) => {
+          if (seq === loadSeq.current) setErr(e.message);
+        })
+        .finally(() => {
+          if (seq === loadSeq.current) setLoading(false);
+        });
+    }, 300);
+    return () => clearTimeout(timer);
   }, [load]);
 
   const create = async (e: FormEvent) => {
@@ -143,7 +160,7 @@ export default function TodosTab({ project, members, myPermissions }: Props) {
     a.href = url;
     a.download = 'todo-template.json';
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const importTemplate = async () => {

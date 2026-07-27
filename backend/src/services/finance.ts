@@ -1,4 +1,4 @@
-import type { ProjectDoc } from '../models/Project';
+import type { ITicketType, ProjectDoc } from '../models/Project';
 import type { TransactionDoc } from '../models/Transaction';
 
 export interface MemberInfo {
@@ -19,6 +19,7 @@ export interface SettlementItem {
 export interface FinanceSummary {
   ticketPriceCents: number;
   ticketCount: number;
+  ticketTypes: ITicketType[];
   ticketIncomeCents: number;
   /** 记账收入（不含门票） */
   incomeCents: number;
@@ -57,7 +58,15 @@ export function buildSummary(
   const net = new Map<string, number>(memberIds.map((id) => [id, 0]));
   const add = (id: string, v: number) => net.set(id, (net.get(id) ?? 0) + v);
 
-  const ticketIncomeCents = (project.ticketPriceCents ?? 0) * (project.ticketCount ?? 0);
+  const ticketTypes = (project.ticketTypes ?? []).map((t) => ({
+    name: t.name,
+    priceCents: t.priceCents,
+    count: t.count,
+  }));
+  // 多票种收入与旧字段收入并存（旧字段兼容存量数据）
+  const ticketIncomeCents =
+    ticketTypes.reduce((sum, t) => sum + t.priceCents * t.count, 0) +
+    (project.ticketPriceCents ?? 0) * (project.ticketCount ?? 0);
   let incomeCents = 0;
   let expenseCents = 0;
   let commonExpenseCents = 0;
@@ -117,6 +126,7 @@ export function buildSummary(
   return {
     ticketPriceCents: project.ticketPriceCents ?? 0,
     ticketCount: project.ticketCount ?? 0,
+    ticketTypes,
     ticketIncomeCents,
     incomeCents,
     expenseCents,

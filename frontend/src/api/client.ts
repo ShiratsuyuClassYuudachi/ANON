@@ -10,6 +10,12 @@ export function setToken(t: string | null) {
 
 const PUBLIC_PATHS = ['/login', '/register'];
 
+function handleUnauthorized() {
+  setToken(null);
+  const p = location.pathname;
+  if (!p.startsWith('/login') && !PUBLIC_PATHS.includes(p) && !p.startsWith('/invite/')) location.href = '/login';
+}
+
 export async function api<T = unknown>(
   path: string,
   opts: { method?: string; body?: unknown; formData?: FormData } = {},
@@ -29,9 +35,7 @@ export async function api<T = unknown>(
     if (data.error?.code === 'bad_credentials') {
       throw new Error(data.error.message ?? '用户名或密码错误');
     }
-    setToken(null);
-    const p = location.pathname;
-    if (!PUBLIC_PATHS.includes(p) && !p.startsWith('/invite/')) location.href = '/login';
+    handleUnauthorized();
     throw new Error('未登录或登录已过期');
   }
   const data = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
@@ -47,11 +51,15 @@ export async function downloadUrl(url: string, filename: string) {
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${getToken()}` },
   });
+  if (res.status === 401) {
+    handleUnauthorized();
+    throw new Error('未登录或登录已过期');
+  }
   if (!res.ok) throw new Error('下载失败');
   const blobUrl = URL.createObjectURL(await res.blob());
   const a = document.createElement('a');
   a.href = blobUrl;
   a.download = filename;
   a.click();
-  URL.revokeObjectURL(blobUrl);
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
 }

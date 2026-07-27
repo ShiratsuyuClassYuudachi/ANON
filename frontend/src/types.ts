@@ -31,8 +31,10 @@ export interface TransactionItem {
   createdBy: string; createdByName: string; createdAt: string;
   attachments: { id: string; filename: string }[];
 }
+export interface TicketType { name: string; priceCents: number; count: number; }
 export interface FinanceSummary {
   ticketPriceCents: number; ticketCount: number; ticketIncomeCents: number;
+  ticketTypes: TicketType[];
   incomeCents: number; expenseCents: number; profitCents: number;
   perUser: { userId: string; name: string; netCents: number }[];
   settlement: { from: TxUser; to: TxUser; amountCents: number }[];

@@ -3,13 +3,12 @@ import { Switch as SwitchPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 
-function Switch({
-  className,
-  size = "default",
-  ...props
-}: React.ComponentProps<typeof SwitchPrimitive.Root> & {
-  size?: "sm" | "default"
-}) {
+const Switch = React.forwardRef<
+  React.ElementRef<typeof SwitchPrimitive.Root>,
+  React.ComponentProps<typeof SwitchPrimitive.Root> & {
+    size?: "sm" | "default"
+  }
+>(({ className, size = "default", ...props }, ref) => {
   return (
     <SwitchPrimitive.Root
       data-slot="switch"
@@ -18,6 +17,7 @@ function Switch({
         "peer group/switch inline-flex shrink-0 items-center rounded-full border border-transparent shadow-xs transition-all outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 data-[size=default]:h-[1.15rem] data-[size=default]:w-8 data-[size=sm]:h-3.5 data-[size=sm]:w-6 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input dark:data-[state=unchecked]:bg-input/80",
         className
       )}
+      ref={ref}
       {...props}
     >
       <SwitchPrimitive.Thumb
@@ -28,6 +28,7 @@ function Switch({
       />
     </SwitchPrimitive.Root>
   )
-}
+})
+Switch.displayName = "Switch"
 
 export { Switch }

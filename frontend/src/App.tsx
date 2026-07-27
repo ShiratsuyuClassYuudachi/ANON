@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from './auth';
 import Layout from './components/Layout';
 import { Skeleton } from './components/ui/skeleton';
@@ -13,6 +13,7 @@ import Register from './pages/Register';
 
 function RequireAuth({ children }: { children: ReactElement }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading)
     return (
       <div className="mx-auto w-full max-w-3xl space-y-3 px-4 py-6">
@@ -21,7 +22,7 @@ function RequireAuth({ children }: { children: ReactElement }) {
         <Skeleton className="h-32 w-full" />
       </div>
     );
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/login" state={{ from: location }} replace />;
   return children;
 }
 

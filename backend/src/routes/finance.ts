@@ -170,7 +170,33 @@ financeRouter.patch(
   '/ticket',
   ...requirePermission('finance:manage'),
   ah(async (req, res) => {
-    const { ticketPrice, ticketCount } = req.body ?? {};
+    const { ticketTypes, ticketPrice, ticketCount } = req.body ?? {};
+    // 新格式：多票种；保存时清零旧字段，防止重复计收入
+    if (ticketTypes !== undefined) {
+      if (!Array.isArray(ticketTypes) || ticketTypes.length > 20) {
+        throw new AppError(400, 'bad_request', '票种数量无效（0-20 个）');
+      }
+      const parsed = ticketTypes.map((t: unknown) => {
+        const item = (t ?? {}) as { name?: unknown; price?: unknown; count?: unknown };
+        const name = String(item.name ?? '').trim();
+        if (!name || name.length > 20) throw new AppError(400, 'bad_request', '票种名称无效');
+        const price = Number(item.price);
+        if (!Number.isFinite(price) || price < 0 || Math.abs(price * 100 - Math.round(price * 100)) > 1e-6) {
+          throw new AppError(400, 'bad_request', '票种价格无效');
+        }
+        const count = Number(item.count);
+        if (!Number.isInteger(count) || count < 0) throw new AppError(400, 'bad_request', '票种数量无效');
+        return { name, priceCents: Math.round(price * 100), count };
+      });
+      req.project!.ticketTypes = parsed;
+      req.project!.ticketPriceCents = 0;
+      req.project!.ticketCount = 0;
+      await req.project!.save();
+      const ticketIncomeCents = parsed.reduce((s, t) => s + t.priceCents * t.count, 0);
+      res.json({ ticketTypes: parsed, ticketIncomeCents });
+      return;
+    }
+    // 旧格式兼容：单一票价 × 数量
     const price = Number(ticketPrice);
     if (!Number.isFinite(price) || price < 0 || Math.abs(price * 100 - Math.round(price * 100)) > 1e-6) {
       throw new AppError(400, 'bad_request', '门票价格无效');

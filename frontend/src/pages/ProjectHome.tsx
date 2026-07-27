@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   FolderOpen,
   KeyRound,
@@ -21,6 +21,7 @@ import TodosTab from '../components/project/TodosTab';
 import type { Member, ProjectDetail } from '../types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -47,6 +48,7 @@ const MOBILE_MORE = TABS.slice(4); // 成员/角色/设置
 
 export default function ProjectHome() {
   const { id } = useParams<{ id: string }>();
+  const nav = useNavigate();
   const [detail, setDetail] = useState<Detail | null>(null);
   const [tab, setTab] = useState<(typeof TABS)[number]['key']>('todos');
   const [err, setErr] = useState('');
@@ -61,7 +63,13 @@ export default function ProjectHome() {
     load().catch((e) => setErr(e.message));
   }, [load]);
 
-  if (err) return <p className="text-destructive">{err}</p>;
+  if (err)
+    return (
+      <Card className="flex flex-col items-center gap-3 py-12 text-center">
+        <p className="text-sm text-destructive">{err}</p>
+        <Button variant="outline" onClick={() => nav('/projects')}>返回项目列表</Button>
+      </Card>
+    );
   if (!detail)
     return (
       <div className="space-y-4">
@@ -103,10 +111,19 @@ export default function ProjectHome() {
           <AccountsTab project={detail.project} members={detail.members} myPermissions={detail.myPermissions} />
         )}
         {tab === 'members' && (
-          <MembersTab project={detail.project} members={detail.members} onChanged={load} />
+          <MembersTab
+            project={detail.project}
+            members={detail.members}
+            myPermissions={detail.myPermissions}
+            onChanged={load}
+          />
         )}
-        {tab === 'roles' && <RolesTab project={detail.project} onChanged={load} />}
-        {tab === 'settings' && <SettingsTab project={detail.project} onChanged={load} />}
+        {tab === 'roles' && (
+          <RolesTab project={detail.project} myPermissions={detail.myPermissions} onChanged={load} />
+        )}
+        {tab === 'settings' && (
+          <SettingsTab project={detail.project} myPermissions={detail.myPermissions} onChanged={load} />
+        )}
       </div>
 
       {/* 移动端底部导航 */}

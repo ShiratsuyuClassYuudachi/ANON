@@ -373,4 +373,86 @@ describe('finance', () => {
       .set('Authorization', `Bearer ${staff.token}`);
     expect(res.status).toBe(403);
   });
+
+  it('多票种：设置后计入汇总且清零旧字段', async () => {
+    // 先用旧格式设置，验证切换新格式后旧字段被清零、不重复计收入
+    await request(app)
+      .patch(`/api/projects/${projectId}/finance/ticket`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ ticketPrice: 70, ticketCount: 3 });
+    const res = await request(app)
+      .patch(`/api/projects/${projectId}/finance/ticket`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({
+        ticketTypes: [
+          { name: '预售票', price: 60, count: 2 },
+          { name: '现场票', price: 80, count: 1 },
+        ],
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.ticketTypes).toEqual([
+      { name: '预售票', priceCents: 6000, count: 2 },
+      { name: '现场票', priceCents: 8000, count: 1 },
+    ]);
+    expect(res.body.ticketIncomeCents).toBe(20000);
+    const list = await request(app)
+      .get(`/api/projects/${projectId}/finance`)
+      .set('Authorization', `Bearer ${owner.token}`);
+    // 旧字段已清零，收入只来自票种：60×2 + 80×1 = 20000
+    expect(list.body.summary.ticketPriceCents).toBe(0);
+    expect(list.body.summary.ticketCount).toBe(0);
+    expect(list.body.summary.ticketIncomeCents).toBe(20000);
+    expect(list.body.summary.profitCents).toBe(20000);
+    // summary 中 ticketTypes 原样返回
+    expect(list.body.summary.ticketTypes).toEqual([
+      { name: '预售票', priceCents: 6000, count: 2 },
+      { name: '现场票', priceCents: 8000, count: 1 },
+    ]);
+  });
+
+  it('多票种：空数组合法，清空全部票种', async () => {
+    await request(app)
+      .patch(`/api/projects/${projectId}/finance/ticket`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ ticketTypes: [{ name: '预售票', price: 60, count: 2 }] });
+    const res = await request(app)
+      .patch(`/api/projects/${projectId}/finance/ticket`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ ticketTypes: [] });
+    expect(res.status).toBe(200);
+    expect(res.body.ticketTypes).toEqual([]);
+    expect(res.body.ticketIncomeCents).toBe(0);
+    const list = await request(app)
+      .get(`/api/projects/${projectId}/finance`)
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(list.body.summary.ticketTypes).toEqual([]);
+    // 旧字段本就为 0，清空后门票收入为 0
+    expect(list.body.summary.ticketIncomeCents).toBe(0);
+  });
+
+  it('多票种：非法输入返回 400', async () => {
+    const cases: unknown[] = [
+      { ticketTypes: [{ name: '  ', price: 60, count: 1 }] }, // 空 name
+      { ticketTypes: [{ name: '票', price: 60.005, count: 1 }] }, // 三位小数
+      { ticketTypes: [{ name: '票', price: 60, count: 1.5 }] }, // 非整数 count
+      {
+        ticketTypes: Array.from({ length: 21 }, (_, i) => ({ name: `票${i}`, price: 10, count: 1 })),
+      }, // 21 个票种
+    ];
+    for (const body of cases) {
+      const res = await request(app)
+        .patch(`/api/projects/${projectId}/finance/ticket`)
+        .set('Authorization', `Bearer ${owner.token}`)
+        .send(body);
+      expect(res.status).toBe(400);
+    }
+  });
+
+  it('多票种：无 finance:manage 权限返回 403', async () => {
+    const res = await request(app)
+      .patch(`/api/projects/${projectId}/finance/ticket`)
+      .set('Authorization', `Bearer ${staff.token}`)
+      .send({ ticketTypes: [{ name: '预售票', price: 60, count: 2 }] });
+    expect(res.status).toBe(403);
+  });
 });
