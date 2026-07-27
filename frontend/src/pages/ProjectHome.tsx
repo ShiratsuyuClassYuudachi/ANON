@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
+  ClipboardList,
   FolderOpen,
   KeyRound,
   ListTodo,
@@ -18,6 +19,7 @@ import MembersTab from '../components/project/MembersTab';
 import RolesTab from '../components/project/RolesTab';
 import SettingsTab from '../components/project/SettingsTab';
 import TodosTab from '../components/project/TodosTab';
+import WorkTab from '../components/project/WorkTab';
 import type { Member, ProjectDetail } from '../types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -38,6 +40,7 @@ const TABS = [
   { key: 'finance', label: '财务', icon: Wallet },
   { key: 'materials', label: '物料', icon: FolderOpen },
   { key: 'accounts', label: '账号', icon: KeyRound },
+  { key: 'work', label: '现场', icon: ClipboardList },
   { key: 'members', label: '成员', icon: Users },
   { key: 'roles', label: '角色', icon: Shield },
   { key: 'settings', label: '设置', icon: Settings },
@@ -109,6 +112,9 @@ export default function ProjectHome() {
         )}
         {tab === 'accounts' && (
           <AccountsTab project={detail.project} members={detail.members} myPermissions={detail.myPermissions} />
+        )}
+        {tab === 'work' && (
+          <WorkTab project={detail.project} members={detail.members} myPermissions={detail.myPermissions} />
         )}
         {tab === 'members' && (
           <MembersTab

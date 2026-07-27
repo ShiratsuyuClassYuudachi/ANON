@@ -10,6 +10,7 @@ import Me from './pages/Me';
 import ProjectHome from './pages/ProjectHome';
 import Projects from './pages/Projects';
 import Register from './pages/Register';
+import WorkSheetPrint from './pages/WorkSheetPrint';
 
 function RequireAuth({ children }: { children: ReactElement }) {
   const { user, loading } = useAuth();
@@ -36,6 +37,14 @@ export default function App() {
         element={
           <RequireAuth>
             <InviteAccept />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/p/:id/work-sheet/print"
+        element={
+          <RequireAuth>
+            <WorkSheetPrint />
           </RequireAuth>
         }
       />
