@@ -133,3 +133,10 @@
 
 - 用 Playwright 自动走查前端（19/19 通过）：登录/建模块/分配/确认/打印版式/全员连排/双主题/权限（成员无管理入口、全员打印被拒）/移动端底部导航与 Sheet。
 - 走查发现并修复**时区显示 bug**：WorkTab 与 WorkSheetPrint 的时间显示直接截取 UTC ISO 字符串，未转本地时区（输入 09:00 显示 01:00）。新增 `frontend/src/lib/datetime.ts`（`fmtLocal`/`toLocalInput`），统一本地时区显示与编辑回填；TodosTab 的 fmt 原本已是本地转换，不受影响。
+
+### 2026-07-27 工作台按权限控制可见性
+
+- ProjectHome 的 TABS 集中定义 `visible` 断言，桌面标签/移动底栏/更多 Sheet/条件渲染统一消费 `visibleTabs`；当前 tab 不可见时渲染期回退到首个可见 tab。
+- 可见性：角色（role:manage 以上）、设置（project:manage）对无权限者隐藏；财务需 finance:add/manage 其一；其余 Tab 全体成员可见。
+- TodosTab 的「新建待办」「模板」补 todo:manage 门控。
+- 浏览器走查 10/10 通过（staff 6 Tab 无管理入口、移动端更多 Sheet 同步过滤、admin 8 Tab 不变）。
