@@ -4,7 +4,7 @@ import type { ProjectDoc } from '../models/Project';
 import { WorkModule, type WorkModuleDoc } from '../models/WorkModule';
 import { AppError } from '../utils/errors';
 
-/** userId → 成员姓名（Membership 联查 User.name；populate 写法照 routes/todos.ts 中 assignees 姓名的联查方式，先读该文件对齐） */
+/** userId → 成员姓名（Membership populate User.name 联查） */
 export async function memberNameMap(projectId: Types.ObjectId): Promise<Map<string, string>> {
   const ms = await Membership.find({ projectId }).populate<{ userId: { _id: Types.ObjectId; name: string } }>(
     'userId',
@@ -34,7 +34,7 @@ export function moduleJson(m: WorkModuleDoc, names: Map<string, string>) {
   };
 }
 
-/** 实时计算某成员的任务单：分配给 ta 的模块（按 startAt 升序、空值最后，其次 createdAt） */
+/** 实时计算某成员的任务单：分配给 ta 的模块（Mongo 升序：无 startAt 的排最前，其次 createdAt） */
 export async function buildSheet(project: ProjectDoc, targetUserId: string) {
   const ms = await Membership.find({ projectId: project._id }).populate<{
     userId: { _id: Types.ObjectId; name: string };

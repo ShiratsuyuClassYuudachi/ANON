@@ -11,6 +11,7 @@ const fmt = (iso: string | null) => (iso ? iso.slice(0, 16).replace('T', ' ') : 
 interface Detail {
   project: { id: string; name: string };
   members: Member[];
+  myPermissions: string[];
 }
 
 export default function WorkSheetPrint() {
@@ -30,6 +31,11 @@ export default function WorkSheetPrint() {
           api<{ modules: WorkModuleItem[] }>(`/api/projects/${id}/work-modules`),
           api<Detail>(`/api/projects/${id}`),
         ]);
+        // 批量打印入口需 work:manage（project:manage 等价放行）
+        if (!detail.myPermissions.includes('project:manage') && !detail.myPermissions.includes('work:manage')) {
+          setErr('需要现场分工管理权限');
+          return;
+        }
         const generatedAt = new Date().toISOString();
         const grouped = new Map<string, WorkModuleItem[]>();
         for (const m of mods.modules) {
@@ -90,7 +96,7 @@ export default function WorkSheetPrint() {
               <h1 className="text-xl font-bold">{s.project.name} · 现场任务单</h1>
               <p className="mt-1 text-sm text-muted-foreground">
                 姓名：<span className="font-medium text-foreground">{s.user.name}</span>
-                <span className="mx-2">｜</span>生成时间:{fmt(s.generatedAt)}
+                <span className="mx-2">｜</span>生成时间：{fmt(s.generatedAt)}
               </p>
             </header>
             <table className="w-full border-collapse text-sm">

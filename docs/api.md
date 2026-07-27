@@ -472,13 +472,14 @@ interface WorkSheetData {
 
 ### PATCH /api/projects/:id/work-modules/:mid（work:manage）
 
-请求字段同 POST（均可选）。替换 `assigneeIds` 时留任成员保留确认记录，被移除者清除。
+请求字段同 POST（均可选）。`startAt`/`endAt` 需成对提交：任一键出现时两值同时重建，单传其一将把另一清空。替换 `assigneeIds` 时留任成员保留确认记录，被移除者清除。
 响应 200：`{ module: WorkModuleItem }`
 错误：400 `bad_request`；403 `forbidden`；404 `not_found`（含跨项目 mid）
 
 ### DELETE /api/projects/:id/work-modules/:mid（work:manage）
 
-响应 200：`{ ok: true }`；404 `not_found`
+响应 200：`{ ok: true }`
+错误：403 `forbidden`；404 `not_found`
 
 ### POST /api/projects/:id/work-modules/:mid/confirm
 
