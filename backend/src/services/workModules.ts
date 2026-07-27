@@ -1,6 +1,8 @@
 import { Types } from 'mongoose';
 import { Membership } from '../models/Membership';
-import type { WorkModuleDoc } from '../models/WorkModule';
+import type { ProjectDoc } from '../models/Project';
+import { WorkModule, type WorkModuleDoc } from '../models/WorkModule';
+import { AppError } from '../utils/errors';
 
 /** userId → 成员姓名（Membership 联查 User.name；populate 写法照 routes/todos.ts 中 assignees 姓名的联查方式，先读该文件对齐） */
 export async function memberNameMap(projectId: Types.ObjectId): Promise<Map<string, string>> {
@@ -29,5 +31,25 @@ export function moduleJson(m: WorkModuleDoc, names: Map<string, string>) {
     createdBy: String(m.createdBy),
     // HydratedDocument 类型不含 timestamps 字段，沿用 routes/todos.ts 的 cast 手法
     createdAt: (m as unknown as { createdAt: Date }).createdAt.toISOString(),
+  };
+}
+
+/** 实时计算某成员的任务单：分配给 ta 的模块（按 startAt 升序、空值最后，其次 createdAt） */
+export async function buildSheet(project: ProjectDoc, targetUserId: string) {
+  const ms = await Membership.find({ projectId: project._id }).populate<{
+    userId: { _id: Types.ObjectId; name: string };
+  }>('userId', 'name');
+  const target = ms.find((m) => String(m.userId._id) === targetUserId);
+  if (!target) throw new AppError(404, 'not_found', '该用户不是项目成员');
+  const names = new Map(ms.map((m) => [String(m.userId._id), m.userId.name]));
+  const modules = await WorkModule.find({ projectId: project._id, 'assignees.userId': targetUserId }).sort({
+    startAt: 1,
+    createdAt: 1,
+  });
+  return {
+    project: { id: String(project._id), name: project.name },
+    user: { id: targetUserId, name: target.userId.name },
+    generatedAt: new Date().toISOString(),
+    items: modules.map((m) => moduleJson(m, names)),
   };
 }

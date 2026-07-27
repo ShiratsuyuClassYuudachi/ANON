@@ -263,3 +263,97 @@ describe('work-modules 路由', () => {
     expect(confirm.status).toBe(404);
   });
 });
+
+describe('work-sheet 端点', () => {
+  let owner: { token: string; user: { id: string } };
+  let staff: { token: string; user: { id: string } };
+  let projectId: string;
+
+  beforeEach(async () => {
+    owner = await createSuperAdmin();
+    const creator = (await User.findOne())!._id;
+    await InviteCode.create({ code: 'C1', createdBy: creator });
+    staff = await registerUser('C1', 's@example.com', 'Staff');
+    const p = await request(app)
+      .post('/api/projects')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ name: '活动' });
+    projectId = p.body.project.id;
+    const inv = await request(app)
+      .post(`/api/projects/${projectId}/invites`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ roleName: '一般staff' });
+    await request(app)
+      .post(`/api/invites/${inv.body.token}/accept`)
+      .set('Authorization', `Bearer ${staff.token}`);
+  });
+
+  async function addModule(body: Record<string, unknown>) {
+    const res = await request(app)
+      .post(`/api/projects/${projectId}/work-modules`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send(body);
+    expect(res.status).toBe(201);
+    return res.body.module as { id: string };
+  }
+
+  it('本人任务单：只含分配给自己的模块，含项目名/姓名/generatedAt', async () => {
+    await addModule({ name: '检票', assigneeIds: [staff.user.id] });
+    await addModule({ name: '摊位引导', assigneeIds: [staff.user.id, owner.user.id] });
+    await addModule({ name: '主办专属', assigneeIds: [owner.user.id] });
+    const res = await request(app)
+      .get(`/api/projects/${projectId}/work-sheet`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.project.name).toBe('活动');
+    expect(res.body.user).toMatchObject({ id: staff.user.id, name: 'Staff' });
+    expect(Number.isNaN(Date.parse(res.body.generatedAt))).toBe(false);
+    expect(res.body.items).toHaveLength(2);
+    expect(res.body.items.map((m: { name: string }) => m.name).sort()).toEqual(['摊位引导', '检票']);
+  });
+
+  it('未分配的本人任务单 → items 为空数组', async () => {
+    await addModule({ name: '主办专属', assigneeIds: [owner.user.id] });
+    const res = await request(app)
+      .get(`/api/projects/${projectId}/work-sheet`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.items).toEqual([]);
+  });
+
+  it('staff 查他人的任务单 → 403；主办查任意成员 → 200', async () => {
+    const forbidden = await request(app)
+      .get(`/api/projects/${projectId}/work-sheet/${owner.user.id}`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    expect(forbidden.status).toBe(403);
+    const ok = await request(app)
+      .get(`/api/projects/${projectId}/work-sheet/${staff.user.id}`)
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(ok.status).toBe(200);
+    expect(ok.body.user.id).toBe(staff.user.id);
+  });
+
+  it('目标用户非项目成员 → 404', async () => {
+    await InviteCode.create({ code: 'C2', createdBy: (await User.findOne())!._id });
+    const outsider = await registerUser('C2', 'o@example.com', 'Out');
+    const res = await request(app)
+      .get(`/api/projects/${projectId}/work-sheet/${outsider.user.id}`)
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('not_found');
+  });
+
+  it('items 内确认状态与模块一致', async () => {
+    const m = await addModule({ name: '检票', assigneeIds: [staff.user.id] });
+    await request(app)
+      .post(`/api/projects/${projectId}/work-modules/${m.id}/confirm`)
+      .set('Authorization', `Bearer ${staff.token}`)
+      .send({});
+    const res = await request(app)
+      .get(`/api/projects/${projectId}/work-sheet`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    const mine = res.body.items[0].assignees.find((a: { userId: string }) => a.userId === staff.user.id);
+    expect(mine.confirmedAt).not.toBeNull();
+    expect(mine.confirmedBy).toBe(staff.user.id);
+  });
+});
