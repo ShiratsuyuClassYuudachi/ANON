@@ -34,7 +34,7 @@ interface TodoItem {
 interface FileMeta { id: string; filename: string; mime: string; size: number }
 ```
 
-权限点全集：`project:manage`、`member:manage`、`role:manage`、`todo:manage`、`todo:complete`、`file:upload`、`finance:manage`、`finance:add`、`materials:manage`、`accounts:manage`（`finance:manage` 起为第二阶段新增，`finance:add` 为财务权限拆分新增）。
+权限点全集：`project:manage`、`member:manage`、`role:manage`、`todo:manage`、`todo:complete`、`file:upload`、`finance:manage`、`finance:add`、`materials:manage`、`accounts:manage`、`work:manage`（`finance:manage` 起为第二阶段新增，`finance:add` 为财务权限拆分新增，`work:manage` 为现场任务单新增）。
 `project:manage` 等价于拥有全部权限；超级管理员在所有项目中视为拥有全部权限。
 
 预置角色：主办=全部权限；美工/宣发=`file:upload, todo:complete, finance:add`；一般staff=`todo:complete, finance:add`。
@@ -435,3 +435,69 @@ interface ResourceVersionItem {
 - user 模式：响应 200 `{ cipher: "ANONv1:..." }`，前端提示输入保险库口令后用 WebCrypto 本地解密
 
 非 full 模式或无密码返回 400 `bad_request`。
+
+---
+
+## 现场任务单
+
+任务模块（现场分工）挂载在 `/api/projects/:id/work-modules`，任务单挂载在 `/api/projects/:id/work-sheet`。均需项目成员身份；模块增删改、代他人确认、查看他人任务单需 `work:manage`（`project:manage` 等价放行，超管不受限）。
+
+### 数据类型
+
+```ts
+interface WorkAssignee { userId: string; name: string; confirmedAt: string|null; confirmedBy: string|null }
+interface WorkModuleItem {
+  id: string; name: string; description: string; location: string;
+  startAt: string|null; endAt: string|null; requiredCount: number;
+  assignees: WorkAssignee[]; createdBy: string; createdAt: string;
+}
+interface WorkSheetData {
+  project: { id: string; name: string };
+  user: { id: string; name: string };
+  generatedAt: string;
+  items: WorkModuleItem[];   // 分配给该成员的模块
+}
+```
+
+### GET /api/projects/:id/work-modules
+
+成员。响应 200：`{ modules: WorkModuleItem[] }`（按创建时间升序）
+
+### POST /api/projects/:id/work-modules（work:manage）
+
+请求：`{ name: string（≤100 字）, description?: string, location?: string, startAt?: string, endAt?: string, requiredCount?: number（≥1 整数，默认 1）, assigneeIds?: string[] }`
+校验：`name` 必填；`startAt`/`endAt` 须为合法时间且 startAt 不晚于 endAt；`assigneeIds` 必须全部为项目成员。
+响应 201：`{ module: WorkModuleItem }`
+错误：400 `bad_request`；403 `forbidden`
+
+### PATCH /api/projects/:id/work-modules/:mid（work:manage）
+
+请求字段同 POST（均可选）。替换 `assigneeIds` 时留任成员保留确认记录，被移除者清除。
+响应 200：`{ module: WorkModuleItem }`
+错误：400 `bad_request`；403 `forbidden`；404 `not_found`（含跨项目 mid）
+
+### DELETE /api/projects/:id/work-modules/:mid（work:manage）
+
+响应 200：`{ ok: true }`；404 `not_found`
+
+### POST /api/projects/:id/work-modules/:mid/confirm
+
+确认成员与模块的分配关系。请求 `{ userId?: string }`：不传 = 确认本人（项目成员即可）；传 = 代他人确认（需 `work:manage` 或 `project:manage`）。记录确认时间与确认人；重复确认幂等，不刷新时间戳。
+响应 200：`{ module: WorkModuleItem }`
+错误：400 `bad_request`（目标未被分配到该模块）；403 `forbidden`（无权代他人确认）；404 `not_found`
+
+### POST /api/projects/:id/work-modules/:mid/unconfirm
+
+取消确认（清除 confirmedAt/confirmedBy）。请求体与权限同 confirm。
+响应 200：`{ module: WorkModuleItem }`
+
+### GET /api/projects/:id/work-sheet
+
+本人的现场任务单（项目成员）。响应 200：`WorkSheetData`（items 按 startAt、createdAt 升序；无分配时为空数组）
+
+### GET /api/projects/:id/work-sheet/:userId（work:manage）
+
+查看指定成员的任务单。响应 200：`WorkSheetData`
+错误：403 `forbidden`；404 `not_found`（该用户不是项目成员）
+
+前端说明：项目工作台新增「现场」Tab（`WorkTab.tsx`）：模块列表/新建/编辑/删除、成员确认与代确认、打印入口。打印版式页 `/p/:id/work-sheet/print?user=me|<userId>|all`（`WorkSheetPrint.tsx`）：A4 表格（模块/时间/地点/工作内容/确认状态）+ 签字日期栏，`user=all` 时每人一页分页连排，浏览器打印或另存为 PDF。

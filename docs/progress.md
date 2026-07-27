@@ -109,3 +109,22 @@
 ### 收尾验证（Task 14）
 - 旧手写 CSS 类（page/card/row/chip/muted/error/field/grid-2/tabs/active/ghost/danger/theme-toggle/app-header/spacer）全库核对零残留（修复 `AuthImg.tsx` 一处 `className="muted"`）
 - `npm run build` 通过；浏览器人工走查清单（主题 4 组合 / 页面 × 视口 / 主流程冒烟 / 移动端专项）留待用户执行
+
+## 2026-07-27 现场任务单
+
+后端 85 个 vitest 用例全绿（65 + 新增 20：模型/服务 4 + 路由 11 + 任务单 5）、typecheck 通过，前端 `vite build` 通过。
+
+### 后端
+- `backend/src/models/WorkModule.ts`：任务模块（名称/描述/地点/起止时间/所需人力/分配成员内嵌确认记录）
+- `backend/src/services/workModules.ts`：`memberNameMap` 姓名联查、`moduleJson` 统一形状、`buildSheet` 任务单实时计算
+- `backend/src/routes/workModules.ts`：work-modules CRUD（成员读列表，`work:manage` 增删改）+ confirm/unconfirm（本人成员即可，代他人需 `work:manage`/`project:manage`，幂等）
+- `backend/src/routes/workSheet.ts`：`GET /` 本人任务单、`GET /:userId`（`work:manage`）
+- 新权限点 `work:manage`（`backend/src/services/permissions.ts`）；既有项目预置角色快照不做迁移，靠 `project:manage` 兜底放行
+
+### 前端
+- `frontend/src/components/project/WorkTab.tsx`：「现场」Tab（模块 CRUD/成员分配/确认与代确认/打印入口）
+- `frontend/src/pages/WorkSheetPrint.tsx`：打印版式页 `/p/:id/work-sheet/print?user=me|<userId>|all`，全员按人分页连排 + 签字日期栏
+- `frontend/src/pages/ProjectHome.tsx`：TABS 新增「现场」（移动端底部导航入「更多」）
+
+### 测试
+- `backend/tests/workModules.test.ts`：20 用例——模型默认值与校验（2）、服务层姓名联查与输出形状（2）、路由权限/校验/分配替换保留确认/确认流转/代确认权限/跨项目防护（11）、任务单本人/空单/他人权限/非成员 404/确认状态一致（5）

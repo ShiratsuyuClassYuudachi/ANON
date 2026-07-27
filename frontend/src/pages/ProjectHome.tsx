@@ -47,7 +47,7 @@ const TABS = [
 ] as const;
 
 const MOBILE_MAIN = TABS.slice(0, 4); // 待办/财务/物料/账号
-const MOBILE_MORE = TABS.slice(4); // 成员/角色/设置
+const MOBILE_MORE = TABS.slice(4); // 现场/成员/角色/设置
 
 export default function ProjectHome() {
   const { id } = useParams<{ id: string }>();

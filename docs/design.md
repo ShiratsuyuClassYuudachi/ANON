@@ -317,3 +317,12 @@
 * **响应式布局**：移动端（<768px）底部导航 + 桌面端顶栏；新建/编辑表单统一走 `FormOverlay` 模式——移动端底部 Sheet、桌面端居中 Dialog（`useMediaQuery` 判定）。
 
 * 运维约束：新增 shadcn 组件须使用 `npx shadcn@3`（v4 CLI 移除了 `--base-color` 参数，与当前 `components.json` 不兼容）；`shadcn` devDependency 已固定为精确版本 4.14.1（`index.css` 引用其内部 CSS，防止语义化升级破坏）。
+
+---
+
+### 2026-07-27 现场任务单
+
+* 新增 `WorkModule` 模型（`backend/src/models/WorkModule.ts`）：名称（必填，≤100 字）、描述、地点、开始/结束时间（可空）、所需人力（`requiredCount` ≥1，默认 1）、分配成员（内嵌 `confirmedAt`/`confirmedBy` 确认记录）、`createdBy`；`projectId` 索引。
+* 新增权限点 `work:manage`（`backend/src/services/permissions.ts`）。**预置角色快照说明**：角色权限以快照存于各项目文档，既有项目的预置角色不含新权限点，**不做数据迁移**——既有项目的主办角色凭 `project:manage` 在 `requirePermission` 中兜底放行全部现场操作；其他角色如需，由管理者在「角色」Tab 手动勾选（新建项目的预置角色快照自动包含该权限点）。
+* 后端路由：`/api/projects/:id/work-modules`（`backend/src/routes/workModules.ts`）——GET 列表项目成员可读，POST/PATCH/DELETE 需 `work:manage`；`confirm`/`unconfirm` 本人确认成员即可、代他人需 `work:manage` 或 `project:manage`，重复确认幂等；单条操作按项目隔离（跨项目 mid 返回 404）。`/api/projects/:id/work-sheet`（`backend/src/routes/workSheet.ts`）——GET `/` 本人任务单，GET `/:userId` 需 `work:manage`。服务层 `backend/src/services/workModules.ts`：`moduleJson` 统一输出形状、`buildSheet` 实时计算任务单。
+* 前端：工作台新增「现场」Tab（`frontend/src/components/project/WorkTab.tsx`：模块 CRUD/成员分配/确认与代确认/打印入口；移动端底部导航收入「更多」）；打印版式页 `/p/:id/work-sheet/print`（`frontend/src/pages/WorkSheetPrint.tsx`，`?user=me|<userId>|all`，全员模式按人分页连排，含签字/日期栏，浏览器打印或另存为 PDF）；RolesTab 权限清单自动包含新权限点。
