@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
@@ -27,6 +27,7 @@ export function OnboardingDialog({
   onStartTour: () => void;
 }) {
   const [idx, setIdx] = useState(0);
+  useEffect(() => { if (open) setIdx(0); }, [open]);
   const last = idx === SLIDES.length - 1;
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onSkip()}>

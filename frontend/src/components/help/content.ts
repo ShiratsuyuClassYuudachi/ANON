@@ -178,7 +178,7 @@ export const HELP_CHAPTERS: HelpChapter[] = [
         heading: '预置角色',
         paragraphs: [
           '创建项目的人自动成为「主办」，拥有全部权限。',
-          '预置角色还有美工、宣发、一般 staff，分别带有上传文件、完成待办、记账等常见权限组合。',
+          '预置角色还有美工、宣发、一般 staff：美工、宣发带上传文件权限；三种角色均可完成待办与记账。',
         ],
         image: { src: '/help/tab-members.png', alt: '成员 Tab', caption: '成员 Tab：邀请与角色调整' },
       },

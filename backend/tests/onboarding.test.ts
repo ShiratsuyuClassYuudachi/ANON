@@ -6,7 +6,7 @@ import { User } from '../src/models/User';
 import { createSuperAdmin, registerUser } from './helpers';
 
 describe('onboarding', () => {
-  it('注册响应 onboardedAt 为 null', async () => {
+  it('/api/me 响应 onboardedAt 为 null', async () => {
     const admin = await createSuperAdmin();
     await InviteCode.create({ code: 'C1', createdBy: (await User.findOne())!._id });
     const u = await registerUser('C1', 'a@x.com', 'A');
@@ -28,7 +28,7 @@ describe('onboarding', () => {
     void admin;
   });
 
-  it('重复 POST 幂等，不刷新时代码', async () => {
+  it('重复 POST 幂等，不刷新时戳', async () => {
     const admin = await createSuperAdmin();
     await InviteCode.create({ code: 'C1', createdBy: (await User.findOne())!._id });
     const u = await registerUser('C1', 'a@x.com', 'A');
