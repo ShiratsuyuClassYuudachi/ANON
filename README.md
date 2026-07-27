@@ -80,7 +80,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 # 访问 http://localhost:8080（WEB_PORT 可改对外端口）
 ```
 
-前端 nginx 托管静态文件并代理 `/api`（唯一对外端口），mongo 与 backend 不暴露宿主机端口，数据存于 named volumes（`mongo-data` / `uploads-data`）。更多说明（日志、停止、单独构建镜像、cron 提醒）见 [docs/readme.md](docs/readme.md) 的「Docker 部署」节。
+前端 nginx 托管静态文件并代理 `/api`（唯一对外端口）；默认使用内嵌 FerretDB（MongoDB 协议 + PostgreSQL/DocumentDB 存储，零外部依赖），在 `.env` 设 `MONGO_URI` 可切换为外接 MongoDB；数据存于 named volumes（`pg-data` / `uploads-data`）。更多说明（数据库两级配置、日志、停止、单独构建镜像、cron 提醒）见 [docs/readme.md](docs/readme.md) 的「Docker 部署」节。
 
 ## 文档
 

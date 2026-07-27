@@ -1,19 +1,35 @@
 name: anon-prod
 
 services:
-  mongo:
-    image: mongo:7
+  # 内嵌数据库（零依赖体验模式）：FerretDB v2 + PostgreSQL(DocumentDB 扩展)。
+  # 生产部署建议外接 MongoDB：在根目录 .env 设置 MONGO_URI 后，postgres/ferretdb 两个服务可删除或不启动。
+  postgres:
+    image: ghcr.io/ferretdb/postgres-documentdb:17
     restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-anon}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-anon-dev-password}
+      POSTGRES_DB: postgres
     # 不暴露宿主机端口，仅编排网络内可见
     volumes:
-      - mongo-data:/data/db
+      - pg-data:/var/lib/postgresql/data
+
+  ferretdb:
+    image: ghcr.io/ferretdb/ferretdb:2
+    restart: unless-stopped
+    environment:
+      FERRETDB_POSTGRESQL_URL: postgres://${DB_USER:-anon}:${DB_PASSWORD:-anon-dev-password}@postgres:5432/postgres
+    # 不暴露宿主机端口，仅编排网络内可见
+    depends_on:
+      - postgres
 
   backend:
     build: ./backend
     restart: unless-stopped
     # 不暴露宿主机端口，由 frontend 经 nginx 代理 /api 访问
     environment:
-      MONGO_URI: mongodb://mongo:27017/anon
+      # 外接 MongoDB 优先：设置了 MONGO_URI 则用之，否则用内嵌 ferretdb 服务
+      MONGO_URI: ${MONGO_URI:-mongodb://${DB_USER:-anon}:${DB_PASSWORD:-anon-dev-password}@ferretdb:27017/anon}
       JWT_SECRET: ${JWT_SECRET:?请先在根目录 .env 或环境变量中设置 JWT_SECRET}
       PORT: 4000
       UPLOAD_DIR: uploads
@@ -28,7 +44,7 @@ services:
     volumes:
       - uploads-data:/app/uploads
     depends_on:
-      - mongo
+      - ferretdb
 
   frontend:
     build: ./frontend
@@ -39,5 +55,5 @@ services:
       - backend
 
 volumes:
-  mongo-data:
+  pg-data:
   uploads-data:

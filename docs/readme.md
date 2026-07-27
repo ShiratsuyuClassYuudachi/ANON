@@ -107,7 +107,8 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 - `frontend`（nginx，唯一对外端口 **8080**）：托管前端静态文件，SPA 路由回退，`/api` 反代到 `backend:4000`（上传限 50MB）
 - `backend`：不暴露宿主机端口，仅编排网络内可达；上传文件存 named volume `uploads-data`
-- `mongo`：不暴露宿主机端口；数据存 named volume `mongo-data`
+- `ferretdb` + `postgres`：**内嵌数据库（零依赖体验模式）**——FerretDB v2 提供 MongoDB 协议，后端存储为 PostgreSQL（DocumentDB 扩展），数据存 named volume `pg-data`；均不暴露宿主机端口
+- **数据库两级配置**：默认走内嵌 FerretDB（账号 `DB_USER`/`DB_PASSWORD`，缺省 `anon` / `anon-dev-password`，公网部署务必修改）；**外接 MongoDB 优先**——在 `.env` 设置 `MONGO_URI` 即改用外部库，`postgres`/`ferretdb` 两服务可删除或不启动
 - 编排项目名为 `anon-prod`，与开发用 `docker-compose.yml`（仅 mongo，端口 27017）互不干扰，可并存
 - 常用命令：`docker compose -f docker-compose.prod.yml logs -f backend`（看日志）/ `down`（停止）/ `down -v`（停止并清空数据卷，慎用）
 - cron 提醒：容器外执行 `curl -X POST -H "Authorization: Bearer $CRON_SECRET" http://localhost:8080/api/cron/reminders`（经前端代理）
