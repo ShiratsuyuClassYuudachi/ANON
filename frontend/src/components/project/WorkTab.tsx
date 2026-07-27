@@ -28,7 +28,9 @@ interface Props {
   myPermissions: string[];
 }
 
-const fmt = (iso: string | null) => (iso ? iso.slice(5, 16).replace('T', ' ') : '');
+import { fmtLocal, toLocalInput } from '@/lib/datetime';
+
+const fmt = (iso: string | null) => (iso ? fmtLocal(iso) : '');
 const fmtRange = (m: WorkModuleItem) =>
   m.startAt || m.endAt ? `${fmt(m.startAt) || '…'} ~ ${fmt(m.endAt) || '…'}` : '';
 
@@ -67,8 +69,8 @@ export default function WorkTab({ project, members, myPermissions }: Props) {
       name: m.name,
       description: m.description,
       location: m.location,
-      startAt: m.startAt ? m.startAt.slice(0, 16) : '',
-      endAt: m.endAt ? m.endAt.slice(0, 16) : '',
+      startAt: m.startAt ? toLocalInput(m.startAt) : '',
+      endAt: m.endAt ? toLocalInput(m.endAt) : '',
       requiredCount: String(m.requiredCount),
     });
     setAssigneeIds(m.assignees.map((a) => a.userId));
@@ -163,7 +165,7 @@ export default function WorkTab({ project, members, myPermissions }: Props) {
                 </div>
                 {a.confirmedAt ? (
                   <Badge variant="outline" className="shrink-0 border-green-500 text-green-600 dark:text-green-400">
-                    已确认 {a.confirmedAt.slice(5, 16).replace('T', ' ')}
+                    已确认 {fmtLocal(a.confirmedAt)}
                   </Badge>
                 ) : (
                   <Button size="sm" className="shrink-0" onClick={() => setConfirmed(m.id, true)}>确认</Button>

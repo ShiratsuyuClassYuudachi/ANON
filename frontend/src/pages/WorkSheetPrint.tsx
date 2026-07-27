@@ -6,7 +6,9 @@ import type { Member, WorkModuleItem, WorkSheetData } from '../types';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
-const fmt = (iso: string | null) => (iso ? iso.slice(0, 16).replace('T', ' ') : '');
+import { fmtLocal } from '@/lib/datetime';
+
+const fmt = (iso: string | null) => (iso ? fmtLocal(iso, true) : '');
 
 interface Detail {
   project: { id: string; name: string };
