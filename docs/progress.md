@@ -140,3 +140,29 @@
 - 可见性：角色（role:manage 以上）、设置（project:manage）对无权限者隐藏；财务需 finance:add/manage 其一；其余 Tab 全体成员可见。
 - TodosTab 的「新建待办」「模板」补 todo:manage 门控。
 - 浏览器走查 10/10 通过（staff 6 Tab 无管理入口、移动端更多 Sheet 同步过滤、admin 8 Tab 不变）。
+
+## 2026-07-28 新手引导与帮助文档中心
+
+依据 `docs/superpowers/plans/2026-07-27-onboarding-help.md`（4 个任务）落地，分支 feat/onboarding。Playwright 走查 22/22 通过。
+
+### 后端
+- `backend/src/models/User.ts`：新增 `onboardedAt` 字段（`publicUser` 输出，默认 null）
+- `backend/src/routes/me.ts`：`POST /api/me/onboarded`——幂等写入 `onboardedAt`（仅首次生效），返回 user
+
+### 前端：新手引导
+- `frontend/src/components/onboarding/OnboardingDialog.tsx`：3 张欢迎幻灯（产品概念 / 四步上手 / 文档中心指引），可「下一步」逐张浏览或「跳过」
+- `frontend/src/components/onboarding/tour.ts`：driver.js 3 步界面导览（新建项目按钮 / 主题切换 / 用户菜单）
+- `App.tsx` `OnboardingGate`：user 无 `onboardedAt` 且落在 /projects 时自动弹幻灯；「跳过」与「开始导览」均调 `POST /api/me/onboarded` 落库——按账号跨设备生效，之后不再自动弹
+- `Layout.tsx` 用户菜单新增「重看引导」（仅前端回放，不写库）与「帮助文档」入口
+
+### 前端：/help 文档中心
+- `frontend/src/pages/DocsPage.tsx` + `components/help/content.ts`：7 章图文手册（快速上手/待办/财务/物料/账号/现场/权限与角色），桌面端左侧章节导航、移动端下拉切换，点击截图弹放大 Dialog
+- 截图存 `frontend/public/help/`（8 张），由 `frontend/scripts/capture-help-screenshots.mjs`（Playwright）重生成
+
+### 走查（Playwright，22/22 通过）
+- 新用户 A：注册 → 自动跳 /projects → 幻灯 3 张翻页 →「开始导览」→ `.driver-popover` 高亮 → 走完点「完成」→ 刷新不再弹
+- 新用户 B：注册 →「跳过」→ 刷新不再弹；`GET /api/me` 的 `onboardedAt` 非空
+- /help：7 章导航、切「现场」章截图加载成功（naturalWidth > 0）、点击图片弹放大 Dialog
+- 用户菜单含「帮助文档」「重看引导」，重看后幻灯再现、关闭刷新不自动弹
+- 移动端视口（390×844）/help 章节 Select 7 章可切换
+- 关键截图人工核对正常（`.walkthrough/shots/ob-*.png`）

@@ -18,7 +18,7 @@
 ## 数据类型
 
 ```ts
-interface User { id: string; email: string; name: string; isSuperAdmin: boolean; contacts: { platform: string; value: string }[] }
+interface User { id: string; email: string; name: string; isSuperAdmin: boolean; contacts: { platform: string; value: string }[]; onboardedAt: string|null }
 interface Role { name: string; permissions: string[] }  // 权限点见下
 interface Member { userId: string; name: string; email: string; roleName: string }
 interface ProjectSummary { id: string; name: string; description: string; startDate: string|null; endDate: string|null; myRole: string|null }
@@ -68,6 +68,11 @@ interface FileMeta { id: string; filename: string; mime: string; size: number }
 ### PATCH /api/me
 
 请求（均可选）：`{ name?: string, contacts?: { platform: string, value: string }[] }`
+响应 200：`{ user: User }`
+
+### POST /api/me/onboarded
+
+标记当前用户已完成新手引导。幂等：仅首次调用写入 `onboardedAt`（当前时间），重复调用不刷新时间戳。
 响应 200：`{ user: User }`
 
 ---

@@ -8,6 +8,7 @@ ANON 是一个「活动全流程追踪」协作系统，面向展会/同人活�
 - **物料**：类型 / 多版本 / WebP 预览 / 可见范围
 - **账号**：三模式平台账号（完整 / OTP 辅助 / 联系人），浏览器端或服务端加密
 - **现场**：任务模块分工（名称/时间/地点/所需人力/分配成员）、成员确认、可打印任务单（含签字栏，浏览器另存 PDF）
+- **新手引导 / 内置帮助文档（/help）**：首登欢迎幻灯 + 界面高亮导览（按账号跨设备只弹一次，可重看）；/help 为 7 章图文手册（配真实截图，点击放大）
 
 界面：移动端优先，双风格主题（简洁/明快 × 日/夜），工作台 Tab 与按钮按项目内权限点过滤可见性。
 
@@ -106,3 +107,4 @@ curl -X POST localhost:4000/api/admin/invite-codes \
 - 前端技术栈：Vite + React + TypeScript + Tailwind CSS v4（`@tailwindcss/vite`）+ shadcn/ui（`frontend/components.json`，new-york / neutral）+ lucide-react + sonner；主题双风格（简洁/明快 × 日/夜）保存在本机 localStorage（`anon-theme` / `anon-style`）。
 - 运维约束：新增 shadcn 组件必须使用 `npx shadcn@3`（v4 CLI 移除了 `--base-color` 参数，与当前 `components.json` 不兼容）。
 - `backend/uploads/` 与 `backend/.env` 均已 gitignore，勿提交。
+- `/help` 帮助文档的界面截图存于 `frontend/public/help/`；界面变动后用 Playwright 重生成：`PLAYWRIGHT_BROWSERS_PATH=<浏览器目录> node frontend/scripts/capture-help-screenshots.mjs`（需前端 dev 服务器运行中）。
