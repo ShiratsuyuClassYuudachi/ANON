@@ -1,7 +1,10 @@
-import { LogOut, ShieldCheck, UserRound } from 'lucide-react';
+import { useState } from 'react';
+import { LogOut, ShieldCheck, Sparkles, UserRound } from 'lucide-react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth';
 import Logo from './Logo';
+import { OnboardingDialog } from './onboarding/OnboardingDialog';
+import { startTour } from './onboarding/tour';
 import { ModeToggle, StylePicker } from '../theme';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -15,6 +18,7 @@ import {
 export default function Layout() {
   const { user, logout } = useAuth();
   const nav = useNavigate();
+  const [replayOpen, setReplayOpen] = useState(false);
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur">
@@ -23,11 +27,13 @@ export default function Layout() {
             <Logo />
           </Link>
           <span className="flex-1" />
-          <StylePicker />
-          <ModeToggle />
+          <div className="flex items-center gap-2" data-tour="theme-controls">
+            <StylePicker />
+            <ModeToggle />
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button aria-label="用户菜单" className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <button data-tour="user-menu" aria-label="用户菜单" className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 <Avatar className="size-8 ring-1 ring-border">
                   <AvatarFallback className="bg-primary/10 font-semibold text-primary">
                     {(user?.name ?? '?').slice(0, 1)}
@@ -44,6 +50,9 @@ export default function Layout() {
                   <ShieldCheck className="size-4" /> 管理
                 </DropdownMenuItem>
               )}
+              <DropdownMenuItem data-tour="help-entry" onClick={() => setReplayOpen(true)}>
+                <Sparkles className="size-4" /> 重看引导
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 variant="destructive"
@@ -61,6 +70,14 @@ export default function Layout() {
       <main className="mx-auto w-full max-w-3xl px-4 py-4 md:max-w-5xl">
         <Outlet />
       </main>
+      <OnboardingDialog
+        open={replayOpen}
+        onSkip={() => setReplayOpen(false)}
+        onStartTour={() => {
+          setReplayOpen(false);
+          startTour(() => {});
+        }}
+      />
     </div>
   );
 }

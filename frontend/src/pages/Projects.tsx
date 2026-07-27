@@ -56,7 +56,7 @@ export default function Projects() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">我的项目</h2>
-        <Button onClick={() => setCreateOpen(true)}>
+        <Button data-tour="new-project" onClick={() => setCreateOpen(true)}>
           <Plus className="size-4" /> 新建项目
         </Button>
       </div>

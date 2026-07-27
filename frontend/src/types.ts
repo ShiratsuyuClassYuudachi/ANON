@@ -4,6 +4,7 @@ export interface User {
   name: string;
   isSuperAdmin: boolean;
   contacts: { platform: string; value: string }[];
+  onboardedAt: string | null;
 }
 export interface ProjectSummary {
   id: string; name: string; description: string;
