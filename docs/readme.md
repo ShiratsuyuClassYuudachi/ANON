@@ -78,6 +78,40 @@ cd frontend && npm run build     # vite build（含 tsc --noEmit）
 
 生产部署：`npm run build` 后，后端 `node dist/index.js`，前端 `dist/` 为静态文件（任意静态托管或 `npx vite preview`）。
 
+## Docker 部署（镜像构建与一键编排）
+
+仓库自带两套 Dockerfile 与编排文件，可整体容器化部署，无需安装 Node 环境。
+
+**单独构建镜像：**
+
+```bash
+docker build -t anon-backend ./backend    # 后端镜像（多阶段：编译 + 生产依赖运行时）
+docker build -t anon-frontend ./frontend  # 前端镜像（多阶段：vite build + nginx 托管/代理）
+```
+
+**一键编排（推荐）：**
+
+```bash
+# 1. 在仓库根目录创建 .env（已 gitignore），至少填 JWT_SECRET（随机长串）
+echo "JWT_SECRET=$(openssl rand -hex 32)" > .env
+# 可选：SUPER_ADMIN_EMAIL / SMTP_* / CRON_SECRET / PLATFORM_CRYPTO_KEY，同 backend/.env.example
+
+# 2. 构建并启动全部服务（mongo + backend + frontend）
+docker compose -f docker-compose.prod.yml up -d --build
+
+# 3. 访问 http://localhost:8080（局域网则 http://<主机IP>:8080）
+#    端口冲突时在 .env 里设 WEB_PORT=8081 等改变对外端口
+```
+
+架构说明：
+
+- `frontend`（nginx，唯一对外端口 **8080**）：托管前端静态文件，SPA 路由回退，`/api` 反代到 `backend:4000`（上传限 50MB）
+- `backend`：不暴露宿主机端口，仅编排网络内可达；上传文件存 named volume `uploads-data`
+- `mongo`：不暴露宿主机端口；数据存 named volume `mongo-data`
+- 编排项目名为 `anon-prod`，与开发用 `docker-compose.yml`（仅 mongo，端口 27017）互不干扰，可并存
+- 常用命令：`docker compose -f docker-compose.prod.yml logs -f backend`（看日志）/ `down`（停止）/ `down -v`（停止并清空数据卷，慎用）
+- cron 提醒：容器外执行 `curl -X POST -H "Authorization: Bearer $CRON_SECRET" http://localhost:8080/api/cron/reminders`（经前端代理）
+
 ## 端到端冒烟
 
 核心 curl 流程（后端已启动时）：
