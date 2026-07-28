@@ -24,9 +24,9 @@
 
 ### 物料：文件与版本管理
 
-资源类型与多版本管理，图片自动生成 WebP 预览；类型/资源均可设可见范围。
+资源类型与多版本管理，图片自动生成 WebP 预览；切换版本时预览图随之更新；新建资源时可直接上传初始版本。类型/资源均可设可见范围。
 
-![物料 Tab](frontend/public/help/tab-materials.png)
+![物料版本切换](frontend/public/help/materials-version-switch.png)
 
 ### 账号：平台账号管理
 

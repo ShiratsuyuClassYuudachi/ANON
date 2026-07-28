@@ -161,9 +161,9 @@ function ResourceCard({
           )}
         </div>
         {resource.description && <p className="text-sm text-muted-foreground">{resource.description}</p>}
-        {resource.hasPreview && (
+        {selectedVersion?.hasPreview && (
           <button onClick={() => setZoom(true)} className="block w-full overflow-hidden rounded-lg border">
-            <AuthImg src={`${base}/preview`} alt={resource.name} style={{ width: '100%', display: 'block' }} />
+            <AuthImg src={`${base}/versions/${selected}/preview`} alt={resource.name} style={{ width: '100%', display: 'block' }} />
           </button>
         )}
         {versions.length > 0 && (
@@ -265,6 +265,8 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
   const [err, setErr] = useState('');
   const [newTypeName, setNewTypeName] = useState('');
   const [resForm, setResForm] = useState({ name: '', typeId: '', description: '' });
+  const [resFile, setResFile] = useState<File | null>(null);
+  const [resNote, setResNote] = useState('');
   const [typeVisFor, setTypeVisFor] = useState<string | null>(null);
   const [typeVisDraft, setTypeVisDraft] = useState<Visibility>({ userIds: [], roleNames: [] });
   const [deleteTypeFor, setDeleteTypeFor] = useState<ResourceTypeItem | null>(null);
@@ -299,14 +301,27 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
     e.preventDefault();
     setErr('');
     try {
-      await api(`/api/projects/${project.id}/materials`, {
-        body: {
-          name: resForm.name,
-          typeId: resForm.typeId || types[0]?.id,
-          description: resForm.description || undefined,
-        },
-      });
+      const url = `/api/projects/${project.id}/materials`;
+      if (resFile) {
+        const fd = new FormData();
+        fd.set('name', resForm.name);
+        fd.set('typeId', resForm.typeId || types[0]?.id || '');
+        if (resForm.description) fd.set('description', resForm.description);
+        fd.set('note', resNote);
+        fd.set('file', resFile);
+        await api(url, { formData: fd });
+      } else {
+        await api(url, {
+          body: {
+            name: resForm.name,
+            typeId: resForm.typeId || types[0]?.id,
+            description: resForm.description || undefined,
+          },
+        });
+      }
       setResForm({ name: '', typeId: '', description: '' });
+      setResFile(null);
+      setResNote('');
       await load();
     } catch (e2) {
       toast.error((e2 as Error).message);
@@ -426,6 +441,21 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
                 value={resForm.description}
                 onChange={(e) => setResForm({ ...resForm, description: e.target.value })}
               />
+              <div className="space-y-1.5">
+                <Label>初始版本文件（可选）</Label>
+                <input
+                  type="file"
+                  onChange={(e) => setResFile(e.target.files?.[0] ?? null)}
+                  className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground dark:bg-input/30"
+                />
+              </div>
+              {resFile && (
+                <Input
+                  placeholder="版本备注（可选）"
+                  value={resNote}
+                  onChange={(e) => setResNote(e.target.value)}
+                />
+              )}
               <Button type="submit">创建</Button>
             </form>
           </CardContent>

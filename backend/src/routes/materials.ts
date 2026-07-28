@@ -169,19 +169,55 @@ materialsRouter.get(
 materialsRouter.post(
   '/',
   ...requirePermission('materials:manage'),
+  upload.single('file'),
   ah(async (req, res) => {
     const { typeId, name, description } = req.body ?? {};
     if (!name || !String(name).trim()) throw new AppError(400, 'bad_request', '资源名称必填');
     const type = await ResourceType.findOne({ _id: typeId, projectId: req.project!._id });
     if (!type) throw new AppError(400, 'bad_request', '资源类型不存在');
-    const r = await Resource.create({
-      projectId: req.project!._id,
-      typeId: type._id,
-      name: String(name).trim(),
-      description: String(description ?? ''),
-      visibility: parseVisibility(req.body?.visibility) ?? { userIds: [], roleNames: [] },
-    });
-    res.status(201).json({ resource: resourceJson(r, null) });
+
+    let fileDoc: FileDoc | null = null;
+    let resourceDoc: ResourceDoc | null = null;
+    try {
+      const r = await Resource.create({
+        projectId: req.project!._id,
+        typeId: type._id,
+        name: String(name).trim(),
+        description: String(description ?? ''),
+        visibility: parseVisibility(req.body?.visibility) ?? { userIds: [], roleNames: [] },
+      });
+      resourceDoc = r;
+
+      let latest: ResourceVersionDoc | null = null;
+      if (req.file) {
+        fileDoc = await File.create({
+          projectId: req.project!._id,
+          filename: fixFilename(req.file.originalname),
+          path: req.file.path,
+          mime: req.file.mimetype,
+          size: req.file.size,
+          uploadedBy: req.userId,
+        });
+        const previewPath = req.file.mimetype.startsWith('image/')
+          ? await generatePreview(req.file.path)
+          : null;
+        latest = await ResourceVersion.create({
+          resourceId: r._id,
+          version: 1,
+          fileId: fileDoc._id,
+          previewPath,
+          note: String(req.body?.note ?? ''),
+          createdBy: req.userId,
+        });
+      }
+
+      res.status(201).json({ resource: resourceJson(r, latest) });
+    } catch (err) {
+      if (req.file) await fs.promises.unlink(req.file.path).catch(() => {});
+      if (fileDoc) await fileDoc.deleteOne().catch(() => {});
+      if (resourceDoc) await resourceDoc.deleteOne().catch(() => {});
+      throw err;
+    }
   }),
 );
 
@@ -305,6 +341,28 @@ materialsRouter.get(
     const file = await File.findById(v.fileId);
     if (!file) throw new AppError(404, 'not_found', '文件不存在');
     res.download(path.resolve(file.path), file.filename);
+  }),
+);
+
+materialsRouter.get(
+  '/:resourceId/versions/:version/preview',
+  ah(async (req, res) => {
+    const { resource } = await loadVisibleResource(req);
+    const v = await ResourceVersion.findOne({
+      resourceId: resource._id,
+      version: Number(req.params.version),
+    });
+    if (!v) throw new AppError(404, 'not_found', '版本不存在');
+    if (v.previewPath) {
+      res.sendFile(path.resolve(v.previewPath));
+      return;
+    }
+    const file = await File.findById(v.fileId);
+    if (file?.mime.startsWith('image/')) {
+      res.sendFile(path.resolve(file.path));
+      return;
+    }
+    throw new AppError(404, 'not_found', '该版本没有预览图');
   }),
 );
 
