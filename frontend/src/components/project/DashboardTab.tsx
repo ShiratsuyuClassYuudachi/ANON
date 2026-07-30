@@ -3,14 +3,19 @@ import {
   AlertTriangle,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   ClipboardList,
+  EyeOff,
   FolderOpen,
   Info,
   ListTodo,
+  Loader2,
   MapPin,
-  Users,
+  RotateCcw,
+  ShieldOff,
   Wallet,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { api } from '../../api/client';
 import { fmtLocal } from '../../lib/datetime';
 import type {
@@ -20,10 +25,15 @@ import type {
   ProjectDetail,
   RiskItem,
 } from '../../types';
+import { FormOverlay } from '@/components/FormOverlay';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
 
 interface Props {
   project: ProjectDetail;
@@ -81,16 +91,111 @@ function countdown(startDate: string | null, endDate: string | null): { text: st
 export default function DashboardTab({ project, members, myPermissions, onNavigate }: Props) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [err, setErr] = useState('');
+  const [ignoredRisks, setIgnoredRisks] = useState<RiskItem[]>([]);
+
+  const canCompleteTodo = myPermissions.some((p) => ['todo:complete', 'todo:manage', 'project:manage'].includes(p));
+  const canManageRisk = myPermissions.includes('project:manage');
+
+  // Quick action states
+  const [completingId, setCompletingId] = useState<string | null>(null);
+  const [completionNote, setCompletionNote] = useState('');
+  const [completionFiles, setCompletionFiles] = useState<FileList | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+
+  // Risk management states
+  const [ignoringRisk, setIgnoringRisk] = useState<RiskItem | null>(null);
+  const [ignoreReason, setIgnoreReason] = useState('');
+  const [ignoreDuration, setIgnoreDuration] = useState<'day' | 'untilStart' | 'forever'>('day');
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [ignoredOpen, setIgnoredOpen] = useState(false);
 
   const load = useCallback(async () => {
-    const d = await api<DashboardData>(`/api/projects/${project.id}/dashboard`);
+    const [d, r] = await Promise.all([
+      api<DashboardData>(`/api/projects/${project.id}/dashboard`),
+      canManageRisk
+        ? api<{ risks: RiskItem[] }>(`/api/projects/${project.id}/risks`)
+        : Promise.resolve(null),
+    ]);
     setData(d);
+    if (r) setIgnoredRisks(r.risks.filter((x) => x.status === 'ignored'));
     setErr('');
-  }, [project.id]);
+  }, [project.id, canManageRisk]);
 
   useEffect(() => {
     load().catch((e) => setErr((e as Error).message));
   }, [load]);
+
+  // --- Handlers ---
+
+  const completeTodo = async (todoId: string) => {
+    const fd = new FormData();
+    if (completionNote.trim()) fd.append('completionNote', completionNote.trim());
+    if (completionFiles) {
+      for (let i = 0; i < completionFiles.length; i++) fd.append('files', completionFiles[i]);
+    }
+    try {
+      await api(`/api/projects/${project.id}/todos/${todoId}/complete`, { formData: fd });
+      toast.success('已完成');
+      setCompletingId(null);
+      setCompletionNote('');
+      setCompletionFiles(null);
+      await load();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
+  const confirmWork = async (moduleId: string) => {
+    if (confirmingId) return;
+    setConfirmingId(moduleId);
+    try {
+      await api(`/api/projects/${project.id}/work-modules/${moduleId}/confirm`, { body: {} });
+      toast.success('已确认');
+      await load();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setConfirmingId(null);
+    }
+  };
+
+  const ignoreRisk = async () => {
+    if (!ignoringRisk || !ignoreReason.trim()) return;
+    let ignoredUntil: string | undefined;
+    if (ignoreDuration === 'day') {
+      ignoredUntil = new Date(Date.now() + 86400000).toISOString();
+    } else if (ignoreDuration === 'untilStart' && project.startDate) {
+      ignoredUntil = project.startDate;
+    }
+    try {
+      await api(`/api/projects/${project.id}/risks/${ignoringRisk.id}/ignore`, {
+        body: { reason: ignoreReason.trim(), ignoredUntil },
+      });
+      toast.success('已忽略该风险');
+      setIgnoringRisk(null);
+      setIgnoreReason('');
+      setIgnoreDuration('day');
+      await load();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
+  const restoreRisk = async (riskId: string) => {
+    if (restoringId) return;
+    setRestoringId(riskId);
+    try {
+      await api(`/api/projects/${project.id}/risks/${riskId}/restore`, { body: {} });
+      toast.success('已恢复风险');
+      await load();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setRestoringId(null);
+    }
+  };
+
+  // --- Render ---
 
   if (err) return <Card className="p-4 text-sm text-destructive">{err}</Card>;
   if (!data)
@@ -109,6 +214,7 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
   const cd = countdown(project.startDate, project.endDate);
   const status = STATUS_MAP[project.status] ?? STATUS_MAP.preparing;
   const health = HEALTH_MAP[risks.health];
+  const showUntilStart = project.startDate && new Date(project.startDate).getTime() > Date.now();
 
   return (
     <div className="space-y-4">
@@ -147,23 +253,48 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
             <p className="py-4 text-center text-sm text-muted-foreground">当前没有需要你处理的事项</p>
           ) : (
             myActions.items.map((item) => (
-              <button
+              <div
                 key={item.id}
-                onClick={() => onNavigate(item.sourceType === 'todo' ? 'todos' : 'work')}
-                className="flex w-full items-start gap-2 rounded-lg border p-3 text-left transition-colors hover:bg-accent/50"
+                className="flex items-center gap-2 rounded-lg border p-3 transition-colors hover:bg-accent/50"
               >
-                {item.sourceType === 'todo'
-                  ? <ListTodo className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                  : <ClipboardList className="mt-0.5 size-4 shrink-0 text-muted-foreground" />}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{item.title}</p>
-                  <p className="text-xs text-muted-foreground">{item.detail}</p>
-                </div>
-                <div className="shrink-0 text-right">
-                  {item.isOverdue && <Badge variant="destructive" className="text-xs">逾期</Badge>}
-                  {item.dueAt && <p className="mt-0.5 text-xs text-muted-foreground">{fmtLocal(item.dueAt)}</p>}
-                </div>
-              </button>
+                <button
+                  onClick={() => onNavigate(item.sourceType === 'todo' ? 'todos' : 'work')}
+                  className="flex min-w-0 flex-1 items-start gap-2 text-left"
+                >
+                  {item.sourceType === 'todo'
+                    ? <ListTodo className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                    : <ClipboardList className="mt-0.5 size-4 shrink-0 text-muted-foreground" />}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{item.title}</p>
+                    <p className="text-xs text-muted-foreground">{item.detail}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    {item.isOverdue && <Badge variant="destructive" className="text-xs">逾期</Badge>}
+                    {item.dueAt && <p className="mt-0.5 text-xs text-muted-foreground">{fmtLocal(item.dueAt)}</p>}
+                  </div>
+                </button>
+                {item.action === 'complete' && canCompleteTodo && (
+                  <Button
+                    size="sm"
+                    className="h-11 shrink-0 px-4"
+                    onClick={() => { setCompletingId(item.id); setCompletionNote(''); setCompletionFiles(null); }}
+                  >
+                    完成
+                  </Button>
+                )}
+                {item.action === 'confirm' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-11 shrink-0 px-4"
+                    disabled={confirmingId === item.id}
+                    onClick={() => void confirmWork(item.id)}
+                  >
+                    {confirmingId === item.id ? <Loader2 className="size-4 animate-spin" /> : null}
+                    确认
+                  </Button>
+                )}
+              </div>
             ))
           )}
         </CardContent>
@@ -181,7 +312,59 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
               当前未发现明显风险
             </div>
           ) : (
-            risks.risks.map((risk) => <RiskCard key={risk.id} risk={risk} />)
+            risks.risks.map((risk) => (
+              <RiskCard
+                key={risk.id}
+                risk={risk}
+                onIgnore={canManageRisk ? () => { setIgnoringRisk(risk); setIgnoreReason(''); setIgnoreDuration('day'); } : undefined}
+              />
+            ))
+          )}
+
+          {/* 已忽略风险折叠区 */}
+          {canManageRisk && ignoredRisks.length > 0 && (
+            <div className="mt-3 border-t pt-3">
+              <button
+                onClick={() => setIgnoredOpen(!ignoredOpen)}
+                className="flex w-full items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+              >
+                <EyeOff className="size-4" />
+                <span>已忽略 {ignoredRisks.length} 项</span>
+                <ChevronDown className={`ml-auto size-4 transition-transform ${ignoredOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {ignoredOpen && (
+                <div className="mt-2 space-y-2">
+                  {ignoredRisks.map((risk) => {
+                    const level = LEVEL_MAP[risk.level] ?? LEVEL_MAP.info;
+                    const Icon = level.icon;
+                    const ignorerName = members.find((m) => m.userId === risk.ignoredBy)?.name ?? '成员';
+                    return (
+                      <div key={risk.id} className="flex items-start gap-2 rounded-lg border p-3 opacity-75">
+                        <Icon className={`mt-0.5 size-4 shrink-0 ${level.cls}`} />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium">{risk.title}</p>
+                          {risk.ignoreReason && (
+                            <p className="mt-0.5 text-xs italic text-muted-foreground">"{risk.ignoreReason}"</p>
+                          )}
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            由 {ignorerName} 忽略 · {risk.ignoredUntil ? `至 ${fmtLocal(risk.ignoredUntil, true)}` : '永久'}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-11 shrink-0 px-3"
+                          disabled={restoringId === risk.id}
+                          onClick={() => void restoreRisk(risk.id)}
+                        >
+                          {restoringId === risk.id ? <Loader2 className="size-4 animate-spin" /> : <RotateCcw className="size-4" />}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>
@@ -265,20 +448,107 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
           </ModuleCard>
         )}
       </div>
+
+      {/* 完成待办 FormOverlay */}
+      <FormOverlay
+        open={!!completingId}
+        onOpenChange={(o) => { if (!o) setCompletingId(null); }}
+        title="完成待办"
+      >
+        <form
+          onSubmit={(e) => { e.preventDefault(); if (completingId) void completeTodo(completingId); }}
+          className="space-y-4"
+        >
+          <div className="space-y-2">
+            <Label>完成备注（可选）</Label>
+            <Textarea
+              value={completionNote}
+              onChange={(e) => setCompletionNote(e.target.value)}
+              placeholder="补充说明或备注"
+              rows={3}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>附件（可选）</Label>
+            <Input
+              type="file"
+              multiple
+              onChange={(e) => setCompletionFiles(e.target.files)}
+            />
+          </div>
+          <Button type="submit" className="w-full">确认完成</Button>
+        </form>
+      </FormOverlay>
+
+      {/* 忽略风险 FormOverlay */}
+      <FormOverlay
+        open={!!ignoringRisk}
+        onOpenChange={(o) => { if (!o) setIgnoringRisk(null); }}
+        title="忽略风险"
+        description={ignoringRisk?.title}
+      >
+        <form
+          onSubmit={(e) => { e.preventDefault(); void ignoreRisk(); }}
+          className="space-y-4"
+        >
+          <div className="space-y-2">
+            <Label>忽略原因（必填）</Label>
+            <Textarea
+              value={ignoreReason}
+              onChange={(e) => setIgnoreReason(e.target.value)}
+              placeholder="说明为什么忽略此风险"
+              rows={3}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>忽略期限</Label>
+            <RadioGroup value={ignoreDuration} onValueChange={(v) => setIgnoreDuration(v as typeof ignoreDuration)}>
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="day" id="dur-day" />
+                <Label htmlFor="dur-day" className="cursor-pointer font-normal">1 天</Label>
+              </div>
+              {showUntilStart && (
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="untilStart" id="dur-start" />
+                  <Label htmlFor="dur-start" className="cursor-pointer font-normal">
+                    至活动开始（{fmtLocal(project.startDate!, true)}）
+                  </Label>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="forever" id="dur-forever" />
+                <Label htmlFor="dur-forever" className="cursor-pointer font-normal">永久忽略</Label>
+              </div>
+            </RadioGroup>
+          </div>
+          <Button type="submit" className="w-full" disabled={!ignoreReason.trim()}>确认忽略</Button>
+        </form>
+      </FormOverlay>
     </div>
   );
 }
 
-function RiskCard({ risk }: { risk: RiskItem }) {
+function RiskCard({ risk, onIgnore }: { risk: RiskItem; onIgnore?: () => void }) {
   const level = LEVEL_MAP[risk.level] ?? LEVEL_MAP.info;
   const Icon = level.icon;
   return (
     <div className="flex items-start gap-2 rounded-lg border p-3">
       <Icon className={`mt-0.5 size-4 shrink-0 ${level.cls}`} />
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="text-sm font-medium">{risk.title}</p>
         <p className="text-xs text-muted-foreground">{risk.description}</p>
       </div>
+      {onIgnore && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-11 shrink-0 px-3"
+          onClick={onIgnore}
+        >
+          <ShieldOff className="size-4" />
+        </Button>
+      )}
     </div>
   );
 }

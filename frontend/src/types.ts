@@ -116,6 +116,7 @@ export interface RiskItem {
   id: string; ruleCode: string; level: 'info' | 'warning' | 'critical';
   sourceType: string; sourceId: string | null; title: string; description: string;
   status: string; firstDetectedAt: string; lastDetectedAt: string;
+  ignoredBy?: string | null; ignoredUntil?: string | null; ignoreReason?: string | null;
 }
 export type HealthStatus = 'normal' | 'attention' | 'at_risk' | 'critical';
 export interface DashboardData {
