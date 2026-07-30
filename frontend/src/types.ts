@@ -6,16 +6,25 @@ export interface User {
   contacts: { platform: string; value: string }[];
   onboardedAt: string | null;
 }
+export type ProjectStatus = 'draft' | 'preparing' | 'active' | 'settling' | 'completed' | 'archived' | 'cancelled';
 export interface ProjectSummary {
-  id: string; name: string; description: string;
+  id: string; name: string; description: string; status: ProjectStatus;
   startDate: string | null; endDate: string | null; myRole: string | null;
 }
 export interface Role { name: string; permissions: string[]; }
 export interface Member { userId: string; name: string; email: string; roleName: string; }
 export interface ProjectDetail {
-  id: string; name: string; description: string;
-  startDate: string | null; endDate: string | null;
-  roles: Role[]; createdBy: string;
+  id: string;
+  name: string;
+  description: string;
+  status: ProjectStatus;
+  startDate: string | null;
+  endDate: string | null;
+  location: string;
+  timezone: string;
+  currentStage: string;
+  roles: Role[];
+  createdBy: string;
 }
 export interface TodoItem {
   id: string; title: string; category: string;
@@ -73,4 +82,45 @@ export interface WorkSheetData {
   user: { id: string; name: string };
   generatedAt: string;
   items: WorkModuleItem[];
+}
+
+// --- Dashboard ---
+
+export interface DashboardMetrics {
+  todoCompletionRate: number;
+  overdueCount: number;
+  budgetUsageRate: number | null;
+  pendingMaterialCount: number;
+  workConfirmationRate: number;
+  memberCount: number;
+  activeRiskCount: number;
+}
+export interface DashboardSummary {
+  metrics: DashboardMetrics;
+  modules: {
+    todos: { total: number; done: number; open: number; overdue: number; dueThisWeek: number; completionRate: number };
+    finance: { ticketIncomeCents: number; incomeCents: number; expenseCents: number; profitCents: number } | null;
+    materials: { totalResources: number; noVersionCount: number; recentCount: number } | null;
+    work: { totalModules: number; totalRequired: number; totalAssigned: number; confirmedCount: number; shortageCount: number } | null;
+  };
+}
+export interface DashboardActionItem {
+  id: string; sourceType: 'todo' | 'work'; title: string; detail: string;
+  dueAt: string | null; isOverdue: boolean; action: 'complete' | 'confirm';
+}
+export interface ScheduleItem {
+  id: string; sourceType: 'todo' | 'work' | 'project'; title: string; time: string; allDay: boolean;
+}
+export interface ScheduleGroup { date: string; label: string; items: ScheduleItem[]; }
+export interface RiskItem {
+  id: string; ruleCode: string; level: 'info' | 'warning' | 'critical';
+  sourceType: string; sourceId: string | null; title: string; description: string;
+  status: string; firstDetectedAt: string; lastDetectedAt: string;
+}
+export type HealthStatus = 'normal' | 'attention' | 'at_risk' | 'critical';
+export interface DashboardData {
+  summary: DashboardSummary;
+  myActions: { items: DashboardActionItem[] };
+  risks: { risks: RiskItem[]; health: HealthStatus };
+  schedule: { groups: ScheduleGroup[] };
 }

@@ -4,6 +4,7 @@ import {
   ClipboardList,
   FolderOpen,
   KeyRound,
+  LayoutDashboard,
   ListTodo,
   MoreHorizontal,
   Settings,
@@ -13,6 +14,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api/client';
 import AccountsTab from '../components/project/AccountsTab';
+import DashboardTab from '../components/project/DashboardTab';
 import FinanceTab from '../components/project/FinanceTab';
 import MaterialsTab from '../components/project/MaterialsTab';
 import MembersTab from '../components/project/MembersTab';
@@ -36,6 +38,7 @@ interface Detail {
 }
 
 const TABS = [
+  { key: 'dashboard', label: '看板', icon: LayoutDashboard, visible: () => true },
   { key: 'todos', label: '待办', icon: ListTodo, visible: () => true },
   { key: 'finance', label: '财务', icon: Wallet, visible: (p: string[]) => hasAny(p, ['project:manage', 'finance:manage', 'finance:add']) },
   { key: 'materials', label: '物料', icon: FolderOpen, visible: () => true },
@@ -54,9 +57,13 @@ export default function ProjectHome() {
   const { id } = useParams<{ id: string }>();
   const nav = useNavigate();
   const [detail, setDetail] = useState<Detail | null>(null);
-  const [tab, setTab] = useState<(typeof TABS)[number]['key']>('todos');
+  const [tab, setTab] = useState<(typeof TABS)[number]['key']>('dashboard');
   const [err, setErr] = useState('');
   const [moreOpen, setMoreOpen] = useState(false);
+
+  const handleNavigate = useCallback((targetTab: string) => {
+    setTab(targetTab as (typeof TABS)[number]['key']);
+  }, []);
 
   const load = useCallback(async () => {
     const d = await api<Detail>(`/api/projects/${id}`);
@@ -108,6 +115,14 @@ export default function ProjectHome() {
 
       {/* Tab 内容 */}
       <div className="mt-3">
+        {activeTab === 'dashboard' && (
+          <DashboardTab
+            project={detail.project}
+            members={detail.members}
+            myPermissions={detail.myPermissions}
+            onNavigate={handleNavigate}
+          />
+        )}
         {activeTab === 'todos' && (
           <TodosTab project={detail.project} members={detail.members} myPermissions={detail.myPermissions} />
         )}
