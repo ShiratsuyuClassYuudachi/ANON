@@ -18,8 +18,12 @@ function projectJson(p: InstanceType<typeof Project>) {
     id: p._id.toString(),
     name: p.name,
     description: p.description,
+    status: p.status,
     startDate: p.startDate ?? null,
     endDate: p.endDate ?? null,
+    location: p.location,
+    timezone: p.timezone,
+    currentStage: p.currentStage,
     roles: p.roles,
     createdBy: p.createdBy.toString(),
   };
@@ -66,6 +70,7 @@ projectsRouter.get(
         id: p._id.toString(),
         name: p.name,
         description: p.description,
+        status: p.status,
         startDate: p.startDate ?? null,
         endDate: p.endDate ?? null,
         myRole: roleByPid.get(p._id.toString()) ?? null,
@@ -94,11 +99,15 @@ projectsRouter.patch(
   ...requirePermission('project:manage'),
   ah(async (req, res) => {
     const p = req.project!;
-    const { name, description, startDate, endDate } = req.body ?? {};
+    const { name, description, startDate, endDate, status, location, timezone, currentStage } = req.body ?? {};
     if (name !== undefined) p.name = String(name).trim();
     if (description !== undefined) p.description = String(description);
     if (startDate !== undefined) p.startDate = startDate ? new Date(startDate) : undefined;
     if (endDate !== undefined) p.endDate = endDate ? new Date(endDate) : undefined;
+    if (status !== undefined) p.status = status;
+    if (location !== undefined) p.location = String(location);
+    if (timezone !== undefined) p.timezone = String(timezone);
+    if (currentStage !== undefined) p.currentStage = String(currentStage);
     await p.save();
     res.json({ project: projectJson(p) });
   }),
