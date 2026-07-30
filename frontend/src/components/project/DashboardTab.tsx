@@ -5,12 +5,15 @@ import {
   CheckCircle2,
   ChevronDown,
   ClipboardList,
+  Clock,
   EyeOff,
   FolderOpen,
   Info,
   ListTodo,
   Loader2,
   MapPin,
+  Megaphone,
+  Pin,
   RotateCcw,
   ShieldOff,
   Wallet,
@@ -19,7 +22,10 @@ import { toast } from 'sonner';
 import { api } from '../../api/client';
 import { fmtLocal } from '../../lib/datetime';
 import type {
+  ActivityItem,
+  AnnouncementItem,
   DashboardData,
+  DashboardPreferences,
   HealthStatus,
   Member,
   ProjectDetail,
@@ -109,6 +115,11 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [ignoredOpen, setIgnoredOpen] = useState(false);
 
+  // Phase C states
+  const [view, setView] = useState<'personal' | 'project'>('personal');
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [confirmingAnnouncement, setConfirmingAnnouncement] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     const [d, r] = await Promise.all([
       api<DashboardData>(`/api/projects/${project.id}/dashboard`),
@@ -118,6 +129,8 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
     ]);
     setData(d);
     if (r) setIgnoredRisks(r.risks.filter((x) => x.status === 'ignored'));
+    setView(d.preferences.defaultView);
+    setCollapsed(new Set(d.preferences.collapsedCards));
     setErr('');
   }, [project.id, canManageRisk]);
 
@@ -195,6 +208,40 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
     }
   };
 
+  const confirmAnnouncement = async (id: string) => {
+    if (confirmingAnnouncement) return;
+    setConfirmingAnnouncement(id);
+    try {
+      await api(`/api/projects/${project.id}/announcements/${id}/confirm`, { body: {} });
+      toast.success('已确认');
+      await load();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setConfirmingAnnouncement(null);
+    }
+  };
+
+  const updatePrefs = async (patch: Partial<DashboardPreferences>) => {
+    try {
+      await api(`/api/projects/${project.id}/dashboard/preferences`, { body: patch });
+    } catch { /* silent */ }
+  };
+
+  const toggleCollapse = (cardId: string) => {
+    const next = new Set(collapsed);
+    if (next.has(cardId)) next.delete(cardId); else next.add(cardId);
+    setCollapsed(next);
+    updatePrefs({ collapsedCards: [...next] });
+  };
+
+  const switchView = (v: 'personal' | 'project') => {
+    setView(v);
+    updatePrefs({ defaultView: v });
+  };
+
+  const isHidden = (cardId: string) => collapsed.has(cardId);
+
   // --- Render ---
 
   if (err) return <Card className="p-4 text-sm text-destructive">{err}</Card>;
@@ -210,7 +257,7 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
       </div>
     );
 
-  const { summary, myActions, risks, schedule } = data;
+  const { summary, myActions, risks, schedule, announcements, activities } = data;
   const cd = countdown(project.startDate, project.endDate);
   const status = STATUS_MAP[project.status] ?? STATUS_MAP.preparing;
   const health = HEALTH_MAP[risks.health];
@@ -239,6 +286,22 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
           )}
         </CardContent>
       </Card>
+
+      {/* 视图切换 */}
+      <div className="flex gap-1 rounded-lg border p-1">
+        <button
+          onClick={() => switchView('personal')}
+          className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${view === 'personal' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent'}`}
+        >
+          个人视图
+        </button>
+        <button
+          onClick={() => switchView('project')}
+          className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${view === 'project' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent'}`}
+        >
+          项目视图
+        </button>
+      </div>
 
       {/* 待我处理 */}
       <Card>
@@ -369,6 +432,48 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
         </CardContent>
       </Card>
 
+      {/* 公告 */}
+      {announcements.items.length > 0 && !isHidden('announcements') && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center justify-between text-base">
+              <span className="flex items-center gap-2"><Megaphone className="size-4" /> 公告</span>
+              <Button variant="ghost" size="sm" onClick={() => toggleCollapse('announcements')}><ChevronDown className="size-4" /></Button>
+            </CardTitle>
+          </CardHeader>
+          {!isHidden('announcements') && (
+            <CardContent className="space-y-3">
+              {announcements.items.map((a) => (
+                <div key={a.id} className={`rounded-lg border p-3 ${a.type === 'emergency' ? 'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950' : a.type === 'important' ? 'border-orange-300 bg-orange-50 dark:border-orange-800 dark:bg-orange-950' : ''}`}>
+                  <div className="flex items-start gap-2">
+                    {a.isPinned && <Pin className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">{a.title}</p>
+                      {a.content && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{a.content}</p>}
+                      <p className="mt-1 text-xs text-muted-foreground">{a.publishedBy.name} · {fmtLocal(a.publishedAt)}</p>
+                    </div>
+                    {a.requireConfirmation && !a.confirmedByMe && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-9 shrink-0 px-3 text-xs"
+                        disabled={confirmingAnnouncement === a.id}
+                        onClick={() => void confirmAnnouncement(a.id)}
+                      >
+                        {confirmingAnnouncement === a.id ? <Loader2 className="size-3 animate-spin" /> : '我已知悉'}
+                      </Button>
+                    )}
+                    {a.requireConfirmation && a.confirmedByMe && (
+                      <Badge variant="secondary" className="shrink-0 text-xs">已确认</Badge>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          )}
+        </Card>
+      )}
+
       {/* 项目概况指标 */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <MetricCard label="待办完成率" value={`${summary.metrics.todoCompletionRate}%`} onClick={() => onNavigate('todos')} />
@@ -448,6 +553,28 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
           </ModuleCard>
         )}
       </div>
+
+      {/* 最近动态 */}
+      {activities.items.length > 0 && !isHidden('activities') && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center justify-between text-base">
+              <span className="flex items-center gap-2"><Clock className="size-4" /> 最近动态</span>
+              <Button variant="ghost" size="sm" onClick={() => toggleCollapse('activities')}><ChevronDown className="size-4" /></Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {activities.items.map((act) => (
+                <div key={act.id} className="flex items-start gap-2 text-sm">
+                  <span className="w-12 shrink-0 text-xs text-muted-foreground">{fmtLocal(act.createdAt).slice(6)}</span>
+                  <span className="text-muted-foreground">{act.message}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* 完成待办 FormOverlay */}
       <FormOverlay

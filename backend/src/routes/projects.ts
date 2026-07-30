@@ -6,6 +6,7 @@ import { Membership } from '../models/Membership';
 import { Project } from '../models/Project';
 import { ProjectInvite } from '../models/ProjectInvite';
 import { User } from '../models/User';
+import { logActivity } from '../services/activity';
 import { ALL_PERMISSIONS, PRESET_ROLES } from '../services/permissions';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
@@ -100,6 +101,7 @@ projectsRouter.patch(
   ah(async (req, res) => {
     const p = req.project!;
     const { name, description, startDate, endDate, status, location, timezone, currentStage } = req.body ?? {};
+    const oldStatus = p.status;
     if (name !== undefined) p.name = String(name).trim();
     if (description !== undefined) p.description = String(description);
     if (startDate !== undefined) p.startDate = startDate ? new Date(startDate) : undefined;
@@ -109,6 +111,9 @@ projectsRouter.patch(
     if (timezone !== undefined) p.timezone = String(timezone);
     if (currentStage !== undefined) p.currentStage = String(currentStage);
     await p.save();
+    if (status !== undefined && status !== oldStatus) {
+      logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'project:status_change', message: `${req.user!.name}将项目状态变更为「${status}」`, sourceType: 'project', sourceId: p._id });
+    }
     res.json({ project: projectJson(p) });
   }),
 );
@@ -189,6 +194,7 @@ projectsRouter.delete(
       userId: req.params.userId,
     });
     if (!m) throw new AppError(404, 'not_found', '成员不存在');
+    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'member:leave', message: `${req.user!.name}将一名成员移出了项目`, sourceType: 'member' });
     res.json({ members: await membersJson(req.project!._id) });
   }),
 );

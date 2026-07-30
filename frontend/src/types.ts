@@ -119,9 +119,33 @@ export interface RiskItem {
   ignoredBy?: string | null; ignoredUntil?: string | null; ignoreReason?: string | null;
 }
 export type HealthStatus = 'normal' | 'attention' | 'at_risk' | 'critical';
+export interface AnnouncementItem {
+  id: string; title: string; content: string;
+  type: 'normal' | 'important' | 'emergency';
+  isPinned: boolean; requireConfirmation: boolean;
+  publishedBy: { userId: string; name: string };
+  publishedAt: string; expiresAt: string | null;
+  confirmedByMe: boolean;
+}
+export interface ActivityItem {
+  id: string; actor: { userId: string; name: string };
+  type: string; message: string;
+  sourceType: string; sourceId: string | null;
+  createdAt: string;
+}
+export interface DashboardPreferences {
+  defaultView: 'personal' | 'project';
+  collapsedCards: string[];
+  hiddenCards: string[];
+  scheduleRange: 7 | 30;
+  cardOrder: string[];
+}
 export interface DashboardData {
   summary: DashboardSummary;
   myActions: { items: DashboardActionItem[] };
   risks: { risks: RiskItem[]; health: HealthStatus };
   schedule: { groups: ScheduleGroup[] };
+  announcements: { items: AnnouncementItem[] };
+  activities: { items: ActivityItem[] };
+  preferences: DashboardPreferences;
 }

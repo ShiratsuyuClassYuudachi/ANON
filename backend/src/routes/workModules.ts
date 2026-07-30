@@ -4,6 +4,7 @@ import { authRequired } from '../middleware/auth';
 import { loadMembership, requirePermission } from '../middleware/projectAccess';
 import { Membership } from '../models/Membership';
 import { WorkModule } from '../models/WorkModule';
+import { logActivity } from '../services/activity';
 import { memberNameMap, moduleJson } from '../services/workModules';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
@@ -99,6 +100,7 @@ workModulesRouter.post(
       createdBy: new Types.ObjectId(req.userId!),
     });
     const names = await memberNameMap(req.project!._id);
+    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'work:create', message: `${req.user!.name}创建了现场任务「${m.name}」`, sourceType: 'work', sourceId: m._id });
     res.status(201).json({ module: moduleJson(m, names) });
   }),
 );
@@ -124,6 +126,7 @@ workModulesRouter.patch(
     }
     await m.save();
     const names = await memberNameMap(req.project!._id);
+    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'work:update', message: `${req.user!.name}调整了现场任务「${m.name}」`, sourceType: 'work', sourceId: m._id });
     res.json({ module: moduleJson(m, names) });
   }),
 );
@@ -133,7 +136,9 @@ workModulesRouter.delete(
   ...requirePermission('work:manage'),
   ah(async (req, res) => {
     const m = await findInProject(req);
+    const name = m.name;
     await m.deleteOne();
+    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'work:delete', message: `${req.user!.name}删除了现场任务「${name}」`, sourceType: 'work' });
     res.json({ ok: true });
   }),
 );
@@ -164,6 +169,7 @@ workModulesRouter.post(
       await m.save();
     }
     const names = await memberNameMap(req.project!._id);
+    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'work:confirm', message: `${req.user!.name}确认了现场任务「${m.name}」`, sourceType: 'work', sourceId: m._id });
     res.json({ module: moduleJson(m, names) });
   }),
 );

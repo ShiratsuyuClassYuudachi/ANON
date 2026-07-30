@@ -6,6 +6,7 @@ import { File } from '../models/File';
 import { Membership } from '../models/Membership';
 import { Transaction, type TransactionDoc } from '../models/Transaction';
 import { User } from '../models/User';
+import { logActivity } from '../services/activity';
 import { buildSummary, type MemberInfo } from '../services/finance';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
@@ -161,6 +162,7 @@ financeRouter.post(
       splitAmong,
       attachments: fileDocs.map((f) => f._id),
     });
+    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'finance:create', message: `${req.user!.name}添加了一笔${tx.type === 'income' ? '收入' : '支出'}记录`, sourceType: 'finance', sourceId: tx._id, permissionGate: 'finance:manage' });
     res.status(201).json({ transaction: await txJson(tx) });
   }),
 );
@@ -282,6 +284,7 @@ financeRouter.patch(
       tx.splitAmong = splitAmong as never;
     }
     await tx.save();
+    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'finance:update', message: `${req.user!.name}修改了一笔财务记录`, sourceType: 'finance', sourceId: tx._id, permissionGate: 'finance:manage' });
     res.json({ transaction: await txJson(tx) });
   }),
 );
@@ -297,6 +300,7 @@ financeRouter.delete(
       throw new AppError(403, 'forbidden', '没有权限');
     }
     await Transaction.deleteOne({ _id: tx._id });
+    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'finance:delete', message: `${req.user!.name}删除了一笔财务记录`, sourceType: 'finance', permissionGate: 'finance:manage' });
     res.json({ ok: true });
   }),
 );

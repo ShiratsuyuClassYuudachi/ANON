@@ -1,7 +1,9 @@
 import express from 'express';
 import { errorHandler } from './middleware/errorHandler';
 import { accountsRouter } from './routes/accounts';
+import { activitiesRouter } from './routes/activities';
 import { adminRouter } from './routes/admin';
+import { announcementsRouter } from './routes/announcements';
 import { authRouter } from './routes/auth';
 import { cronRouter } from './routes/cron';
 import { dashboardRouter } from './routes/dashboard';
@@ -35,6 +37,8 @@ app.use('/api/projects/:id/materials', materialsRouter);
 app.use('/api/projects/:id/accounts', accountsRouter);
 app.use('/api/projects/:id/dashboard', dashboardRouter);
 app.use('/api/projects/:id/risks', risksRouter);
+app.use('/api/projects/:id/announcements', announcementsRouter);
+app.use('/api/projects/:id/activities', activitiesRouter);
 app.use('/api/files', filesRouter);
 app.use('/api/cron', cronRouter);
 
