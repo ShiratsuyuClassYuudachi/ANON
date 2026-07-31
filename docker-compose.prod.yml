@@ -26,6 +26,8 @@ services:
   backend:
     build: ./backend
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     # 不暴露宿主机端口，由 frontend 经 nginx 代理 /api 访问
     environment:
       # 外接 MongoDB 优先：设置了 MONGO_URI 则用之，否则用内嵌 ferretdb 服务

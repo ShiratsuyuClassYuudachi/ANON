@@ -3,10 +3,14 @@ import { Router } from 'express';
 import { authRequired } from '../middleware/auth';
 import { loadMembership, requirePermission } from '../middleware/projectAccess';
 import { Membership } from '../models/Membership';
-import { Project } from '../models/Project';
+import { Project, defaultStages } from '../models/Project';
 import { ProjectInvite } from '../models/ProjectInvite';
+import { RiskInstance } from '../models/RiskInstance';
+import { Todo } from '../models/Todo';
 import { User } from '../models/User';
+import { logActivity } from '../services/activity';
 import { ALL_PERMISSIONS, PRESET_ROLES } from '../services/permissions';
+import { computeHealth } from '../services/risk';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
 
@@ -14,12 +18,19 @@ export const projectsRouter = Router();
 projectsRouter.use(authRequired);
 
 function projectJson(p: InstanceType<typeof Project>) {
+  const stages = [...(p.stages ?? [])].sort((a, b) => a.order - b.order);
+  const currentStage = stages.find((s) => !s.completedAt)?.name ?? p.currentStage ?? '';
   return {
     id: p._id.toString(),
     name: p.name,
     description: p.description,
+    status: p.status,
     startDate: p.startDate ?? null,
     endDate: p.endDate ?? null,
+    location: p.location,
+    timezone: p.timezone,
+    currentStage,
+    stages: stages.map((s) => ({ id: s._id.toString(), name: s.name, order: s.order, completedAt: s.completedAt?.toISOString() ?? null, note: s.note ?? '' })),
     roles: p.roles,
     createdBy: p.createdBy.toString(),
   };
@@ -49,6 +60,7 @@ projectsRouter.post(
       endDate: endDate ? new Date(endDate) : undefined,
       createdBy: req.userId,
       roles: PRESET_ROLES.map((r) => ({ ...r, permissions: [...r.permissions] })),
+      stages: defaultStages(),
     });
     await Membership.create({ projectId: project._id, userId: req.userId, roleName: '主办' });
     res.status(201).json({ project: projectJson(project) });
@@ -59,17 +71,49 @@ projectsRouter.get(
   '/',
   ah(async (req, res) => {
     const ms = await Membership.find({ userId: req.userId }).lean();
-    const projects = await Project.find({ _id: { $in: ms.map((m) => m.projectId) } }).lean();
+    const projectIds = ms.map((m) => m.projectId);
+    const projects = await Project.find({ _id: { $in: projectIds } }).lean();
     const roleByPid = new Map(ms.map((m) => [m.projectId.toString(), m.roleName]));
+
+    const [todoStats, riskCounts] = await Promise.all([
+      Todo.aggregate([
+        { $match: { projectId: { $in: projectIds } } },
+        { $group: { _id: '$projectId', total: { $sum: 1 }, done: { $sum: { $cond: [{ $eq: ['$status', 'done'] }, 1, 0] } } } },
+      ]),
+      RiskInstance.aggregate([
+        { $match: { projectId: { $in: projectIds }, status: 'active' } },
+        { $group: { _id: '$projectId', count: { $sum: 1 }, levels: { $push: '$level' } } },
+      ]),
+    ]);
+
+    const todoByPid = new Map(todoStats.map((t) => [t._id.toString(), t]));
+    const riskByPid = new Map(riskCounts.map((r) => [r._id.toString(), r]));
+
     res.json({
-      projects: projects.map((p) => ({
-        id: p._id.toString(),
-        name: p.name,
-        description: p.description,
-        startDate: p.startDate ?? null,
-        endDate: p.endDate ?? null,
-        myRole: roleByPid.get(p._id.toString()) ?? null,
-      })),
+      projects: projects.map((p) => {
+        const pid = p._id.toString();
+        const todo = todoByPid.get(pid);
+        const risk = riskByPid.get(pid);
+        const completionRate = todo && todo.total > 0 ? Math.round((todo.done / todo.total) * 100) : 0;
+        const activeRiskLevels = (risk?.levels ?? []) as string[];
+        const health = computeHealth(activeRiskLevels.map((level) => ({ level } as any)));
+        const stages = [...(p.stages ?? [])].sort((a, b) => a.order - b.order);
+        const currentStage = stages.find((s) => !s.completedAt)?.name ?? p.currentStage ?? '';
+        return {
+          id: pid,
+          name: p.name,
+          description: p.description,
+          status: p.status,
+          startDate: p.startDate ?? null,
+          endDate: p.endDate ?? null,
+          myRole: roleByPid.get(pid) ?? null,
+          currentStage,
+          stageProgress: { completed: stages.filter((s) => s.completedAt).length, total: stages.length },
+          health,
+          todoCompletionRate: completionRate,
+          activeRiskCount: activeRiskLevels.length,
+        };
+      }),
     });
   }),
 );
@@ -94,12 +138,20 @@ projectsRouter.patch(
   ...requirePermission('project:manage'),
   ah(async (req, res) => {
     const p = req.project!;
-    const { name, description, startDate, endDate } = req.body ?? {};
+    const { name, description, startDate, endDate, status, location, timezone, currentStage } = req.body ?? {};
+    const oldStatus = p.status;
     if (name !== undefined) p.name = String(name).trim();
     if (description !== undefined) p.description = String(description);
     if (startDate !== undefined) p.startDate = startDate ? new Date(startDate) : undefined;
     if (endDate !== undefined) p.endDate = endDate ? new Date(endDate) : undefined;
+    if (status !== undefined) p.status = status;
+    if (location !== undefined) p.location = String(location);
+    if (timezone !== undefined) p.timezone = String(timezone);
+    if (currentStage !== undefined) p.currentStage = String(currentStage);
     await p.save();
+    if (status !== undefined && status !== oldStatus) {
+      logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'project:status_change', message: `${req.user!.name}将项目状态变更为「${status}」`, sourceType: 'project', sourceId: p._id });
+    }
     res.json({ project: projectJson(p) });
   }),
 );
@@ -180,6 +232,7 @@ projectsRouter.delete(
       userId: req.params.userId,
     });
     if (!m) throw new AppError(404, 'not_found', '成员不存在');
+    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'member:leave', message: `${req.user!.name}将一名成员移出了项目`, sourceType: 'member' });
     res.json({ members: await membersJson(req.project!._id) });
   }),
 );

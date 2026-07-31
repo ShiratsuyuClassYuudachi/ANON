@@ -8,6 +8,7 @@ import { File, type FileDoc } from '../models/File';
 import { Resource, type ResourceDoc } from '../models/Resource';
 import { ResourceType, type ResourceTypeDoc } from '../models/ResourceType';
 import { ResourceVersion, type ResourceVersionDoc } from '../models/ResourceVersion';
+import { logActivity } from '../services/activity';
 import { generatePreview } from '../services/preview';
 import { canSee, type Viewer } from '../services/visibility';
 import { ah } from '../utils/async';
@@ -211,6 +212,7 @@ materialsRouter.post(
         });
       }
 
+      logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'material:create', message: `${req.user!.name}创建了资源「${r.name}」`, sourceType: 'material', sourceId: r._id });
       res.status(201).json({ resource: resourceJson(r, latest) });
     } catch (err) {
       if (req.file) await fs.promises.unlink(req.file.path).catch(() => {});
@@ -262,6 +264,7 @@ materialsRouter.delete(
       projectId: req.project!._id,
     });
     if (!resource) throw new AppError(404, 'not_found', '资源不存在');
+    const name = resource.name;
     const versions = await ResourceVersion.find({ resourceId: resource._id });
     const files = await File.find({ _id: { $in: versions.map((v) => v.fileId) } });
     for (const f of files) await fs.promises.unlink(path.resolve(f.path)).catch(() => {});
@@ -271,6 +274,7 @@ materialsRouter.delete(
     await File.deleteMany({ _id: { $in: versions.map((v) => v.fileId) } });
     await ResourceVersion.deleteMany({ resourceId: resource._id });
     await resource.deleteOne();
+    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'material:delete', message: `${req.user!.name}删除了资源「${name}」`, sourceType: 'material' });
     res.json({ ok: true });
   }),
 );
@@ -311,6 +315,7 @@ materialsRouter.post(
         note: String(req.body?.note ?? ''),
         createdBy: req.userId,
       });
+      logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'material:upload_version', message: `${req.user!.name}上传了「${resource.name}」的新版本`, sourceType: 'material', sourceId: resource._id });
       res.status(201).json({ version: await versionJson(v) });
     } catch (err) {
       if (req.file) await fs.promises.unlink(req.file.path).catch(() => {});

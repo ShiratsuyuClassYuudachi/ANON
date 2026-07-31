@@ -6,6 +6,7 @@ import { File } from '../models/File';
 import { Membership } from '../models/Membership';
 import { Todo, type TodoDoc } from '../models/Todo';
 import { User } from '../models/User';
+import { logActivity } from '../services/activity';
 import { applyTemplate, buildTemplate } from '../services/template';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
@@ -96,6 +97,7 @@ todosRouter.post(
       note: String(note ?? ''),
       createdBy: req.userId,
     });
+    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'todo:create', message: `${req.user!.name}创建了待办「${todo.title}」`, sourceType: 'todo', sourceId: todo._id });
     res.status(201).json({ todo: await todoJson(todo) });
   }),
 );
@@ -156,6 +158,7 @@ todosRouter.patch(
       todo.assigneeIds = assignees as never;
     }
     await todo.save();
+    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'todo:update', message: `${req.user!.name}修改了待办「${todo.title}」`, sourceType: 'todo', sourceId: todo._id });
     res.json({ todo: await todoJson(todo) });
   }),
 );
@@ -164,8 +167,11 @@ todosRouter.delete(
   '/:todoId',
   ...requirePermission('todo:manage'),
   ah(async (req, res) => {
+    const todo = await Todo.findOne({ _id: req.params.todoId, projectId: req.project!._id });
+    const title = todo?.title ?? '';
     const r = await Todo.deleteOne({ _id: req.params.todoId, projectId: req.project!._id });
     if (!r.deletedCount) throw new AppError(404, 'not_found', '待办不存在');
+    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'todo:delete', message: `${req.user!.name}删除了待办「${title}」`, sourceType: 'todo' });
     res.json({ ok: true });
   }),
 );
@@ -208,6 +214,7 @@ todosRouter.post(
     todo.completionNote = String(req.body?.completionNote ?? '');
     todo.attachments.push(...fileDocs.map((f) => f._id));
     await todo.save();
+    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'todo:complete', message: `${req.user!.name}完成了待办「${todo.title}」`, sourceType: 'todo', sourceId: todo._id });
     res.json({ todo: await todoJson(todo) });
   }),
 );

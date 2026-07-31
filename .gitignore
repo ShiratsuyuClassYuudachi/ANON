@@ -6,7 +6,7 @@ backend/uploads/
 *.local
 .DS_Store
 .worktrees/
-
+designs/
 # 运行日志
 *.log
 .walkthrough/

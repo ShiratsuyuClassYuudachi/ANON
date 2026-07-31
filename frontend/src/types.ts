@@ -6,16 +6,36 @@ export interface User {
   contacts: { platform: string; value: string }[];
   onboardedAt: string | null;
 }
+export type ProjectStatus = 'draft' | 'preparing' | 'active' | 'settling' | 'completed' | 'archived' | 'cancelled';
+export interface StageItem {
+  id: string; name: string; order: number; completedAt: string | null; note: string;
+}
+export interface MilestoneItem {
+  id: string; title: string; date: string; description: string;
+  stageId: string | null; stageName: string | null;
+  completedAt: string | null; createdBy: { userId: string; name: string };
+}
 export interface ProjectSummary {
-  id: string; name: string; description: string;
+  id: string; name: string; description: string; status: ProjectStatus;
   startDate: string | null; endDate: string | null; myRole: string | null;
+  currentStage: string; stageProgress: { completed: number; total: number };
+  health: HealthStatus; todoCompletionRate: number; activeRiskCount: number;
 }
 export interface Role { name: string; permissions: string[]; }
 export interface Member { userId: string; name: string; email: string; roleName: string; }
 export interface ProjectDetail {
-  id: string; name: string; description: string;
-  startDate: string | null; endDate: string | null;
-  roles: Role[]; createdBy: string;
+  id: string;
+  name: string;
+  description: string;
+  status: ProjectStatus;
+  startDate: string | null;
+  endDate: string | null;
+  location: string;
+  timezone: string;
+  currentStage: string;
+  stages: StageItem[];
+  roles: Role[];
+  createdBy: string;
 }
 export interface TodoItem {
   id: string; title: string; category: string;
@@ -73,4 +93,70 @@ export interface WorkSheetData {
   user: { id: string; name: string };
   generatedAt: string;
   items: WorkModuleItem[];
+}
+
+// --- Dashboard ---
+
+export interface DashboardMetrics {
+  todoCompletionRate: number;
+  overdueCount: number;
+  budgetUsageRate: number | null;
+  pendingMaterialCount: number;
+  workConfirmationRate: number;
+  memberCount: number;
+  activeRiskCount: number;
+}
+export interface DashboardSummary {
+  metrics: DashboardMetrics;
+  modules: {
+    todos: { total: number; done: number; open: number; overdue: number; dueThisWeek: number; completionRate: number };
+    finance: { ticketIncomeCents: number; incomeCents: number; expenseCents: number; profitCents: number } | null;
+    materials: { totalResources: number; noVersionCount: number; recentCount: number } | null;
+    work: { totalModules: number; totalRequired: number; totalAssigned: number; confirmedCount: number; shortageCount: number } | null;
+  };
+}
+export interface DashboardActionItem {
+  id: string; sourceType: 'todo' | 'work'; title: string; detail: string;
+  dueAt: string | null; isOverdue: boolean; action: 'complete' | 'confirm';
+}
+export interface ScheduleItem {
+  id: string; sourceType: 'todo' | 'work' | 'project' | 'milestone'; title: string; time: string; allDay: boolean;
+}
+export interface ScheduleGroup { date: string; label: string; items: ScheduleItem[]; }
+export interface RiskItem {
+  id: string; ruleCode: string; level: 'info' | 'warning' | 'critical';
+  sourceType: string; sourceId: string | null; title: string; description: string;
+  status: string; firstDetectedAt: string; lastDetectedAt: string;
+  ignoredBy?: string | null; ignoredUntil?: string | null; ignoreReason?: string | null;
+}
+export type HealthStatus = 'normal' | 'attention' | 'at_risk' | 'critical';
+export interface AnnouncementItem {
+  id: string; title: string; content: string;
+  type: 'normal' | 'important' | 'emergency';
+  isPinned: boolean; requireConfirmation: boolean;
+  publishedBy: { userId: string; name: string };
+  publishedAt: string; expiresAt: string | null;
+  confirmedByMe: boolean;
+}
+export interface ActivityItem {
+  id: string; actor: { userId: string; name: string };
+  type: string; message: string;
+  sourceType: string; sourceId: string | null;
+  createdAt: string;
+}
+export interface DashboardPreferences {
+  defaultView: 'personal' | 'project';
+  collapsedCards: string[];
+  hiddenCards: string[];
+  scheduleRange: 7 | 30;
+  cardOrder: string[];
+}
+export interface DashboardData {
+  summary: DashboardSummary;
+  myActions: { items: DashboardActionItem[] };
+  risks: { risks: RiskItem[]; health: HealthStatus };
+  schedule: { groups: ScheduleGroup[] };
+  announcements: { items: AnnouncementItem[] };
+  activities: { items: ActivityItem[] };
+  preferences: DashboardPreferences;
 }
