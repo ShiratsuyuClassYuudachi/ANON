@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
   CalendarDays,
   CheckCircle2,
   ChevronDown,
+  ChevronUp,
   ClipboardList,
   Clock,
+  Eye,
   EyeOff,
   Flag,
   FolderOpen,
@@ -16,12 +18,13 @@ import {
   Megaphone,
   Pin,
   RotateCcw,
+  Settings2,
   ShieldOff,
   Wallet,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
-import { fmtLocal } from '../../lib/datetime';
+import { eventCountdown, fmtLocal } from '../../lib/datetime';
 import type {
   ActivityItem,
   AnnouncementItem,
@@ -68,33 +71,28 @@ const HEALTH_MAP: Record<HealthStatus, { label: string; cls: string }> = {
   critical: { label: '严重异常', cls: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' },
 };
 
-const LEVEL_MAP: Record<string, { icon: typeof Info; cls: string }> = {
-  critical: { icon: AlertTriangle, cls: 'text-red-600 dark:text-red-400' },
-  warning: { icon: AlertTriangle, cls: 'text-orange-600 dark:text-orange-400' },
-  info: { icon: Info, cls: 'text-blue-600 dark:text-blue-400' },
+const LEVEL_MAP: Record<string, { icon: typeof Info; cls: string; border: string }> = {
+  critical: { icon: AlertTriangle, cls: 'text-red-600 dark:text-red-400', border: 'border-l-red-500' },
+  warning: { icon: AlertTriangle, cls: 'text-orange-600 dark:text-orange-400', border: 'border-l-orange-500' },
+  info: { icon: Info, cls: 'text-blue-600 dark:text-blue-400', border: 'border-l-blue-500' },
 };
 
-function countdown(startDate: string | null, endDate: string | null): { text: string; cls: string } {
-  if (!startDate) return { text: '尚未设置活动日期', cls: 'text-muted-foreground' };
-  const now = new Date();
-  const start = new Date(startDate);
-  const end = endDate ? new Date(endDate) : start;
-  const msToStart = start.getTime() - now.getTime();
+const CARD_DEFS: Record<string, { title: string }> = {
+  myActions: { title: '待我处理' },
+  risks: { title: '风险与异常' },
+  announcements: { title: '公告' },
+  schedule: { title: '近期日程' },
+  milestones: { title: '里程碑' },
+  modules: { title: '模块摘要' },
+  activities: { title: '最近动态' },
+};
 
-  if (msToStart > 86400000) {
-    const days = Math.ceil(msToStart / 86400000);
-    return { text: `距活动开始还有 ${days} 天`, cls: days <= 7 ? 'text-orange-600 dark:text-orange-400 font-medium' : 'text-foreground' };
-  }
-  if (msToStart > 0) {
-    const hours = Math.ceil(msToStart / 3600000);
-    return { text: hours <= 24 ? `距活动开始还有 ${hours} 小时` : '活动今天开始', cls: 'text-orange-600 dark:text-orange-400 font-medium' };
-  }
-  if (now <= end) {
-    const dayNum = Math.floor((now.getTime() - start.getTime()) / 86400000) + 1;
-    return { text: `活动进行中，第 ${dayNum} 天`, cls: 'text-primary font-semibold' };
-  }
-  const daysSince = Math.floor((now.getTime() - end.getTime()) / 86400000);
-  return { text: `活动已结束 ${daysSince} 天`, cls: 'text-muted-foreground' };
+const DEFAULT_CARD_ORDER = Object.keys(CARD_DEFS);
+
+/** 合并服务端保存的顺序与新增卡片：未知 id 丢弃，新增 id 追加到默认位置 */
+function mergeCardOrder(saved: string[]): string[] {
+  const known = saved.filter((id) => id in CARD_DEFS);
+  return [...known, ...DEFAULT_CARD_ORDER.filter((id) => !known.includes(id))];
 }
 
 export default function DashboardTab({ project, members, myPermissions, onNavigate }: Props) {
@@ -122,18 +120,37 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
   const [view, setView] = useState<'personal' | 'project'>('personal');
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [confirmingAnnouncement, setConfirmingAnnouncement] = useState<string | null>(null);
+  const [range, setRange] = useState<7 | 30>(7);
+  const rangeRef = useRef<7 | 30>(7);
+  const prefsInitRef = useRef(false);
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const [cardOrder, setCardOrder] = useState<string[]>(DEFAULT_CARD_ORDER);
+  const [customizeOpen, setCustomizeOpen] = useState(false);
 
   const load = useCallback(async () => {
     const [d, r] = await Promise.all([
-      api<DashboardData>(`/api/projects/${project.id}/dashboard`),
+      api<DashboardData>(`/api/projects/${project.id}/dashboard?scheduleDays=${rangeRef.current}`),
       canManageRisk
         ? api<{ risks: RiskItem[] }>(`/api/projects/${project.id}/risks`)
         : Promise.resolve(null),
     ]);
     setData(d);
     if (r) setIgnoredRisks(r.risks.filter((x) => x.status === 'ignored'));
-    setView(d.preferences.defaultView);
-    setCollapsed(new Set(d.preferences.collapsedCards));
+    // 仅在首次加载时应用服务端偏好，避免覆盖本地刚修改（尚未持久化完成）的状态
+    if (!prefsInitRef.current) {
+      prefsInitRef.current = true;
+      setView(d.preferences.defaultView);
+      setCollapsed(new Set(d.preferences.collapsedCards));
+      setHidden(new Set(d.preferences.hiddenCards));
+      setCardOrder(mergeCardOrder(d.preferences.cardOrder));
+      if (d.preferences.scheduleRange !== rangeRef.current) {
+        rangeRef.current = d.preferences.scheduleRange;
+        setRange(d.preferences.scheduleRange);
+        setErr('');
+        await load();
+        return;
+      }
+    }
     setErr('');
   }, [project.id, canManageRisk]);
 
@@ -243,7 +260,35 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
     updatePrefs({ defaultView: v });
   };
 
-  const isHidden = (cardId: string) => collapsed.has(cardId);
+  const switchRange = (r: 7 | 30) => {
+    if (r === rangeRef.current) return;
+    rangeRef.current = r;
+    setRange(r);
+    updatePrefs({ scheduleRange: r });
+    void load();
+  };
+
+  const isCollapsed = (cardId: string) => collapsed.has(cardId);
+
+  const toggleHide = (cardId: string) => {
+    const next = new Set(hidden);
+    if (next.has(cardId)) next.delete(cardId); else next.add(cardId);
+    setHidden(next);
+    updatePrefs({ hiddenCards: [...next] });
+  };
+
+  const moveCard = (cardId: string, dir: -1 | 1) => {
+    const idx = cardOrder.indexOf(cardId);
+    const target = idx + dir;
+    if (idx < 0 || target < 0 || target >= cardOrder.length) return;
+    const next = [...cardOrder];
+    [next[idx], next[target]] = [next[target], next[idx]];
+    setCardOrder(next);
+    updatePrefs({ cardOrder: next });
+  };
+
+  /** 卡片在 flex 列中的视觉顺序（头部/切换器/指标为负值固定在前） */
+  const orderOf = (cardId: string) => 10 + cardOrder.indexOf(cardId);
 
   // --- Render ---
 
@@ -261,26 +306,35 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
     );
 
   const { summary, myActions, risks, schedule, announcements, activities } = data;
-  const cd = countdown(project.startDate, project.endDate);
+  const cd = eventCountdown(project.startDate, project.endDate);
   const status = STATUS_MAP[project.status] ?? STATUS_MAP.preparing;
   const health = HEALTH_MAP[risks.health];
   const showUntilStart = project.startDate && new Date(project.startDate).getTime() > Date.now();
+  const isPersonal = view === 'personal';
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       {/* 项目头部 */}
-      <Card>
+      <Card style={{ order: -3 }}>
         <CardContent className="space-y-2 p-4">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={status.variant}>{status.label}</Badge>
             {project.currentStage && <Badge variant="outline">{project.currentStage}</Badge>}
             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${health.cls}`}>{health.label}</span>
           </div>
-          <p className={`text-lg font-semibold ${cd.cls}`}>{cd.text}</p>
-          {project.startDate && (
-            <p className="text-sm text-muted-foreground">
-              {fmtLocal(project.startDate, true)}{project.endDate ? ` 至 ${fmtLocal(project.endDate, true)}` : ''}
-            </p>
+          {/* 开展倒计时 */}
+          {cd.phase === 'unset' ? (
+            <p className="text-sm text-muted-foreground">{cd.text}</p>
+          ) : (
+            <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
+              <div className="flex items-baseline gap-1.5">
+                <span className={`text-3xl font-bold leading-none tabular-nums ${cd.cls}`}>{cd.count}</span>
+                <span className={`text-sm font-medium ${cd.cls}`}>{cd.unit}</span>
+              </div>
+              <p className="pb-0.5 text-xs text-muted-foreground">
+                {fmtLocal(project.startDate!, true)}{project.endDate ? ` 至 ${fmtLocal(project.endDate, true)}` : ''}
+              </p>
+            </div>
           )}
           {project.location && (
             <p className="flex items-center gap-1 text-sm text-muted-foreground">
@@ -295,31 +349,52 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
         </CardContent>
       </Card>
 
-      {/* 视图切换 */}
-      <div className="flex gap-1 rounded-lg border p-1">
-        <button
-          onClick={() => switchView('personal')}
-          className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${view === 'personal' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent'}`}
-        >
-          个人视图
-        </button>
-        <button
-          onClick={() => switchView('project')}
-          className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${view === 'project' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent'}`}
-        >
-          项目视图
-        </button>
+      {/* 视图切换 + 自定义入口 */}
+      <div className="flex items-center gap-2" style={{ order: -2 }}>
+        <div className="flex flex-1 gap-1 rounded-lg bg-muted p-1">
+          <button
+            onClick={() => switchView('personal')}
+            className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${view === 'personal' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            个人视图
+          </button>
+          <button
+            onClick={() => switchView('project')}
+            className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${view === 'project' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            项目视图
+          </button>
+        </div>
+        <Button variant="outline" size="icon" onClick={() => setCustomizeOpen(true)} aria-label="自定义看板" title="自定义看板">
+          <Settings2 className="size-4" />
+        </Button>
       </div>
 
+      {/* 项目概况指标（项目视图） */}
+      {!isPersonal && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6" style={{ order: -1 }}>
+          <MetricCard label="待办完成率" value={`${summary.metrics.todoCompletionRate}%`} onClick={() => onNavigate('todos')} />
+          <MetricCard label="逾期待办" value={String(summary.metrics.overdueCount)} alert={summary.metrics.overdueCount > 0} onClick={() => onNavigate('todos')} />
+          {summary.metrics.budgetUsageRate !== null && (
+            <MetricCard label="预算使用率" value={`${summary.metrics.budgetUsageRate}%`} alert={summary.metrics.budgetUsageRate > 90} onClick={() => onNavigate('finance')} />
+          )}
+          <MetricCard label="现场确认率" value={`${summary.metrics.workConfirmationRate}%`} onClick={() => onNavigate('work')} />
+          <MetricCard label="成员" value={String(summary.metrics.memberCount)} onClick={() => onNavigate('members')} />
+          <MetricCard label="活跃风险" value={String(summary.metrics.activeRiskCount)} alert={summary.metrics.activeRiskCount > 0} />
+        </div>
+      )}
+
       {/* 待我处理 */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            待我处理
-            {myActions.items.length > 0 && <Badge variant="destructive">{myActions.items.length}</Badge>}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
+      {!hidden.has('myActions') && (
+      <CollapsibleCard
+        title="待我处理"
+        icon={ListTodo}
+        count={myActions.items.length}
+        collapsed={isCollapsed('myActions')}
+        onToggle={() => toggleCollapse('myActions')}
+        style={{ order: orderOf('myActions') }}
+      >
+        <div className="space-y-2">
           {myActions.items.length === 0 ? (
             <p className="py-4 text-center text-sm text-muted-foreground">当前没有需要你处理的事项</p>
           ) : (
@@ -368,15 +443,21 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
               </div>
             ))
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </CollapsibleCard>
+      )}
 
       {/* 风险与异常 */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">风险与异常</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
+      {!hidden.has('risks') && (
+      <CollapsibleCard
+        title="风险与异常"
+        icon={AlertTriangle}
+        count={risks.risks.length > 0 ? risks.risks.length : undefined}
+        collapsed={isCollapsed('risks')}
+        onToggle={() => toggleCollapse('risks')}
+        style={{ order: orderOf('risks') }}
+      >
+        <div className="space-y-2">
           {risks.risks.length === 0 ? (
             <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
               <CheckCircle2 className="size-4 text-green-600 dark:text-green-400" />
@@ -437,102 +518,113 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
               )}
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      {/* 公告 */}
-      {announcements.items.length > 0 && !isHidden('announcements') && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center justify-between text-base">
-              <span className="flex items-center gap-2"><Megaphone className="size-4" /> 公告</span>
-              <Button variant="ghost" size="sm" onClick={() => toggleCollapse('announcements')}><ChevronDown className="size-4" /></Button>
-            </CardTitle>
-          </CardHeader>
-          {!isHidden('announcements') && (
-            <CardContent className="space-y-3">
-              {announcements.items.map((a) => (
-                <div key={a.id} className={`rounded-lg border p-3 ${a.type === 'emergency' ? 'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950' : a.type === 'important' ? 'border-orange-300 bg-orange-50 dark:border-orange-800 dark:bg-orange-950' : ''}`}>
-                  <div className="flex items-start gap-2">
-                    {a.isPinned && <Pin className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />}
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium">{a.title}</p>
-                      {a.content && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{a.content}</p>}
-                      <p className="mt-1 text-xs text-muted-foreground">{a.publishedBy.name} · {fmtLocal(a.publishedAt)}</p>
-                    </div>
-                    {a.requireConfirmation && !a.confirmedByMe && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-9 shrink-0 px-3 text-xs"
-                        disabled={confirmingAnnouncement === a.id}
-                        onClick={() => void confirmAnnouncement(a.id)}
-                      >
-                        {confirmingAnnouncement === a.id ? <Loader2 className="size-3 animate-spin" /> : '我已知悉'}
-                      </Button>
-                    )}
-                    {a.requireConfirmation && a.confirmedByMe && (
-                      <Badge variant="secondary" className="shrink-0 text-xs">已确认</Badge>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          )}
-        </Card>
+        </div>
+      </CollapsibleCard>
       )}
 
-      {/* 项目概况指标 */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <MetricCard label="待办完成率" value={`${summary.metrics.todoCompletionRate}%`} onClick={() => onNavigate('todos')} />
-        <MetricCard label="逾期待办" value={String(summary.metrics.overdueCount)} alert={summary.metrics.overdueCount > 0} onClick={() => onNavigate('todos')} />
-        {summary.metrics.budgetUsageRate !== null && (
-          <MetricCard label="预算使用率" value={`${summary.metrics.budgetUsageRate}%`} alert={summary.metrics.budgetUsageRate > 90} onClick={() => onNavigate('finance')} />
-        )}
-        <MetricCard label="现场确认率" value={`${summary.metrics.workConfirmationRate}%`} onClick={() => onNavigate('work')} />
-        <MetricCard label="成员" value={String(summary.metrics.memberCount)} onClick={() => onNavigate('members')} />
-        <MetricCard label="活跃风险" value={String(summary.metrics.activeRiskCount)} alert={summary.metrics.activeRiskCount > 0} />
-      </div>
+      {/* 公告 */}
+      {announcements.items.length > 0 && !hidden.has('announcements') && (
+        <CollapsibleCard
+          title="公告"
+          icon={Megaphone}
+          collapsed={isCollapsed('announcements')}
+          onToggle={() => toggleCollapse('announcements')}
+          style={{ order: orderOf('announcements') }}
+        >
+          <div className="space-y-3">
+            {announcements.items.map((a) => (
+              <div key={a.id} className={`rounded-lg border p-3 ${a.type === 'emergency' ? 'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950' : a.type === 'important' ? 'border-orange-300 bg-orange-50 dark:border-orange-800 dark:bg-orange-950' : ''}`}>
+                <div className="flex items-start gap-2">
+                  {a.isPinned && <Pin className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">{a.title}</p>
+                    {a.content && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{a.content}</p>}
+                    <p className="mt-1 text-xs text-muted-foreground">{a.publishedBy.name} · {fmtLocal(a.publishedAt)}</p>
+                  </div>
+                  {a.requireConfirmation && !a.confirmedByMe && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-9 shrink-0 px-3 text-xs"
+                      disabled={confirmingAnnouncement === a.id}
+                      onClick={() => void confirmAnnouncement(a.id)}
+                    >
+                      {confirmingAnnouncement === a.id ? <Loader2 className="size-3 animate-spin" /> : '我已知悉'}
+                    </Button>
+                  )}
+                  {a.requireConfirmation && a.confirmedByMe && (
+                    <Badge variant="secondary" className="shrink-0 text-xs">已确认</Badge>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </CollapsibleCard>
+      )}
 
       {/* 近期日程 */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <CalendarDays className="size-4" /> 近期日程
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {schedule.groups.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted-foreground">未来 7 天暂无日程安排</p>
-          ) : (
-            <div className="space-y-3">
-              {schedule.groups.map((group) => (
-                <div key={group.date}>
-                  <p className="mb-1 text-xs font-medium text-muted-foreground">{group.label}</p>
-                  <div className="space-y-1">
-                    {group.items.map((item) => (
-                      <div key={`${item.sourceType}-${item.id}`} className="flex items-center gap-2 text-sm">
-                        <span className="w-12 shrink-0 text-xs text-muted-foreground">{fmtLocal(item.time).slice(6)}</span>
-                        {item.sourceType === 'todo' && <ListTodo className="size-3.5 shrink-0 text-muted-foreground" />}
-                        {item.sourceType === 'work' && <ClipboardList className="size-3.5 shrink-0 text-muted-foreground" />}
-                        {item.sourceType === 'project' && <CalendarDays className="size-3.5 shrink-0 text-primary" />}
-                        {item.sourceType === 'milestone' && <Flag className="size-3.5 shrink-0 text-purple-600 dark:text-purple-400" />}
-                        <span className="truncate">{item.title}</span>
-                      </div>
-                    ))}
-                  </div>
+      {!hidden.has('schedule') && (
+      <CollapsibleCard
+        title="近期日程"
+        icon={CalendarDays}
+        collapsed={isCollapsed('schedule')}
+        onToggle={() => toggleCollapse('schedule')}
+        style={{ order: orderOf('schedule') }}
+        headerExtra={
+          <div className="flex gap-0.5 rounded-md bg-muted p-0.5 text-xs">
+            {([7, 30] as const).map((d) => (
+              <button
+                key={d}
+                onClick={() => switchRange(d)}
+                className={`rounded px-2 py-0.5 transition-colors ${range === d ? 'bg-background font-medium text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                {d} 天
+              </button>
+            ))}
+          </div>
+        }
+      >
+        {schedule.groups.length === 0 ? (
+          <p className="py-4 text-center text-sm text-muted-foreground">未来 {range} 天暂无日程安排</p>
+        ) : (
+          <div className="space-y-3">
+            {schedule.groups.map((group) => (
+              <div key={group.date}>
+                <p className="mb-1 text-xs font-medium text-muted-foreground">{group.label}</p>
+                <div className="space-y-1">
+                  {group.items.map((item) => (
+                    <div key={`${item.sourceType}-${item.id}`} className="flex items-center gap-2 text-sm">
+                      <span className="w-12 shrink-0 text-xs text-muted-foreground">{fmtLocal(item.time).slice(6)}</span>
+                      {item.sourceType === 'todo' && <ListTodo className="size-3.5 shrink-0 text-muted-foreground" />}
+                      {item.sourceType === 'work' && <ClipboardList className="size-3.5 shrink-0 text-muted-foreground" />}
+                      {item.sourceType === 'project' && <CalendarDays className="size-3.5 shrink-0 text-primary" />}
+                      {item.sourceType === 'milestone' && <Flag className="size-3.5 shrink-0 text-purple-600 dark:text-purple-400" />}
+                      <span className="truncate">{item.title}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              </div>
+            ))}
+          </div>
+        )}
+      </CollapsibleCard>
+      )}
 
       {/* 里程碑 */}
-      <MilestoneSection projectId={project.id} stages={project.stages ?? []} myPermissions={myPermissions} />
+      {!hidden.has('milestones') && (
+      <MilestoneSection
+        projectId={project.id}
+        stages={project.stages ?? []}
+        myPermissions={myPermissions}
+        collapsed={isCollapsed('milestones')}
+        onToggleCollapse={() => toggleCollapse('milestones')}
+        style={{ order: orderOf('milestones') }}
+      />
+      )}
 
-      {/* 模块摘要 */}
-      <div className="grid gap-3 md:grid-cols-2">
+      {/* 模块摘要（项目视图） */}
+      {!isPersonal && !hidden.has('modules') && (
+      <div className="grid gap-3 md:grid-cols-2" style={{ order: orderOf('modules') }}>
         <ModuleCard title="待办" icon={ListTodo} onClick={() => onNavigate('todos')}>
           <Stat label="总数" value={summary.modules.todos.total} />
           <Stat label="已完成" value={summary.modules.todos.done} />
@@ -565,28 +657,72 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
           </ModuleCard>
         )}
       </div>
+      )}
 
       {/* 最近动态 */}
-      {activities.items.length > 0 && !isHidden('activities') && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center justify-between text-base">
-              <span className="flex items-center gap-2"><Clock className="size-4" /> 最近动态</span>
-              <Button variant="ghost" size="sm" onClick={() => toggleCollapse('activities')}><ChevronDown className="size-4" /></Button>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {activities.items.map((act) => (
-                <div key={act.id} className="flex items-start gap-2 text-sm">
-                  <span className="w-12 shrink-0 text-xs text-muted-foreground">{fmtLocal(act.createdAt).slice(6)}</span>
-                  <span className="text-muted-foreground">{act.message}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+      {activities.items.length > 0 && !hidden.has('activities') && (
+        <CollapsibleCard
+          title="最近动态"
+          icon={Clock}
+          collapsed={isCollapsed('activities')}
+          onToggle={() => toggleCollapse('activities')}
+          style={{ order: orderOf('activities') }}
+        >
+          <div className="space-y-2">
+            {activities.items.map((act) => (
+              <div key={act.id} className="flex items-start gap-2 text-sm">
+                <span className="w-12 shrink-0 text-xs text-muted-foreground">{fmtLocal(act.createdAt).slice(6)}</span>
+                <span className="text-muted-foreground">{act.message}</span>
+              </div>
+            ))}
+          </div>
+        </CollapsibleCard>
       )}
+
+      {/* 自定义看板 FormOverlay */}
+      <FormOverlay
+        open={customizeOpen}
+        onOpenChange={setCustomizeOpen}
+        title="自定义看板"
+        description="调整卡片显示顺序，或隐藏不需要的卡片（设置跨设备保存）"
+      >
+        <div className="space-y-2">
+          {cardOrder.map((id, idx) => (
+            <div
+              key={id}
+              className={`flex items-center gap-1 rounded-lg border p-2 pl-3 ${hidden.has(id) ? 'opacity-50' : ''}`}
+            >
+              <span className="min-w-0 flex-1 truncate text-sm">{CARD_DEFS[id].title}</span>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                disabled={idx === 0}
+                onClick={() => moveCard(id, -1)}
+                aria-label="上移"
+              >
+                <ChevronUp className="size-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                disabled={idx === cardOrder.length - 1}
+                onClick={() => moveCard(id, 1)}
+                aria-label="下移"
+              >
+                <ChevronDown className="size-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => toggleHide(id)}
+                aria-label={hidden.has(id) ? '显示' : '隐藏'}
+              >
+                {hidden.has(id) ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </Button>
+            </div>
+          ))}
+        </div>
+      </FormOverlay>
 
       {/* 完成待办 FormOverlay */}
       <FormOverlay
@@ -668,11 +804,39 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
   );
 }
 
+function CollapsibleCard({ title, icon: Icon, count, collapsed, onToggle, headerExtra, style, children }: {
+  title: string;
+  icon: typeof ListTodo;
+  count?: number;
+  collapsed: boolean;
+  onToggle: () => void;
+  headerExtra?: React.ReactNode;
+  style?: React.CSSProperties;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card style={style}>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center justify-between gap-2 text-base">
+          <button onClick={onToggle} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+            <Icon className="size-4 shrink-0 text-muted-foreground" />
+            <span className="truncate">{title}</span>
+            {count !== undefined && count > 0 && <Badge variant="destructive">{count}</Badge>}
+            <ChevronDown className={`size-4 shrink-0 text-muted-foreground transition-transform ${collapsed ? '-rotate-90' : ''}`} />
+          </button>
+          {headerExtra}
+        </CardTitle>
+      </CardHeader>
+      {!collapsed && <CardContent>{children}</CardContent>}
+    </Card>
+  );
+}
+
 function RiskCard({ risk, onIgnore }: { risk: RiskItem; onIgnore?: () => void }) {
   const level = LEVEL_MAP[risk.level] ?? LEVEL_MAP.info;
   const Icon = level.icon;
   return (
-    <div className="flex items-start gap-2 rounded-lg border p-3">
+    <div className={`flex items-start gap-2 rounded-lg border border-l-2 p-3 ${level.border}`}>
       <Icon className={`mt-0.5 size-4 shrink-0 ${level.cls}`} />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium">{risk.title}</p>

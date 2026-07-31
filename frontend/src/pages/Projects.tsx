@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { FolderPlus, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../api/client';
+import { eventCountdown } from '../lib/datetime';
 import type { HealthStatus, ProjectSummary } from '../types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -109,8 +110,8 @@ export default function Projects() {
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     {p.myRole && <Badge variant="secondary">{p.myRole}</Badge>}
                     {(p.startDate || p.endDate) && (
-                      <span>
-                        {p.startDate?.slice(0, 10) ?? '…'} ~ {p.endDate?.slice(0, 10) ?? '…'}
+                      <span className={eventCountdown(p.startDate ?? null, p.endDate ?? null).cls}>
+                        {eventCountdown(p.startDate ?? null, p.endDate ?? null).text}
                       </span>
                     )}
                   </div>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Check, Flag, Loader2, Plus } from 'lucide-react';
+import { Check, ChevronDown, Flag, Loader2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
 import { fmtLocal } from '../../lib/datetime';
@@ -18,9 +18,12 @@ interface Props {
   projectId: string;
   stages: StageItem[];
   myPermissions: string[];
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
+  style?: React.CSSProperties;
 }
 
-export function MilestoneSection({ projectId, stages, myPermissions }: Props) {
+export function MilestoneSection({ projectId, stages, myPermissions, collapsed = false, onToggleCollapse, style }: Props) {
   const [milestones, setMilestones] = useState<MilestoneItem[] | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -73,12 +76,15 @@ export function MilestoneSection({ projectId, stages, myPermissions }: Props) {
   const items = milestones ? [...milestones].sort((a, b) => a.date.localeCompare(b.date)) : null;
 
   return (
-    <Card>
+    <Card style={style}>
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center justify-between text-base">
-          <span className="flex items-center gap-2">
-            <Flag className="size-4" /> 里程碑
-          </span>
+          <button onClick={onToggleCollapse} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+            <Flag className="size-4 shrink-0 text-muted-foreground" />
+            <span>里程碑</span>
+            {items && items.length > 0 && <Badge variant="secondary">{items.length}</Badge>}
+            <ChevronDown className={`size-4 shrink-0 text-muted-foreground transition-transform ${collapsed ? '-rotate-90' : ''}`} />
+          </button>
           {canManage && (
             <Button variant="ghost" size="sm" onClick={() => setCreateOpen(true)}>
               <Plus className="size-4" /> 新建
@@ -86,6 +92,7 @@ export function MilestoneSection({ projectId, stages, myPermissions }: Props) {
           )}
         </CardTitle>
       </CardHeader>
+      {!collapsed && (
       <CardContent>
         {items === null ? (
           <div className="space-y-2">
@@ -123,6 +130,7 @@ export function MilestoneSection({ projectId, stages, myPermissions }: Props) {
           </div>
         )}
       </CardContent>
+      )}
 
       <FormOverlay open={createOpen} onOpenChange={setCreateOpen} title="新建里程碑">
         <form onSubmit={(e) => void submit(e)} className="space-y-4">
