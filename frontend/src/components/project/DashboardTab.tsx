@@ -227,7 +227,7 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
 
   const updatePrefs = async (patch: Partial<DashboardPreferences>) => {
     try {
-      await api(`/api/projects/${project.id}/dashboard/preferences`, { body: patch });
+      await api(`/api/projects/${project.id}/dashboard/preferences`, { method: 'PATCH', body: patch });
     } catch { /* silent */ }
   };
 
