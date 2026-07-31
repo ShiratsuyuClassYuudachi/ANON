@@ -135,7 +135,7 @@ ANON 是一个面向活动（展会、同人活动、演出等）组织团队的
 
 ### 自动提醒与周报
 
-所有提醒与通知统一走**通知管线**（`services/notifications.ts` 的 `NotificationChannel` 渠道接口），当前启用邮件渠道（`[ANON]` 前缀），后续站内通知中心、Web Push 等只需新增渠道实现并注册。
+所有提醒与通知统一走**通知管线**（`services/notifications.ts` 的 `NotificationChannel` 渠道接口），当前启用**邮件**与 **Web Push（VAPID）**两个渠道，后续站内通知中心等只需新增渠道实现并注册。
 
 - **待办提醒**：已有的节点提醒和到期提醒（通过 crontab 调用 `POST /api/cron/reminders`）
 - **里程碑提醒**：到期前 3 天邮件通知项目管理者
@@ -147,6 +147,13 @@ ANON 是一个面向活动（展会、同人活动、演出等）组织团队的
 - **风险通知**：新检测到 warning/critical 风险时邮件通知项目管理者（info 不打扰）
 
 投递失败自动重试：cron 类提醒仅在投递成功后写 `ReminderLog`/`WeeklyReportLog` 去重标记，失败时下次扫描重发；单渠道故障不影响其他渠道。
+
+### Web Push 推送
+
+- 配置 VAPID 后（`npx web-push generate-vapid-keys` 生成公/私钥填入 `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`），已开启推送的成员在浏览器收到系统推送通知
+- 与邮件同一套事件：指派/改派、到期提醒、里程碑临近、重要/紧急公告、异常上报、风险、周报
+- 登录后「开启推送」提示条：已授权自动订阅，未询问过展示一次入口；设备离线超 1 天不投递陈旧通知，失效订阅自动清理
+- 点击通知直接跳转到对应项目 Tab
 
 ### 多项目总览
 

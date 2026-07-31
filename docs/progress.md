@@ -198,3 +198,21 @@
 ### 测试
 
 - `backend/tests/notifications.test.ts` 15 用例：`vi.mock` mailer 断言收件人/主题/正文——actorId 排除、改派差集、完成通知、work 分配、公告可见性过滤、异常上报、cron 去重（due/里程碑/周报）、risk:new 仅 warning/critical、抛错渠道不影响邮件（接口可扩展性）
+
+## 2026-07-31 Web Push 推送通知（通知管线第二渠道）
+
+依据 `docs/superpowers/plans/2026-07-31-webpush.md` 落地，同一分支。后端 136 个 vitest 用例全绿（126 + 新增 10）、typecheck 通过，前端 `npm run build` 通过（含 SW 补丁）。
+
+### 后端
+- `models/PushSubscription.ts`：按用户+endpoint 唯一索引，upsert 更新密钥，每用户上限 20 条淘汰最旧
+- `routes/push.ts`：`GET /api/push/config`（VAPID 公钥，未配置返回 null）、`POST/DELETE /api/push/subscription`（https/localhost 校验、URL-safe base64 校验）
+- `services/webpush.ts`：`WebPushChannel` 注册进 `notificationChannels`——TTL 1 天防陈旧投递；载荷含 title/body/url/tag/type/projectId；404/410 清除失效订阅，其余失败仅记日志（尽力而为，不阻塞邮件去重）；未配置 VAPID 静默跳过
+- config 新增 `vapid` 段；`.env.example` 补充 `VAPID_*`（`npx web-push generate-vapid-keys` 生成）
+
+### 前端
+- `lib/push.ts`：`subscribePush`（幂等复用现有订阅）/`unsubscribePush`/`getVapidPublicKey`
+- `components/PushBanner.tsx`：Layout 内提示条——已授权自动订阅；从未询问展示一次「开启/暂不」（localStorage 记忆）；不支持/未配置/被拒不展示
+- `scripts/patch-sw.mjs`：构建后向 workbox generateSW 产物追加 `push`（showNotification）与 `notificationclick`（跳转 payload.url）监听；`npm run build` 串联
+
+### 测试
+- `backend/tests/push.test.ts` 10 用例（`vi.mock('web-push')`）：路由——401/公钥/endpoint 去重 upsert/非法 endpoint 与 base64 拒绝/20 条上限淘汰最旧/删除幂等；渠道——VAPID details 与 JSON 载荷（url/tag）、只推本人设备、410 清理失效订阅、未配置跳过
