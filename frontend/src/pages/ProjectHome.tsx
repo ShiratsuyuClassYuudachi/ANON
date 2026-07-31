@@ -9,6 +9,7 @@ import {
   MoreHorizontal,
   Settings,
   Shield,
+  Smartphone,
   Users,
   Wallet,
 } from 'lucide-react';
@@ -136,7 +137,14 @@ export default function ProjectHome() {
           <AccountsTab project={detail.project} members={detail.members} myPermissions={detail.myPermissions} />
         )}
         {activeTab === 'work' && (
-          <WorkTab project={detail.project} members={detail.members} myPermissions={detail.myPermissions} />
+          <div className="space-y-3">
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={() => nav(`/p/${id}/onsite`)}>
+                <Smartphone className="size-4" /> 现场模式
+              </Button>
+            </div>
+            <WorkTab project={detail.project} members={detail.members} myPermissions={detail.myPermissions} />
+          </div>
         )}
         {activeTab === 'members' && (
           <MembersTab
