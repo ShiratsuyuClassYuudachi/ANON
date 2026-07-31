@@ -13,6 +13,7 @@ import type {
 } from '../../types';
 import { FormOverlay } from '@/components/FormOverlay';
 import { VisibilityPicker } from './VisibilityPicker';
+import PhysicalTab from './PhysicalTab';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,6 +43,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 
 interface Props {
@@ -256,6 +258,7 @@ function ResourceCard({
 }
 
 export default function MaterialsTab({ project, members, myPermissions }: Props) {
+  const [view, setView] = useState<'digital' | 'physical'>('digital');
   const canManage =
     myPermissions.includes('project:manage') || myPermissions.includes('materials:manage');
   const roles = project.roles.map((r) => r.name);
@@ -353,10 +356,32 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
   const typeName = (id: string) => types.find((t) => t.id === id)?.name ?? '';
   const visible = filterType ? resources.filter((r) => r.typeId === filterType) : resources;
 
+  const viewSwitcher = (
+    <Tabs value={view} onValueChange={(v) => setView(v as 'digital' | 'physical')}>
+      <TabsList>
+        <TabsTrigger value="digital">数字资源</TabsTrigger>
+        <TabsTrigger value="physical">实物清单</TabsTrigger>
+      </TabsList>
+    </Tabs>
+  );
+
+  if (view === 'physical') {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-lg font-semibold">物料</h3>
+          {viewSwitcher}
+        </div>
+        <PhysicalTab project={project} members={members} myPermissions={myPermissions} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-lg font-semibold">物料</h3>
+        {viewSwitcher}
       </div>
 
       {err && <Card className="p-4 text-sm text-destructive">{err}</Card>}

@@ -424,6 +424,70 @@ interface ResourceVersionItem {
 
 ---
 
+## 实物清单
+
+挂载于 `/api/projects/:id/physical`，需登录且为项目成员。查看类操作成员即可；增删改分类与物资条目需 `materials:manage`（`project:manage` 等价放行，超管不受限）；数量变动日志成员即可记录。实物清单与数字资源相互独立，在「物料」Tab 内通过视图切换访问。
+
+### 数据类型
+
+```ts
+type PhysicalItemStatus = 'planned' | 'in_stock' | 'in_use' | 'returned' | 'disposed';
+interface PhysicalCategoryItem { id: string; name: string; order: number }
+interface PhysicalItemItem {
+  id: string; categoryId: string; name: string; spec: string; unit: string;
+  plannedQty: number; onHandQty: number; usedQty: number; lostQty: number;
+  status: PhysicalItemStatus;
+  responsible: { userId: string; name: string } | null;
+  location: string; tags: string[]; note: string;
+  createdBy: string; createdAt: string; updatedAt: string;
+}
+interface PhysicalLogItem { id: string; type: string; qty: number; status: PhysicalItemStatus | null; note: string; operator: { userId: string; name: string }; createdAt: string }
+interface PhysicalSummary {
+  total: { planned: number; onHand: number; used: number; lost: number; count: number };
+  byCategory: { categoryId: string; planned: number; onHand: number; used: number; lost: number; count: number }[];
+}
+```
+
+状态含义：`planned` 计划中、`in_stock` 已入库、`in_use` 使用中、`returned` 已归还、`disposed` 已处置。
+
+### 分类
+
+- **GET /api/projects/:id/physical/categories**（成员）
+  列出分类，按 order 升序。首次访问若项目无分类，自动填充默认 6 类（印刷品/设备器材/装饰布置/耗材文具/证件票券/其他）。响应 200：`{ categories: PhysicalCategoryItem[] }`
+- **POST /api/projects/:id/physical/categories**（materials:manage）
+  请求 `{ name: string }` → 201 `{ category: PhysicalCategoryItem }`
+- **PATCH /api/projects/:id/physical/categories/:catId**（materials:manage）
+  请求 `{ name?: string }` → 200 `{ category: PhysicalCategoryItem }`
+- **DELETE /api/projects/:id/physical/categories/:catId**（materials:manage）
+  → 200 `{ ok: true }`；分类下仍有物资时 400 `bad_request`
+- **PATCH /api/projects/:id/physical/categories/reorder**（materials:manage）
+  请求 `{ order: string[] }`（分类 id 数组，按新顺序）→ 200 `{ categories: PhysicalCategoryItem[] }`
+
+### 物资条目
+
+- **GET /api/projects/:id/physical/items**（成员）
+  Query（均可选）：`categoryId`、`status`、`responsibleId`、`tag`、`sort=name|status|plannedQty`、`order=asc|desc`。响应 200：`{ items: PhysicalItemItem[] }`
+- **POST /api/projects/:id/physical/items**（materials:manage）
+  请求 `{ name: string, categoryId: string, spec?, unit?, plannedQty?, onHandQty?, usedQty?, lostQty?, status?, responsibleId?, location?, tags?: string[], note? }`。数量字段须为非负整数；`responsibleId` 须为项目成员。响应 201：`{ item: PhysicalItemItem }`
+- **GET /api/projects/:id/physical/items/:itemId**（成员）→ 200 `{ item: PhysicalItemItem }`；跨项目 404
+- **PATCH /api/projects/:id/physical/items/:itemId**（materials:manage）
+  字段同 POST（均可选）；`responsibleId` 传 `null`/`""` 清除负责人。响应 200：`{ item: PhysicalItemItem }`
+- **DELETE /api/projects/:id/physical/items/:itemId**（materials:manage）
+  级联删除该物资的变动日志。响应 200：`{ ok: true }`
+
+### 数量变动与日志
+
+- **POST /api/projects/:id/physical/items/:itemId/log**（成员）
+  请求 `{ type: 'adjust_on_hand'|'adjust_used'|'adjust_lost'|'status_change', delta?: number, status?: PhysicalItemStatus, note? }`。数量类 `delta` 须为整数，结果不能为负；`status_change` 须带合法 `status`。每次成功记录一条日志（`status_change` 日志的 `status` 字段记录目标状态）。响应 200：`{ item: PhysicalItemItem }`
+- **GET /api/projects/:id/physical/items/:itemId/logs**（成员）
+  按时间倒序，最多 100 条。响应 200：`{ logs: PhysicalLogItem[] }`
+
+### 汇总
+
+- **GET /api/projects/:id/physical/summary**（成员）
+  响应 200：`PhysicalSummary`，含总计与按分类聚合的计划/在库/使用/损耗/条目数。
+
+
 ## 平台账号（第二阶段）
 
 挂载于 `/api/projects/:id/accounts`，需登录且为项目成员。查看类操作要求成员身份且通过可见范围（visibility）校验；增删改需 `accounts:manage` 权限。

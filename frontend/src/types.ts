@@ -197,3 +197,27 @@ export interface DashboardData {
   activities: { items: ActivityItem[] };
   preferences: DashboardPreferences;
 }
+
+// --- Physical Inventory (实物清单) ---
+
+export interface PhysicalCategoryItem { id: string; name: string; order: number; }
+export type PhysicalItemStatus = 'planned' | 'in_stock' | 'in_use' | 'returned' | 'disposed';
+export const PHYSICAL_STATUS_LABELS: Record<PhysicalItemStatus, string> = {
+  planned: '计划中', in_stock: '已入库', in_use: '使用中', returned: '已归还', disposed: '已处置',
+};
+export interface PhysicalItemRef { userId: string; name: string; }
+export interface PhysicalItemItem {
+  id: string; categoryId: string; name: string; spec: string; unit: string;
+  plannedQty: number; onHandQty: number; usedQty: number; lostQty: number;
+  status: PhysicalItemStatus; responsible: PhysicalItemRef | null;
+  location: string; tags: string[]; note: string;
+  createdBy: string; createdAt: string; updatedAt: string;
+}
+export interface PhysicalLogItem {
+  id: string; type: string; qty: number; status: PhysicalItemStatus | null; note: string;
+  operator: PhysicalItemRef; createdAt: string;
+}
+export interface PhysicalSummary {
+  total: { planned: number; onHand: number; used: number; lost: number; count: number };
+  byCategory: { categoryId: string; planned: number; onHand: number; used: number; lost: number; count: number }[];
+}
