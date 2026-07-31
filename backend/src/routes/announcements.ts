@@ -6,6 +6,7 @@ import { AnnouncementConfirmation } from '../models/AnnouncementConfirmation';
 import { Membership } from '../models/Membership';
 import { User } from '../models/User';
 import { logActivity } from '../services/activity';
+import { notify } from '../services/notifications';
 import { canSee, type Viewer } from '../services/visibility';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
@@ -86,6 +87,27 @@ announcementsRouter.post(
       expiresAt: expiresAt ? new Date(expiresAt) : undefined,
     });
     logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'announcement:publish', message: `${req.user!.name}发布了公告「${a.title}」`, sourceType: 'announcement', sourceId: a._id });
+    if (a.type === 'important' || a.type === 'emergency') {
+      const vis = a.visibility ?? {};
+      const roleNames = (vis.roleNames ?? []).map(String);
+      const userIds = (vis.userIds ?? []).map(String);
+      const filter: Record<string, unknown> = { projectId: req.project!._id };
+      const or: Record<string, unknown>[] = [];
+      if (roleNames.length) or.push({ roleName: { $in: roleNames } });
+      if (userIds.length) or.push({ userId: { $in: userIds } });
+      if (or.length) filter.$or = or;
+      const memberships = await Membership.find(filter).lean();
+      notify({
+        projectId: req.project!._id,
+        type: 'announcement:published',
+        title: `${a.type === 'emergency' ? '【紧急】' : '【重要】'}公告：${a.title}`,
+        body: a.content ? `${a.title}\n\n${a.content}` : a.title,
+        link: `/p/${String(req.project!._id)}?tab=dashboard`,
+        metadata: { announcementId: a._id.toString() },
+        recipients: memberships.map((m) => m.userId.toString()),
+        actorId: req.userId!,
+      });
+    }
     res.status(201).json({ announcement: { id: a._id.toString(), title: a.title } });
   }),
 );

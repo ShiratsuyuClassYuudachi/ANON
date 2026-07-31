@@ -5,6 +5,7 @@ import { loadMembership, requirePermission } from '../middleware/projectAccess';
 import { Membership } from '../models/Membership';
 import { WorkModule } from '../models/WorkModule';
 import { logActivity } from '../services/activity';
+import { notify } from '../services/notifications';
 import { memberNameMap, moduleJson } from '../services/workModules';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
@@ -65,6 +66,21 @@ async function parseBody(projectId: Types.ObjectId, body: BodyShape) {
   return out;
 }
 
+function workAssignBody(m: {
+  name: string;
+  location?: string | null;
+  startAt?: Date | null;
+}): string {
+  const parts = [`现场任务「${m.name}」`];
+  if (m.location) parts.push(`地点 ${m.location}`);
+  if (m.startAt) parts.push(`开始 ${m.startAt.toISOString()}`);
+  return parts.join('，');
+}
+
+function workLink(projectId: unknown): string {
+  return `/p/${String(projectId)}?tab=work`;
+}
+
 async function findInProject(req: Request) {
   const m = await WorkModule.findOne({ _id: req.params.mid, projectId: req.project!._id });
   if (!m) throw new AppError(404, 'not_found', '任务模块不存在');
@@ -101,6 +117,18 @@ workModulesRouter.post(
     });
     const names = await memberNameMap(req.project!._id);
     logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'work:create', message: `${req.user!.name}创建了现场任务「${m.name}」`, sourceType: 'work', sourceId: m._id });
+    if (p.assigneeIds?.length) {
+      notify({
+        projectId: req.project!._id,
+        type: 'work:assigned',
+        title: `你被分配了现场任务：${m.name}`,
+        body: workAssignBody(m),
+        link: workLink(req.project!._id),
+        metadata: { moduleId: m._id.toString() },
+        recipients: p.assigneeIds.map((id) => id.toString()),
+        actorId: req.userId!,
+      });
+    }
     res.status(201).json({ module: moduleJson(m, names) });
   }),
 );
@@ -117,7 +145,11 @@ workModulesRouter.patch(
     if (p.startAt !== undefined) m.startAt = p.startAt ?? undefined;
     if (p.endAt !== undefined) m.endAt = p.endAt ?? undefined;
     if (p.requiredCount !== undefined) m.requiredCount = p.requiredCount;
+    let added: Types.ObjectId[] = [];
     if (p.assigneeIds !== undefined) {
+      added = p.assigneeIds.filter(
+        (id) => !m.assignees.some((a) => String(a.userId) === String(id)),
+      );
       // 留任成员保留确认记录，被移除者清除
       m.assignees = p.assigneeIds.map((userId) => {
         const kept = m.assignees.find((a) => String(a.userId) === String(userId));
@@ -135,6 +167,18 @@ workModulesRouter.patch(
     await m.save();
     const names = await memberNameMap(req.project!._id);
     logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'work:update', message: `${req.user!.name}调整了现场任务「${m.name}」`, sourceType: 'work', sourceId: m._id });
+    if (added.length) {
+      notify({
+        projectId: req.project!._id,
+        type: 'work:assigned',
+        title: `你被分配了现场任务：${m.name}`,
+        body: workAssignBody(m),
+        link: workLink(req.project!._id),
+        metadata: { moduleId: m._id.toString() },
+        recipients: added.map((id) => id.toString()),
+        actorId: req.userId!,
+      });
+    }
     res.json({ module: moduleJson(m, names) });
   }),
 );

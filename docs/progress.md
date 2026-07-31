@@ -166,3 +166,35 @@
 - 用户菜单含「帮助文档」「重看引导」，重看后幻灯再现、关闭刷新不自动弹
 - 移动端视口（390×844）/help 章节 Select 7 章可切换
 - 关键截图人工核对正常（`.walkthrough/shots/ob-*.png`）
+
+## 2026-07-31 通知与提醒中心（邮件渠道）
+
+依据 `docs/superpowers/plans/2026-07-31-notifications.md` 落地，分支 feat/notifications。后端 126 个 vitest 用例全绿（111 + 新增 15）、typecheck 通过。
+
+### 通知管线（渠道接口）
+
+- `backend/src/services/notifications.ts`：`NotificationType` / `NotificationPayload` / `NotificationChannel` 渠道接口 + `EmailChannel`（合并收件人调 `sendMail`）+ `notify()` 分发（解析用户→排除 actorId→逐渠道投递，单渠道失败互不影响，返回是否全部成功）+ `managerRoleNames` / `memberIdsByRole` / `projectManagerIds` 收件人辅助
+- 新增渠道只需实现 `NotificationChannel` 并 `notificationChannels.push(...)`，业务调用点零改动（预留站内中心/Web Push）
+
+### 事件接入（fire-and-forget）
+
+| 事件 | 触发点 | 收件人 |
+|---|---|---|
+| `todo:assigned` | 创建/改派待办（新增差集） | 新指派人（排除操作者） |
+| `todo:completed` | 待办完成 | 其他指派人 |
+| `work:assigned` | 创建/调整现场任务（新增差集） | 新分配成员 |
+| `announcement:published` | 发布重要/紧急公告 | 可见范围成员 |
+| `incident:reported` | 现场异常上报 | 项目管理者 |
+| `risk:new` | 新检测 warning/critical 风险 | 项目管理者（info 不通知） |
+| `todo:remind` / `todo:due` | cron 扫描 | 指派人 |
+| `milestone:approaching` | cron 扫描 | 项目管理者 |
+| `weekly:report` | cron 周报 | 项目管理者 |
+
+### cron 重构
+
+- `routes/cron.ts` 的 reminders 与 weekly-report 全部改走 `notify()`，消除直发 `sendMail` 并行路径与两份重复的管理者查找；`ReminderLog`/`WeeklyReportLog`/`sent` 语义不变
+- 行为增强：投递失败不再落去重标记，下次 cron 重试（原实现 SMTP 失败即 500 且丢邮件）
+
+### 测试
+
+- `backend/tests/notifications.test.ts` 15 用例：`vi.mock` mailer 断言收件人/主题/正文——actorId 排除、改派差集、完成通知、work 分配、公告可见性过滤、异常上报、cron 去重（due/里程碑/周报）、risk:new 仅 warning/critical、抛错渠道不影响邮件（接口可扩展性）

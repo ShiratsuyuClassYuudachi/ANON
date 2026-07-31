@@ -6,6 +6,7 @@ import { RiskInstance } from '../models/RiskInstance';
 import { Todo } from '../models/Todo';
 import { Transaction } from '../models/Transaction';
 import { WorkModule } from '../models/WorkModule';
+import { managerRoleNames, memberIdsByRole, notify } from './notifications';
 
 interface DetectedRisk {
   ruleCode: string;
@@ -33,11 +34,12 @@ export async function computeRisks(project: ProjectDoc): Promise<void> {
   const now = new Date();
   const detected: DetectedRisk[] = [];
 
-  const [todos, transactions, resources, workModules] = await Promise.all([
+  const [todos, transactions, resources, workModules, managerIds] = await Promise.all([
     Todo.find({ projectId }),
     Transaction.find({ projectId }),
     Resource.find({ projectId }),
     WorkModule.find({ projectId }),
+    memberIdsByRole(projectId, managerRoleNames(project)),
   ]);
 
   // --- Todo risks ---
@@ -173,10 +175,15 @@ export async function computeRisks(project: ProjectDoc): Promise<void> {
   }
 
   // --- Reconcile with DB ---
-  await reconcileRisks(projectId, detected, now);
+  await reconcileRisks(projectId, detected, now, managerIds);
 }
 
-async function reconcileRisks(projectId: Types.ObjectId, detected: DetectedRisk[], now: Date): Promise<void> {
+async function reconcileRisks(
+  projectId: Types.ObjectId,
+  detected: DetectedRisk[],
+  now: Date,
+  managerIds: string[],
+): Promise<void> {
   const detectedFingerprints = new Set(detected.map((d) => d.fingerprint));
 
   // Expire ignored risks past their ignoredUntil
@@ -230,6 +237,17 @@ async function reconcileRisks(projectId: Types.ObjectId, detected: DetectedRisk[
         firstDetectedAt: now,
         lastDetectedAt: now,
       });
+      if (d.level === 'warning' || d.level === 'critical') {
+        notify({
+          projectId,
+          type: 'risk:new',
+          title: `【风险】${d.title}`,
+          body: d.description,
+          link: `/p/${String(projectId)}?tab=dashboard`,
+          metadata: { ruleCode: d.ruleCode, fingerprint: d.fingerprint },
+          recipients: managerIds,
+        });
+      }
     }
   }
 }
