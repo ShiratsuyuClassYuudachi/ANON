@@ -216,7 +216,7 @@
 
 * 模板：**导出** JSON（含 `importTemplate` 等字段）；**导入**时锚定项目开始或结束时间批量生成待办。
 
-* 邮件提醒依赖 SMTP 配置；定时任务接口 `POST /api/cron/reminders`（需 `CRON_SECRET`）。
+* 提醒统一走通知管线（`services/notifications.ts`，渠道接口当前为邮件 + Web Push）；定时任务接口 `POST /api/cron/reminders`、`POST /api/cron/weekly-report`（需 `CRON_SECRET`）；推送订阅接口见 `docs/api.md`「推送订阅」。
 
 
 

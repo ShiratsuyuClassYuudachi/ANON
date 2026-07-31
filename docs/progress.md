@@ -210,8 +210,9 @@
 - config 新增 `vapid` 段；`.env.example` 补充 `VAPID_*`（`npx web-push generate-vapid-keys` 生成）
 
 ### 前端
-- `lib/push.ts`：`subscribePush`（幂等复用现有订阅）/`unsubscribePush`/`getVapidPublicKey`
+- `lib/push.ts`：`subscribePush`（幂等复用现有订阅）/`unsubscribePush`/`getVapidPublicKey`/`getPushStatus`；SW 注册获取带 2s 超时（开发模式无 SW 不挂起）
 - `components/PushBanner.tsx`：Layout 内提示条——已授权自动订阅；从未询问展示一次「开启/暂不」（localStorage 记忆）；不支持/未配置/被拒不展示
+- `components/PushSettingsCard.tsx`：「个人资料」页推送管理卡片——按设备开关订阅（Switch）、五种状态提示（unsupported/unconfigured/denied/subscribed/off）；与 PushBanner 经 `anon-push-changed` 事件互相同步
 - `scripts/patch-sw.mjs`：构建后向 workbox generateSW 产物追加 `push`（showNotification）与 `notificationclick`（跳转 payload.url）监听；`npm run build` 串联
 
 ### 测试
