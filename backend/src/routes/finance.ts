@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { Types } from 'mongoose';
 import { authRequired } from '../middleware/auth';
 import { loadMembership, requirePermission } from '../middleware/projectAccess';
 import { fixFilename, upload } from '../middleware/upload';
@@ -8,6 +9,7 @@ import { Transaction, type TransactionDoc } from '../models/Transaction';
 import { User } from '../models/User';
 import { logActivity } from '../services/activity';
 import { buildSummary, type MemberInfo } from '../services/finance';
+import { persistUploads } from '../services/storage';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
 
@@ -103,17 +105,10 @@ function parseType(v: unknown): 'income' | 'expense' {
 }
 
 async function saveUploads(req: { files?: unknown; project?: { _id: unknown }; userId?: string }) {
-  const uploaded = (req.files as Express.Multer.File[]) ?? [];
-  if (!uploaded.length) return [];
-  return File.insertMany(
-    uploaded.map((f) => ({
-      projectId: req.project!._id,
-      filename: fixFilename(f.originalname),
-      path: f.path,
-      mime: f.mimetype,
-      size: f.size,
-      uploadedBy: req.userId,
-    })),
+  return persistUploads(
+    (req.files as Express.Multer.File[]) ?? [],
+    req.project!._id as Types.ObjectId,
+    req.userId as unknown as Types.ObjectId,
   );
 }
 

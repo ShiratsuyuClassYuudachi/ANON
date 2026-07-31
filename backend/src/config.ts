@@ -9,6 +9,14 @@ export const config = {
   mongoUri: process.env.MONGO_URI ?? 'mongodb://localhost:27017/anon',
   jwtSecret: jwtSecret || 'dev-only-insecure-secret',
   uploadDir: process.env.UPLOAD_DIR ?? 'uploads',
+  // S3 对象存储：endpoint 为空时回退到本地磁盘（uploadDir）
+  s3: {
+    endpoint: process.env.S3_ENDPOINT ?? '',
+    bucket: process.env.S3_BUCKET ?? 'anon-files',
+    region: process.env.S3_REGION ?? 'us-east-1',
+    accessKey: process.env.S3_ACCESS_KEY ?? '',
+    secretKey: process.env.S3_SECRET_KEY ?? '',
+  },
   cronSecret: process.env.CRON_SECRET ?? '',
   superAdminEmail: (process.env.SUPER_ADMIN_EMAIL ?? '').toLowerCase(),
   smtp: {
