@@ -121,7 +121,15 @@ workModulesRouter.patch(
       // 留任成员保留确认记录，被移除者清除
       m.assignees = p.assigneeIds.map((userId) => {
         const kept = m.assignees.find((a) => String(a.userId) === String(userId));
-        return kept ? { userId: kept.userId, confirmedAt: kept.confirmedAt, confirmedBy: kept.confirmedBy } : { userId };
+        return kept
+          ? {
+              userId: kept.userId,
+              confirmedAt: kept.confirmedAt,
+              confirmedBy: kept.confirmedBy,
+              checkedInAt: kept.checkedInAt,
+              completedAt: kept.completedAt,
+            }
+          : { userId };
       });
     }
     await m.save();
@@ -143,15 +151,15 @@ workModulesRouter.delete(
   }),
 );
 
-/** confirm/unconfirm 共用：解析目标 userId 并做权限判断，返回模块与目标 */
-async function resolveConfirmTarget(req: Request) {
+/** confirm/checkin/finish 等共用：解析目标 userId 并做权限判断，返回模块与目标 assignee */
+async function resolveConfirmTarget(req: Request, action = '确认') {
   const m = await findInProject(req);
   const target = req.body.userId ? String(req.body.userId) : req.userId!;
   const managing = target !== req.userId;
   if (managing) {
     const perms = req.myPermissions ?? new Set<string>();
     if (!perms.has('project:manage') && !perms.has('work:manage')) {
-      throw new AppError(403, 'forbidden', '无权代他人确认');
+      throw new AppError(403, 'forbidden', `无权代他人${action}`);
     }
   }
   const a = m.assignees.find((x) => String(x.userId) === target);
@@ -182,6 +190,37 @@ workModulesRouter.post(
     a.confirmedBy = undefined;
     await m.save();
     const names = await memberNameMap(req.project!._id);
+    res.json({ module: moduleJson(m, names) });
+  }),
+);
+
+workModulesRouter.post(
+  '/:mid/checkin',
+  ah(async (req, res) => {
+    const { m, a } = await resolveConfirmTarget(req, '签到');
+    if (!a.checkedInAt) {
+      a.checkedInAt = new Date();
+      await m.save();
+    }
+    const names = await memberNameMap(req.project!._id);
+    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'work:checkin', message: `${req.user!.name}签到现场任务「${m.name}」`, sourceType: 'work', sourceId: m._id });
+    res.json({ module: moduleJson(m, names) });
+  }),
+);
+
+workModulesRouter.post(
+  '/:mid/finish',
+  ah(async (req, res) => {
+    const { m, a } = await resolveConfirmTarget(req, '完成');
+    if (!a.completedAt) {
+      const now = new Date();
+      // 未签到的同时补签到
+      if (!a.checkedInAt) a.checkedInAt = now;
+      a.completedAt = now;
+      await m.save();
+    }
+    const names = await memberNameMap(req.project!._id);
+    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'work:finish', message: `${req.user!.name}完成了现场任务「${m.name}」`, sourceType: 'work', sourceId: m._id });
     res.json({ module: moduleJson(m, names) });
   }),
 );

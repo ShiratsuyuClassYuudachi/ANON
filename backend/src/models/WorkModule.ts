@@ -4,6 +4,8 @@ export interface IWorkAssignee {
   userId: Types.ObjectId;
   confirmedAt?: Date;
   confirmedBy?: Types.ObjectId;
+  checkedInAt?: Date;
+  completedAt?: Date;
 }
 
 export interface IWorkModule {
@@ -25,6 +27,8 @@ const assigneeSchema = new Schema<IWorkAssignee>(
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     confirmedAt: { type: Date },
     confirmedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    checkedInAt: { type: Date },
+    completedAt: { type: Date },
   },
   { _id: false },
 );

@@ -11,6 +11,7 @@ import DocsPage from './pages/DocsPage';
 import InviteAccept from './pages/InviteAccept';
 import Login from './pages/Login';
 import Me from './pages/Me';
+import OnsitePage from './pages/OnsitePage';
 import ProjectHome from './pages/ProjectHome';
 import Projects from './pages/Projects';
 import Register from './pages/Register';
@@ -84,6 +85,7 @@ export default function App() {
           <Route path="/" element={<Navigate to="/projects" replace />} />
           <Route path="/projects" element={<Projects />} />
           <Route path="/p/:id" element={<ProjectHome />} />
+          <Route path="/p/:id/onsite" element={<OnsitePage />} />
           <Route path="/me" element={<Me />} />
           <Route path="/help" element={<DocsPage />} />
           <Route path="/admin" element={<Admin />} />

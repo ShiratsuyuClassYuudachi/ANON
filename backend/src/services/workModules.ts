@@ -27,6 +27,8 @@ export function moduleJson(m: WorkModuleDoc, names: Map<string, string>) {
       name: names.get(String(a.userId)) ?? '',
       confirmedAt: a.confirmedAt ? a.confirmedAt.toISOString() : null,
       confirmedBy: a.confirmedBy ? String(a.confirmedBy) : null,
+      checkedInAt: a.checkedInAt ? a.checkedInAt.toISOString() : null,
+      completedAt: a.completedAt ? a.completedAt.toISOString() : null,
     })),
     createdBy: String(m.createdBy),
     // HydratedDocument 类型不含 timestamps 字段，沿用 routes/todos.ts 的 cast 手法

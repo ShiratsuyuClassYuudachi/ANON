@@ -151,6 +151,43 @@ export interface DashboardPreferences {
   scheduleRange: 7 | 30;
   cardOrder: string[];
 }
+// --- Onsite (现场模式) ---
+
+export interface OnsiteAssignee {
+  confirmedAt: string | null;
+  checkedInAt: string | null;
+  completedAt: string | null;
+}
+export type OnsiteModuleState = 'current' | 'upcoming' | 'done';
+export interface OnsiteModule {
+  id: string; name: string; location: string | null;
+  startAt: string | null; endAt: string | null;
+  myAssignee: OnsiteAssignee | null;
+  state: OnsiteModuleState;
+}
+export interface OnsiteAnnouncement {
+  id: string; title: string; content: string;
+  type: 'emergency' | 'important'; publishedAt: string;
+}
+export interface OnsiteContact {
+  userId: string; name: string; roleName: string | null;
+  contacts: { platform: string; value: string }[];
+}
+export type IncidentCategory = 'equipment' | 'staff' | 'material' | 'venue' | 'safety' | 'other';
+export interface OnsiteIncident {
+  id: string; category: IncidentCategory; note: string;
+  moduleId: string | null; moduleName: string | null;
+  reporter: { userId: string; name: string };
+  status: 'open' | 'resolved'; createdAt: string;
+}
+export interface OnsiteData {
+  now: string;
+  myModules: OnsiteModule[];
+  emergency: OnsiteAnnouncement[];
+  contacts: OnsiteContact[];
+  incidents: OnsiteIncident[];
+}
+
 export interface DashboardData {
   summary: DashboardSummary;
   myActions: { items: DashboardActionItem[] };
