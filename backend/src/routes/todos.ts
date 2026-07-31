@@ -7,6 +7,7 @@ import { Membership } from '../models/Membership';
 import { Todo, type TodoDoc } from '../models/Todo';
 import { User } from '../models/User';
 import { logActivity } from '../services/activity';
+import { notify } from '../services/notifications';
 import { persistUploads } from '../services/storage';
 import { applyTemplate, buildTemplate } from '../services/template';
 import { ah } from '../utils/async';
@@ -58,6 +59,17 @@ async function assertAssigneesAreMembers(projectId: unknown, assigneeIds: string
   }
 }
 
+function todoAssignBody(todo: TodoDoc): string {
+  const parts = [`待办「${todo.title}」`];
+  if (todo.dueAt) parts.push(`截止 ${todo.dueAt.toISOString()}`);
+  if (todo.nodeAt) parts.push(`节点 ${todo.nodeAt.toISOString()}`);
+  return parts.join('，');
+}
+
+function todoLink(projectId: unknown): string {
+  return `/p/${String(projectId)}?tab=todos`;
+}
+
 function parseDate(v: unknown): Date | undefined {
   if (!v) return undefined;
   const d = new Date(String(v));
@@ -99,6 +111,18 @@ todosRouter.post(
       createdBy: req.userId,
     });
     logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'todo:create', message: `${req.user!.name}创建了待办「${todo.title}」`, sourceType: 'todo', sourceId: todo._id });
+    if (assignees.length) {
+      notify({
+        projectId: req.project!._id,
+        type: 'todo:assigned',
+        title: `你被指派了待办：${todo.title}`,
+        body: todoAssignBody(todo),
+        link: todoLink(req.project!._id),
+        metadata: { todoId: todo._id.toString() },
+        recipients: assignees,
+        actorId: req.userId!,
+      });
+    }
     res.status(201).json({ todo: await todoJson(todo) });
   }),
 );
@@ -156,7 +180,20 @@ todosRouter.patch(
     if (assigneeIds !== undefined) {
       const assignees: string[] = Array.isArray(assigneeIds) ? assigneeIds.map(String) : [];
       await assertAssigneesAreMembers(req.project!._id, assignees);
+      const added = assignees.filter((id) => !todo.assigneeIds.some((x) => x.toString() === id));
       todo.assigneeIds = assignees as never;
+      if (added.length) {
+        notify({
+          projectId: req.project!._id,
+          type: 'todo:assigned',
+          title: `你被指派了待办：${todo.title}`,
+          body: todoAssignBody(todo),
+          link: todoLink(req.project!._id),
+          metadata: { todoId: todo._id.toString() },
+          recipients: added,
+          actorId: req.userId!,
+        });
+      }
     }
     await todo.save();
     logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'todo:update', message: `${req.user!.name}修改了待办「${todo.title}」`, sourceType: 'todo', sourceId: todo._id });
@@ -207,6 +244,19 @@ todosRouter.post(
     todo.attachments.push(...fileDocs.map((f) => f._id));
     await todo.save();
     logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'todo:complete', message: `${req.user!.name}完成了待办「${todo.title}」`, sourceType: 'todo', sourceId: todo._id });
+    const others = todo.assigneeIds.map((id) => id.toString()).filter((id) => id !== req.userId);
+    if (others.length) {
+      notify({
+        projectId: req.project!._id,
+        type: 'todo:completed',
+        title: `待办已完成：${todo.title}`,
+        body: `${req.user!.name} 完成了待办「${todo.title}」`,
+        link: todoLink(req.project!._id),
+        metadata: { todoId: todo._id.toString() },
+        recipients: others,
+        actorId: req.userId!,
+      });
+    }
     res.json({ todo: await todoJson(todo) });
   }),
 );

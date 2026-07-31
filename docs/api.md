@@ -228,12 +228,41 @@ Query（均可选）：
 
 ## 定时提醒（运维）
 
+提醒统一走通知管线（`services/notifications.ts`）：向收件人投递邮件 + Web Push 两个渠道，单渠道失败仅记日志；仅在投递成功后写去重标记，失败下次扫描自动重试。
+
 ### POST /api/cron/reminders（公开路径，密钥保护）
 
 请求头：`Authorization: Bearer <CRON_SECRET>`（环境变量配置；未配置返回 503 `cron_disabled`，不匹配 401）。
-扫描所有 `status=open` 且 `remindAt <= now`（节点提醒）或 `dueAt <= now`（到期提醒）的待办，向指派人注册邮箱发信；每条待办每类提醒只发一次。
+扫描所有 `status=open` 且 `remindAt <= now`（节点提醒）或 `dueAt <= now`（到期提醒）的待办，通知指派人；同时扫描 3 天内到期的未完成里程碑，通知项目管理者；每条待办每类提醒、每个里程碑只发一次（`ReminderLog` 去重）。
 响应 200：`{ sent: number }`
 用法示例：`curl -X POST -H "Authorization: Bearer $CRON_SECRET" http://localhost:4000/api/cron/reminders`（可挂系统 crontab 每分钟执行）
+
+### POST /api/cron/weekly-report（公开路径，密钥保护）
+
+鉴权同上。向活跃项目的管理者发送周报：本周完成待办数、新增风险数、当前阶段进度、下周里程碑；每项目每周只发一次（`WeeklyReportLog` 去重）。
+响应 200：`{ sent: number }`
+
+---
+
+## 推送订阅（Web Push）
+
+均挂载在 `/api/push`，需登录。配置 `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`（及可选 `VAPID_SUBJECT`）后，通知事件除邮件外同时向用户已订阅设备推送；未配置时推送渠道静默禁用。设备离线超过 1 天（TTL 86400s）的推送放弃投递，返回 404/410 的失效订阅自动清除。
+
+### GET /api/push/config
+
+响应 200：`{ publicKey: string | null }`（VAPID 公钥；未配置为 `null`，前端据此隐藏订阅入口）
+
+### POST /api/push/subscription
+
+请求：`{ endpoint: string, p256dh: string, auth: string, userAgent?: string（≤300 字） }`
+`endpoint` 必须是 https（或 localhost http）；`p256dh`/`auth` 须为 URL-safe base64。同一用户同一 endpoint 幂等 upsert（浏览器重订阅时更新密钥）；每用户最多保留 20 条订阅，超出淘汰最旧。
+响应 200：`{ ok: true }`
+错误：400 `bad_request`（endpoint 非法 / 密钥格式不符）
+
+### DELETE /api/push/subscription
+
+请求：`{ endpoint: string }`（仅删当前用户名下的该订阅）
+响应 200：`{ ok: true, removed: number }`
 
 ---
 

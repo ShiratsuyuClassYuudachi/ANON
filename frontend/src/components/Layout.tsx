@@ -3,6 +3,7 @@ import { BookOpen, LogOut, ShieldCheck, Sparkles, UserRound } from 'lucide-react
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth';
 import Logo from './Logo';
+import PushBanner from './PushBanner';
 import { OnboardingDialog } from './onboarding/OnboardingDialog';
 import { startTour } from './onboarding/tour';
 import { ModeToggle, StylePicker } from '../theme';
@@ -71,6 +72,7 @@ export default function Layout() {
         </div>
       </header>
       <main className="mx-auto w-full max-w-3xl px-4 py-4 md:max-w-5xl">
+        <PushBanner />
         <Outlet />
       </main>
       <OnboardingDialog

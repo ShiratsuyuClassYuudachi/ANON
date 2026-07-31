@@ -8,6 +8,7 @@ import { Membership } from '../models/Membership';
 import { User } from '../models/User';
 import { WorkModule } from '../models/WorkModule';
 import { logActivity } from '../services/activity';
+import { notify, projectManagerIds } from '../services/notifications';
 import { canSee, type Viewer } from '../services/visibility';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
@@ -23,6 +24,15 @@ type IncidentLean = {
   reporterId: Types.ObjectId;
   status: 'open' | 'resolved';
   createdAt: Date;
+};
+
+const INCIDENT_LABELS: Record<IncidentCategory, string> = {
+  equipment: '设备故障',
+  staff: '人员缺席',
+  material: '物料缺失',
+  venue: '场地问题',
+  safety: '安全事件',
+  other: '其他',
 };
 
 function incidentJson(i: IncidentLean, moduleNames: Map<string, string>, userNames: Map<string, string>) {
@@ -170,6 +180,17 @@ onsiteRouter.post(
       message: `${req.user!.name}上报了现场异常`,
       sourceType: 'incident',
       sourceId: inc._id as Types.ObjectId,
+    });
+    const managerIds = await projectManagerIds(projectId);
+    notify({
+      projectId,
+      type: 'incident:reported',
+      title: `现场异常上报：${INCIDENT_LABELS[cat as IncidentCategory]}`,
+      body: `${req.user!.name} 上报了现场异常（${INCIDENT_LABELS[cat as IncidentCategory]}）：${n}`,
+      link: `/p/${String(projectId)}?tab=work`,
+      metadata: { incidentId: inc._id.toString() },
+      recipients: managerIds,
+      actorId: req.userId!,
     });
     const [json] = await incidentsWithNames([inc as unknown as IncidentLean]);
     res.status(201).json({ incident: json });

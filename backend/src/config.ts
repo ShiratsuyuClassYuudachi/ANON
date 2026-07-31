@@ -26,4 +26,10 @@ export const config = {
     pass: process.env.SMTP_PASS ?? '',
     from: process.env.SMTP_FROM ?? '',
   },
+  // Web Push（VAPID）：公/私钥未配置时推送渠道静默禁用，不影响其他渠道
+  vapid: {
+    publicKey: process.env.VAPID_PUBLIC_KEY ?? '',
+    privateKey: process.env.VAPID_PRIVATE_KEY ?? '',
+    subject: process.env.VAPID_SUBJECT ?? 'mailto:anon@localhost',
+  },
 };

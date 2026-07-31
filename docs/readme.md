@@ -4,6 +4,7 @@ ANON 是一个「活动全流程追踪」协作系统，面向展会/同人活�
 
 - **账号与权限**：邀请码注册制（首超管引导）、项目内预置/自定义角色与权限点、成员邀请链接；资源可见范围优先于权限点
 - **待办**：CRUD / 筛选 / 排序 / 完成带附件 / 模板导入导出 / 到期与节点邮件提醒（cron + SMTP）
+- **通知**：统一通知管线（渠道接口，当前为邮件 + Web Push）：待办指派/改派/完成、现场任务分配、重要/紧急公告、现场异常上报、新风险、里程碑临近、周报
 - **财务**：收支记账、多票种门票盈亏、按人净额与转账建议、CSV 导出
 - **物料**：类型 / 多版本 / WebP 预览 / 可见范围
 - **账号**：三模式平台账号（完整 / OTP 辅助 / 联系人），浏览器端或服务端加密
@@ -56,6 +57,7 @@ cd frontend && npm install && npm run dev
 | `CRON_SECRET` | 提醒功能必填 | cron 提醒接口的 Bearer 密钥；未配置时该接口返回 503 |
 | `SUPER_ADMIN_EMAIL` | 否 | 首个超管邮箱：数据库无用户时，该邮箱注册无需邀请码并自动成为超管 |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | 否 | SMTP 发信配置；未配置 `SMTP_HOST` 时邮件退化为控制台日志（存根） |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | 否 | Web Push 推送（`npx web-push generate-vapid-keys` 生成密钥）；未配置时推送渠道静默禁用，邮件不受影响 |
 | `PLATFORM_CRYPTO_KEY` | 否 | 平台账号「服务端加密」模式的密钥源（SHA-256 派生 AES-256-GCM 密钥）；缺省回退 `JWT_SECRET`。浏览器端 ANONv1 加密（默认）不依赖此项 |
 
 ## cron 提醒
@@ -66,7 +68,7 @@ curl -X POST -H "Authorization: Bearer $CRON_SECRET" \
 # → {"sent": <本次发送条数>}
 ```
 
-扫描所有 `status=open` 且 `remindAt <= now`（节点提醒）或 `dueAt <= now`（到期提醒）的待办，向指派人邮箱发信；每条待办每类提醒只发一次（`ReminderLog` 去重）。可挂系统 crontab 每分钟执行。
+扫描所有 `status=open` 且 `remindAt <= now`（节点提醒）或 `dueAt <= now`（到期提醒）的待办，经通知管线向指派人发信；每条待办每类提醒只发一次（`ReminderLog` 去重，投递失败不落标记、下次重试）。可挂系统 crontab 每分钟执行。
 
 ## 测试与构建
 

@@ -166,3 +166,54 @@
 - 用户菜单含「帮助文档」「重看引导」，重看后幻灯再现、关闭刷新不自动弹
 - 移动端视口（390×844）/help 章节 Select 7 章可切换
 - 关键截图人工核对正常（`.walkthrough/shots/ob-*.png`）
+
+## 2026-07-31 通知与提醒中心（邮件渠道）
+
+依据 `docs/superpowers/plans/2026-07-31-notifications.md` 落地，分支 feat/notifications。后端 126 个 vitest 用例全绿（111 + 新增 15）、typecheck 通过。
+
+### 通知管线（渠道接口）
+
+- `backend/src/services/notifications.ts`：`NotificationType` / `NotificationPayload` / `NotificationChannel` 渠道接口 + `EmailChannel`（合并收件人调 `sendMail`）+ `notify()` 分发（解析用户→排除 actorId→逐渠道投递，单渠道失败互不影响，返回是否全部成功）+ `managerRoleNames` / `memberIdsByRole` / `projectManagerIds` 收件人辅助
+- 新增渠道只需实现 `NotificationChannel` 并 `notificationChannels.push(...)`，业务调用点零改动（预留站内中心/Web Push）
+
+### 事件接入（fire-and-forget）
+
+| 事件 | 触发点 | 收件人 |
+|---|---|---|
+| `todo:assigned` | 创建/改派待办（新增差集） | 新指派人（排除操作者） |
+| `todo:completed` | 待办完成 | 其他指派人 |
+| `work:assigned` | 创建/调整现场任务（新增差集） | 新分配成员 |
+| `announcement:published` | 发布重要/紧急公告 | 可见范围成员 |
+| `incident:reported` | 现场异常上报 | 项目管理者 |
+| `risk:new` | 新检测 warning/critical 风险 | 项目管理者（info 不通知） |
+| `todo:remind` / `todo:due` | cron 扫描 | 指派人 |
+| `milestone:approaching` | cron 扫描 | 项目管理者 |
+| `weekly:report` | cron 周报 | 项目管理者 |
+
+### cron 重构
+
+- `routes/cron.ts` 的 reminders 与 weekly-report 全部改走 `notify()`，消除直发 `sendMail` 并行路径与两份重复的管理者查找；`ReminderLog`/`WeeklyReportLog`/`sent` 语义不变
+- 行为增强：投递失败不再落去重标记，下次 cron 重试（原实现 SMTP 失败即 500 且丢邮件）
+
+### 测试
+
+- `backend/tests/notifications.test.ts` 15 用例：`vi.mock` mailer 断言收件人/主题/正文——actorId 排除、改派差集、完成通知、work 分配、公告可见性过滤、异常上报、cron 去重（due/里程碑/周报）、risk:new 仅 warning/critical、抛错渠道不影响邮件（接口可扩展性）
+
+## 2026-07-31 Web Push 推送通知（通知管线第二渠道）
+
+依据 `docs/superpowers/plans/2026-07-31-webpush.md` 落地，同一分支。后端 136 个 vitest 用例全绿（126 + 新增 10）、typecheck 通过，前端 `npm run build` 通过（含 SW 补丁）。
+
+### 后端
+- `models/PushSubscription.ts`：按用户+endpoint 唯一索引，upsert 更新密钥，每用户上限 20 条淘汰最旧
+- `routes/push.ts`：`GET /api/push/config`（VAPID 公钥，未配置返回 null）、`POST/DELETE /api/push/subscription`（https/localhost 校验、URL-safe base64 校验）
+- `services/webpush.ts`：`WebPushChannel` 注册进 `notificationChannels`——TTL 1 天防陈旧投递；载荷含 title/body/url/tag/type/projectId；404/410 清除失效订阅，其余失败仅记日志（尽力而为，不阻塞邮件去重）；未配置 VAPID 静默跳过
+- config 新增 `vapid` 段；`.env.example` 补充 `VAPID_*`（`npx web-push generate-vapid-keys` 生成）
+
+### 前端
+- `lib/push.ts`：`subscribePush`（幂等复用现有订阅）/`unsubscribePush`/`getVapidPublicKey`/`getPushStatus`；SW 注册获取带 2s 超时（开发模式无 SW 不挂起）
+- `components/PushBanner.tsx`：Layout 内提示条——已授权自动订阅；从未询问展示一次「开启/暂不」（localStorage 记忆）；不支持/未配置/被拒不展示
+- `components/PushSettingsCard.tsx`：「个人资料」页推送管理卡片——按设备开关订阅（Switch）、五种状态提示（unsupported/unconfigured/denied/subscribed/off）；与 PushBanner 经 `anon-push-changed` 事件互相同步
+- `scripts/patch-sw.mjs`：构建后向 workbox generateSW 产物追加 `push`（showNotification）与 `notificationclick`（跳转 payload.url）监听；`npm run build` 串联
+
+### 测试
+- `backend/tests/push.test.ts` 10 用例（`vi.mock('web-push')`）：路由——401/公钥/endpoint 去重 upsert/非法 endpoint 与 base64 拒绝/20 条上限淘汰最旧/删除幂等；渠道——VAPID details 与 JSON 载荷（url/tag）、只推本人设备、410 清理失效订阅、未配置跳过
