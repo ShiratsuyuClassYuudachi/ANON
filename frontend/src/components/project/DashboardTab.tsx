@@ -7,6 +7,7 @@ import {
   ClipboardList,
   Clock,
   EyeOff,
+  Flag,
   FolderOpen,
   Info,
   ListTodo,
@@ -32,6 +33,8 @@ import type {
   RiskItem,
 } from '../../types';
 import { FormOverlay } from '@/components/FormOverlay';
+import { MilestoneSection } from './MilestoneSection';
+import { StageStepper } from './StageStepper';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -284,6 +287,11 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
               <MapPin className="size-3.5" /> {project.location}
             </p>
           )}
+          {project.stages && project.stages.length > 0 && (
+            <div className="pt-2">
+              <StageStepper stages={project.stages} />
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -508,6 +516,7 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
                         {item.sourceType === 'todo' && <ListTodo className="size-3.5 shrink-0 text-muted-foreground" />}
                         {item.sourceType === 'work' && <ClipboardList className="size-3.5 shrink-0 text-muted-foreground" />}
                         {item.sourceType === 'project' && <CalendarDays className="size-3.5 shrink-0 text-primary" />}
+                        {item.sourceType === 'milestone' && <Flag className="size-3.5 shrink-0 text-purple-600 dark:text-purple-400" />}
                         <span className="truncate">{item.title}</span>
                       </div>
                     ))}
@@ -518,6 +527,9 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
           )}
         </CardContent>
       </Card>
+
+      {/* 里程碑 */}
+      <MilestoneSection projectId={project.id} stages={project.stages ?? []} myPermissions={myPermissions} />
 
       {/* 模块摘要 */}
       <div className="grid gap-3 md:grid-cols-2">

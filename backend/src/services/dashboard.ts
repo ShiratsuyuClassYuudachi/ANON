@@ -7,6 +7,7 @@ import { Todo } from '../models/Todo';
 import { Transaction } from '../models/Transaction';
 import { WorkModule } from '../models/WorkModule';
 import { RiskInstance } from '../models/RiskInstance';
+import { Milestone } from '../models/Milestone';
 
 // --- Types for API responses ---
 
@@ -72,7 +73,7 @@ export interface ActionItem {
 
 export interface ScheduleItem {
   id: string;
-  sourceType: 'todo' | 'work' | 'project';
+  sourceType: 'todo' | 'work' | 'project' | 'milestone';
   title: string;
   time: string; // ISO
   allDay: boolean;
@@ -260,9 +261,10 @@ export async function buildSchedule(project: ProjectDoc, days: number = 7): Prom
   const now = new Date();
   const end = new Date(now.getTime() + days * 86400000);
 
-  const [todos, workModules] = await Promise.all([
+  const [todos, workModules, milestones] = await Promise.all([
     Todo.find({ projectId, status: 'open', dueAt: { $gte: now, $lte: end } }).sort({ dueAt: 1 }),
     WorkModule.find({ projectId, startAt: { $gte: now, $lte: end } }).sort({ startAt: 1 }),
+    Milestone.find({ projectId, completedAt: { $exists: false }, date: { $gte: now, $lte: end } }).sort({ date: 1 }),
   ]);
 
   const items: ScheduleItem[] = [];
@@ -284,6 +286,16 @@ export async function buildSchedule(project: ProjectDoc, days: number = 7): Prom
       title: wm.name,
       time: wm.startAt!.toISOString(),
       allDay: false,
+    });
+  }
+
+  for (const ms of milestones) {
+    items.push({
+      id: String(ms._id),
+      sourceType: 'milestone',
+      title: ms.title,
+      time: ms.date.toISOString(),
+      allDay: true,
     });
   }
 

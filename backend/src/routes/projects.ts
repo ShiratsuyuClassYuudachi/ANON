@@ -3,11 +3,14 @@ import { Router } from 'express';
 import { authRequired } from '../middleware/auth';
 import { loadMembership, requirePermission } from '../middleware/projectAccess';
 import { Membership } from '../models/Membership';
-import { Project } from '../models/Project';
+import { Project, defaultStages } from '../models/Project';
 import { ProjectInvite } from '../models/ProjectInvite';
+import { RiskInstance } from '../models/RiskInstance';
+import { Todo } from '../models/Todo';
 import { User } from '../models/User';
 import { logActivity } from '../services/activity';
 import { ALL_PERMISSIONS, PRESET_ROLES } from '../services/permissions';
+import { computeHealth } from '../services/risk';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
 
@@ -15,6 +18,8 @@ export const projectsRouter = Router();
 projectsRouter.use(authRequired);
 
 function projectJson(p: InstanceType<typeof Project>) {
+  const stages = [...(p.stages ?? [])].sort((a, b) => a.order - b.order);
+  const currentStage = stages.find((s) => !s.completedAt)?.name ?? p.currentStage ?? '';
   return {
     id: p._id.toString(),
     name: p.name,
@@ -24,7 +29,8 @@ function projectJson(p: InstanceType<typeof Project>) {
     endDate: p.endDate ?? null,
     location: p.location,
     timezone: p.timezone,
-    currentStage: p.currentStage,
+    currentStage,
+    stages: stages.map((s) => ({ id: s._id.toString(), name: s.name, order: s.order, completedAt: s.completedAt?.toISOString() ?? null, note: s.note ?? '' })),
     roles: p.roles,
     createdBy: p.createdBy.toString(),
   };
@@ -54,6 +60,7 @@ projectsRouter.post(
       endDate: endDate ? new Date(endDate) : undefined,
       createdBy: req.userId,
       roles: PRESET_ROLES.map((r) => ({ ...r, permissions: [...r.permissions] })),
+      stages: defaultStages(),
     });
     await Membership.create({ projectId: project._id, userId: req.userId, roleName: '主办' });
     res.status(201).json({ project: projectJson(project) });
@@ -64,18 +71,49 @@ projectsRouter.get(
   '/',
   ah(async (req, res) => {
     const ms = await Membership.find({ userId: req.userId }).lean();
-    const projects = await Project.find({ _id: { $in: ms.map((m) => m.projectId) } }).lean();
+    const projectIds = ms.map((m) => m.projectId);
+    const projects = await Project.find({ _id: { $in: projectIds } }).lean();
     const roleByPid = new Map(ms.map((m) => [m.projectId.toString(), m.roleName]));
+
+    const [todoStats, riskCounts] = await Promise.all([
+      Todo.aggregate([
+        { $match: { projectId: { $in: projectIds } } },
+        { $group: { _id: '$projectId', total: { $sum: 1 }, done: { $sum: { $cond: [{ $eq: ['$status', 'done'] }, 1, 0] } } } },
+      ]),
+      RiskInstance.aggregate([
+        { $match: { projectId: { $in: projectIds }, status: 'active' } },
+        { $group: { _id: '$projectId', count: { $sum: 1 }, levels: { $push: '$level' } } },
+      ]),
+    ]);
+
+    const todoByPid = new Map(todoStats.map((t) => [t._id.toString(), t]));
+    const riskByPid = new Map(riskCounts.map((r) => [r._id.toString(), r]));
+
     res.json({
-      projects: projects.map((p) => ({
-        id: p._id.toString(),
-        name: p.name,
-        description: p.description,
-        status: p.status,
-        startDate: p.startDate ?? null,
-        endDate: p.endDate ?? null,
-        myRole: roleByPid.get(p._id.toString()) ?? null,
-      })),
+      projects: projects.map((p) => {
+        const pid = p._id.toString();
+        const todo = todoByPid.get(pid);
+        const risk = riskByPid.get(pid);
+        const completionRate = todo && todo.total > 0 ? Math.round((todo.done / todo.total) * 100) : 0;
+        const activeRiskLevels = (risk?.levels ?? []) as string[];
+        const health = computeHealth(activeRiskLevels.map((level) => ({ level } as any)));
+        const stages = [...(p.stages ?? [])].sort((a, b) => a.order - b.order);
+        const currentStage = stages.find((s) => !s.completedAt)?.name ?? p.currentStage ?? '';
+        return {
+          id: pid,
+          name: p.name,
+          description: p.description,
+          status: p.status,
+          startDate: p.startDate ?? null,
+          endDate: p.endDate ?? null,
+          myRole: roleByPid.get(pid) ?? null,
+          currentStage,
+          stageProgress: { completed: stages.filter((s) => s.completedAt).length, total: stages.length },
+          health,
+          todoCompletionRate: completionRate,
+          activeRiskCount: activeRiskLevels.length,
+        };
+      }),
     });
   }),
 );

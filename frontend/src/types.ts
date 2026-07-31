@@ -7,9 +7,19 @@ export interface User {
   onboardedAt: string | null;
 }
 export type ProjectStatus = 'draft' | 'preparing' | 'active' | 'settling' | 'completed' | 'archived' | 'cancelled';
+export interface StageItem {
+  id: string; name: string; order: number; completedAt: string | null; note: string;
+}
+export interface MilestoneItem {
+  id: string; title: string; date: string; description: string;
+  stageId: string | null; stageName: string | null;
+  completedAt: string | null; createdBy: { userId: string; name: string };
+}
 export interface ProjectSummary {
   id: string; name: string; description: string; status: ProjectStatus;
   startDate: string | null; endDate: string | null; myRole: string | null;
+  currentStage: string; stageProgress: { completed: number; total: number };
+  health: HealthStatus; todoCompletionRate: number; activeRiskCount: number;
 }
 export interface Role { name: string; permissions: string[]; }
 export interface Member { userId: string; name: string; email: string; roleName: string; }
@@ -23,6 +33,7 @@ export interface ProjectDetail {
   location: string;
   timezone: string;
   currentStage: string;
+  stages: StageItem[];
   roles: Role[];
   createdBy: string;
 }
@@ -109,7 +120,7 @@ export interface DashboardActionItem {
   dueAt: string | null; isOverdue: boolean; action: 'complete' | 'confirm';
 }
 export interface ScheduleItem {
-  id: string; sourceType: 'todo' | 'work' | 'project'; title: string; time: string; allDay: boolean;
+  id: string; sourceType: 'todo' | 'work' | 'project' | 'milestone'; title: string; time: string; allDay: boolean;
 }
 export interface ScheduleGroup { date: string; label: string; items: ScheduleItem[]; }
 export interface RiskItem {
