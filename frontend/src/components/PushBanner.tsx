@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Bell, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { getVapidPublicKey, pushSupported, subscribePush } from '../lib/push';
+import { getVapidPublicKey, PUSH_OPTOUT_KEY, pushSupported, subscribePush } from '../lib/push';
 
 const DISMISS_KEY = 'anon-push-dismissed';
 
@@ -15,7 +15,7 @@ export default function PushBanner() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    const check = async () => {
       if (!pushSupported()) {
         setState('off');
         return;
@@ -27,6 +27,11 @@ export default function PushBanner() {
         return;
       }
       if (Notification.permission === 'granted') {
+        // 用户在「个人资料」主动关闭过推送 → 不再自动订阅
+        if (localStorage.getItem(PUSH_OPTOUT_KEY) === '1') {
+          setState('off');
+          return;
+        }
         const ok = await subscribePush();
         if (!cancelled) setState(ok ? 'done' : 'off');
       } else if (Notification.permission === 'denied' || localStorage.getItem(DISMISS_KEY)) {
@@ -34,9 +39,14 @@ export default function PushBanner() {
       } else {
         setState('prompt');
       }
-    })();
+    };
+    check();
+    // 「个人资料」页开关推送后重新评估（开启即时隐藏提示条）
+    const onChanged = () => check();
+    window.addEventListener('anon-push-changed', onChanged);
     return () => {
       cancelled = true;
+      window.removeEventListener('anon-push-changed', onChanged);
     };
   }, []);
 
@@ -49,6 +59,7 @@ export default function PushBanner() {
     if (ok) {
       toast.success('已开启通知，重要动态会推送到这台设备');
       setState('done');
+      window.dispatchEvent(new Event('anon-push-changed'));
     } else if (Notification.permission === 'denied') {
       setState('off');
     }

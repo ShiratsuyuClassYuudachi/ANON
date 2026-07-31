@@ -1,5 +1,8 @@
 import { api } from '../api/client';
 
+/** 用户主动关闭推送的 localStorage 标记：避免「已授权自动订阅」与用户退出打架 */
+export const PUSH_OPTOUT_KEY = 'anon-push-optout';
+
 /** 浏览器是否支持 Web Push */
 export function pushSupported(): boolean {
   return typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
@@ -24,9 +27,30 @@ export async function getVapidPublicKey(): Promise<string | null> {
   }
 }
 
+/**
+ * 获取 SW 注册：已注册未激活时等其激活；未注册时等 registerSW 完成。
+ * 开发模式无 SW，3s 超时返回 null，避免永久挂起。
+ */
+async function swRegistration(): Promise<ServiceWorkerRegistration | null> {
+  const existing = await navigator.serviceWorker.getRegistration();
+  if (existing) return existing.active ? existing : navigator.serviceWorker.ready;
+  return Promise.race([navigator.serviceWorker.ready, new Promise<null>((r) => setTimeout(() => r(null), 3000))]);
+}
+
 async function currentSubscription(): Promise<PushSubscription | null> {
-  const reg = await navigator.serviceWorker.ready;
-  return reg.pushManager.getSubscription();
+  const reg = await swRegistration();
+  return reg?.pushManager.getSubscription() ?? null;
+}
+
+/** 本设备推送状态，供设置页展示 */
+export type PushStatus = 'unsupported' | 'unconfigured' | 'denied' | 'subscribed' | 'off';
+
+export async function getPushStatus(): Promise<PushStatus> {
+  if (!pushSupported()) return 'unsupported';
+  if (Notification.permission === 'denied') return 'denied';
+  const key = await getVapidPublicKey();
+  if (!key) return 'unconfigured';
+  return (await currentSubscription()) ? 'subscribed' : 'off';
 }
 
 /**
@@ -48,11 +72,16 @@ export async function subscribePush(): Promise<boolean> {
     sub = await currentSubscription();
   }
   if (!sub) {
-    const reg = await navigator.serviceWorker.ready;
-    sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(publicKey),
-    });
+    const reg = await swRegistration();
+    if (!reg) return false;
+    try {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+    } catch {
+      return false; // 推送服务不可用（如无网络/浏览器限制）
+    }
   }
   const json = sub.toJSON();
   if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) return false;
@@ -66,15 +95,17 @@ export async function subscribePush(): Promise<boolean> {
         userAgent: navigator.userAgent.slice(0, 300),
       },
     });
+    localStorage.removeItem(PUSH_OPTOUT_KEY);
     return true;
   } catch {
     return false;
   }
 }
 
-/** 取消推送订阅（本地 + 服务端） */
+/** 取消推送订阅（本地 + 服务端），并记录用户主动退出 */
 export async function unsubscribePush(): Promise<void> {
   if (!pushSupported()) return;
+  localStorage.setItem(PUSH_OPTOUT_KEY, '1');
   const sub = await currentSubscription();
   if (sub) {
     const json = sub.toJSON();
