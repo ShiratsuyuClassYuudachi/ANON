@@ -1,13 +1,13 @@
-import path from 'path';
 import { Router } from 'express';
 import { authRequired } from '../middleware/auth';
 import { requirePermission } from '../middleware/projectAccess';
-import { upload, fixFilename } from '../middleware/upload';
+import { upload } from '../middleware/upload';
 import { File } from '../models/File';
 import { Membership } from '../models/Membership';
 import { Resource } from '../models/Resource';
 import { ResourceType } from '../models/ResourceType';
 import { ResourceVersion } from '../models/ResourceVersion';
+import { persistUploads, sendStoredFile } from '../services/storage';
 import { canSee } from '../services/visibility';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
@@ -21,14 +21,7 @@ projectFilesRouter.post(
   upload.single('file'),
   ah(async (req, res) => {
     if (!req.file) throw new AppError(400, 'bad_request', '缺少文件');
-    const doc = await File.create({
-      projectId: req.project!._id,
-      filename: fixFilename(req.file.originalname),
-      path: req.file.path,
-      mime: req.file.mimetype,
-      size: req.file.size,
-      uploadedBy: req.userId,
-    });
+    const [doc] = await persistUploads([req.file], req.project!._id, req.userId);
     res.status(201).json({
       file: { id: doc._id.toString(), filename: doc.filename, mime: doc.mime, size: doc.size },
     });
@@ -59,6 +52,6 @@ filesRouter.get(
         if (!visible) throw new AppError(403, 'forbidden', '没有权限访问该文件');
       }
     }
-    res.download(path.resolve(doc.path), doc.filename);
+    await sendStoredFile(res, doc.path, doc.filename);
   }),
 );

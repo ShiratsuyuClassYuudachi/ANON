@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { authRequired } from '../middleware/auth';
 import { loadMembership, requirePermission } from '../middleware/projectAccess';
-import { fixFilename, upload } from '../middleware/upload';
+import { upload } from '../middleware/upload';
 import { File } from '../models/File';
 import { Membership } from '../models/Membership';
 import { Todo, type TodoDoc } from '../models/Todo';
 import { User } from '../models/User';
 import { logActivity } from '../services/activity';
+import { persistUploads } from '../services/storage';
 import { applyTemplate, buildTemplate } from '../services/template';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
@@ -197,16 +198,7 @@ todosRouter.post(
     const todo = req.todo!;
 
     const uploaded = (req.files as Express.Multer.File[]) ?? [];
-    const fileDocs = await File.insertMany(
-      uploaded.map((f) => ({
-        projectId: req.project!._id,
-        filename: fixFilename(f.originalname),
-        path: f.path,
-        mime: f.mimetype,
-        size: f.size,
-        uploadedBy: req.userId,
-      })),
-    );
+    const fileDocs = await persistUploads(uploaded, req.project!._id, req.userId);
 
     todo.status = 'done';
     todo.completedAt = new Date();

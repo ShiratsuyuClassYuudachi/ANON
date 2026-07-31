@@ -51,7 +51,8 @@ cd frontend && npm install && npm run dev
 | `MONGO_URI` | 是（有默认值 `mongodb://localhost:27017/anon`） | MongoDB 连接串 |
 | `JWT_SECRET` | 生产必填 | JWT 签名密钥；生产环境未配置会拒绝启动，开发环境用不安全的默认值 |
 | `PORT` | 否 | 后端监听端口，默认 4000 |
-| `UPLOAD_DIR` | 否 | 上传文件存储目录，默认 `uploads`（已 gitignore） |
+| `UPLOAD_DIR` | 否 | 上传文件本地存储目录，默认 `uploads`（已 gitignore）；仅在未配置 S3 时使用 |
+| `S3_ENDPOINT` / `S3_BUCKET` / `S3_REGION` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` | 否 | S3 兼容对象存储（MinIO / OSS / AWS S3）。配置 `S3_ENDPOINT` 后上传文件（含预览图）写入 S3，bucket 不存在时自动创建；未配置则回退本地磁盘 `UPLOAD_DIR`。历史本地文件与新 S3 文件可混合读取 |
 | `CRON_SECRET` | 提醒功能必填 | cron 提醒接口的 Bearer 密钥；未配置时该接口返回 503 |
 | `SUPER_ADMIN_EMAIL` | 否 | 首个超管邮箱：数据库无用户时，该邮箱注册无需邀请码并自动成为超管 |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | 否 | SMTP 发信配置；未配置 `SMTP_HOST` 时邮件退化为控制台日志（存根） |
@@ -106,7 +107,8 @@ docker compose -f docker-compose.prod.yml up -d --build
 架构说明：
 
 - `frontend`（nginx，唯一对外端口 **8080**）：托管前端静态文件，SPA 路由回退，`/api` 反代到 `backend:4000`（上传限 50MB）
-- `backend`：不暴露宿主机端口，仅编排网络内可达；上传文件存 named volume `uploads-data`
+- `backend`：不暴露宿主机端口，仅编排网络内可达；未配置 S3 时上传文件存 named volume `uploads-data`
+- `minio`：**内嵌对象存储**——S3 兼容 API，文件（含预览图）默认存这里，数据存 named volume `minio-data`；不暴露宿主机端口（API :9000 / 控制台 :9001 仅编排网络内可见）。默认账号 `S3_ACCESS_KEY`/`S3_SECRET_KEY`（缺省 `anon-minio` / `anon-minio-password`，公网部署务必修改）；在 `.env` 覆盖 `S3_*` 可切换外部 S3 服务，设 `S3_ENDPOINT=` 为空则回退本地磁盘且 minio 可不启动
 - `ferretdb` + `postgres`：**内嵌数据库（零依赖体验模式）**——FerretDB v2 提供 MongoDB 协议，后端存储为 PostgreSQL（DocumentDB 扩展），数据存 named volume `pg-data`；均不暴露宿主机端口
 - **数据库两级配置**：默认走内嵌 FerretDB（账号 `DB_USER`/`DB_PASSWORD`，缺省 `anon` / `anon-dev-password`，公网部署务必修改）；**外接 MongoDB 优先**——在 `.env` 设置 `MONGO_URI` 即改用外部库，`postgres`/`ferretdb` 两服务可删除或不启动
 - 编排项目名为 `anon-prod`，与开发用 `docker-compose.yml`（仅 mongo，端口 27017）互不干扰，可并存

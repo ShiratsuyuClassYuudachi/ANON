@@ -1,15 +1,14 @@
-import fs from 'fs';
-import path from 'path';
 import { Router, type Request } from 'express';
 import { authRequired } from '../middleware/auth';
 import { loadMembership, requirePermission } from '../middleware/projectAccess';
-import { fixFilename, upload } from '../middleware/upload';
+import { upload } from '../middleware/upload';
 import { File, type FileDoc } from '../models/File';
 import { Resource, type ResourceDoc } from '../models/Resource';
 import { ResourceType, type ResourceTypeDoc } from '../models/ResourceType';
 import { ResourceVersion, type ResourceVersionDoc } from '../models/ResourceVersion';
 import { logActivity } from '../services/activity';
 import { generatePreview } from '../services/preview';
+import { deleteStored, persistUploads, sendStoredFile } from '../services/storage';
 import { canSee, type Viewer } from '../services/visibility';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
@@ -179,6 +178,7 @@ materialsRouter.post(
 
     let fileDoc: FileDoc | null = null;
     let resourceDoc: ResourceDoc | null = null;
+    let previewRef: string | null = null;
     try {
       const r = await Resource.create({
         projectId: req.project!._id,
@@ -191,22 +191,16 @@ materialsRouter.post(
 
       let latest: ResourceVersionDoc | null = null;
       if (req.file) {
-        fileDoc = await File.create({
-          projectId: req.project!._id,
-          filename: fixFilename(req.file.originalname),
-          path: req.file.path,
-          mime: req.file.mimetype,
-          size: req.file.size,
-          uploadedBy: req.userId,
-        });
-        const previewPath = req.file.mimetype.startsWith('image/')
+        // 预览生成需要读本地暂存文件，必须在 persistUploads（S3 模式会删除暂存）之前
+        previewRef = req.file.mimetype.startsWith('image/')
           ? await generatePreview(req.file.path)
           : null;
+        [fileDoc] = await persistUploads([req.file], req.project!._id, req.userId);
         latest = await ResourceVersion.create({
           resourceId: r._id,
           version: 1,
           fileId: fileDoc._id,
-          previewPath,
+          previewPath: previewRef,
           note: String(req.body?.note ?? ''),
           createdBy: req.userId,
         });
@@ -215,7 +209,9 @@ materialsRouter.post(
       logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'material:create', message: `${req.user!.name}创建了资源「${r.name}」`, sourceType: 'material', sourceId: r._id });
       res.status(201).json({ resource: resourceJson(r, latest) });
     } catch (err) {
-      if (req.file) await fs.promises.unlink(req.file.path).catch(() => {});
+      if (previewRef) await deleteStored(previewRef);
+      if (fileDoc) await deleteStored(fileDoc.path);
+      else if (req.file) await deleteStored(req.file.path);
       if (fileDoc) await fileDoc.deleteOne().catch(() => {});
       if (resourceDoc) await resourceDoc.deleteOne().catch(() => {});
       throw err;
@@ -267,9 +263,9 @@ materialsRouter.delete(
     const name = resource.name;
     const versions = await ResourceVersion.find({ resourceId: resource._id });
     const files = await File.find({ _id: { $in: versions.map((v) => v.fileId) } });
-    for (const f of files) await fs.promises.unlink(path.resolve(f.path)).catch(() => {});
+    for (const f of files) await deleteStored(f.path);
     for (const v of versions) {
-      if (v.previewPath) await fs.promises.unlink(path.resolve(v.previewPath)).catch(() => {});
+      if (v.previewPath) await deleteStored(v.previewPath);
     }
     await File.deleteMany({ _id: { $in: versions.map((v) => v.fileId) } });
     await ResourceVersion.deleteMany({ resourceId: resource._id });
@@ -288,6 +284,7 @@ materialsRouter.post(
   ah(async (req, res) => {
     // multer 已落盘，后续任何失败都要清理上传文件（及已建的 File 文档），避免孤儿文件
     let fileDoc: FileDoc | null = null;
+    let previewRef: string | null = null;
     try {
       const resource = await Resource.findOne({
         _id: req.params.resourceId,
@@ -295,30 +292,25 @@ materialsRouter.post(
       });
       if (!resource) throw new AppError(404, 'not_found', '资源不存在');
       if (!req.file) throw new AppError(400, 'bad_request', '缺少文件');
-      fileDoc = await File.create({
-        projectId: req.project!._id,
-        filename: fixFilename(req.file.originalname),
-        path: req.file.path,
-        mime: req.file.mimetype,
-        size: req.file.size,
-        uploadedBy: req.userId,
-      });
-      const latest = await latestVersionOf(resource._id);
-      const previewPath = req.file.mimetype.startsWith('image/')
+      previewRef = req.file.mimetype.startsWith('image/')
         ? await generatePreview(req.file.path)
         : null;
+      [fileDoc] = await persistUploads([req.file], req.project!._id, req.userId);
+      const latest = await latestVersionOf(resource._id);
       const v = await ResourceVersion.create({
         resourceId: resource._id,
         version: (latest?.version ?? 0) + 1,
         fileId: fileDoc._id,
-        previewPath,
+        previewPath: previewRef,
         note: String(req.body?.note ?? ''),
         createdBy: req.userId,
       });
       logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'material:upload_version', message: `${req.user!.name}上传了「${resource.name}」的新版本`, sourceType: 'material', sourceId: resource._id });
       res.status(201).json({ version: await versionJson(v) });
     } catch (err) {
-      if (req.file) await fs.promises.unlink(req.file.path).catch(() => {});
+      if (previewRef) await deleteStored(previewRef);
+      if (fileDoc) await deleteStored(fileDoc.path);
+      else if (req.file) await deleteStored(req.file.path);
       if (fileDoc) await fileDoc.deleteOne().catch(() => {});
       throw err;
     }
@@ -345,7 +337,7 @@ materialsRouter.get(
     if (!v) throw new AppError(404, 'not_found', '版本不存在');
     const file = await File.findById(v.fileId);
     if (!file) throw new AppError(404, 'not_found', '文件不存在');
-    res.download(path.resolve(file.path), file.filename);
+    await sendStoredFile(res, file.path, file.filename);
   }),
 );
 
@@ -359,12 +351,12 @@ materialsRouter.get(
     });
     if (!v) throw new AppError(404, 'not_found', '版本不存在');
     if (v.previewPath) {
-      res.sendFile(path.resolve(v.previewPath));
+      await sendStoredFile(res, v.previewPath);
       return;
     }
     const file = await File.findById(v.fileId);
     if (file?.mime.startsWith('image/')) {
-      res.sendFile(path.resolve(file.path));
+      await sendStoredFile(res, file.path);
       return;
     }
     throw new AppError(404, 'not_found', '该版本没有预览图');
@@ -378,12 +370,12 @@ materialsRouter.get(
     const latest = await latestVersionOf(resource._id);
     if (!latest) throw new AppError(404, 'not_found', '资源尚无版本');
     if (latest.previewPath) {
-      res.sendFile(path.resolve(latest.previewPath));
+      await sendStoredFile(res, latest.previewPath);
       return;
     }
     const file = await File.findById(latest.fileId);
     if (file?.mime.startsWith('image/')) {
-      res.sendFile(path.resolve(file.path));
+      await sendStoredFile(res, file.path);
       return;
     }
     throw new AppError(404, 'not_found', '该资源没有预览图');
