@@ -13,3 +13,4 @@ designs/
 
 # 本地工具配置
 .qoder/
+.omp/

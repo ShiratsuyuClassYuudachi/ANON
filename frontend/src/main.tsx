@@ -10,6 +10,12 @@ import './index.css';
 import { flushQueue } from './lib/offlineQueue';
 import { ThemeProvider } from './theme';
 
+// 演示模式：构建期静态替换 VITE_DEMO，生产构建中条件恒 false，demo chunk 被 tree-shake
+if (import.meta.env.VITE_DEMO === 'true') {
+  const { installDemo } = await import('./demo/install');
+  await installDemo();
+}
+
 registerSW({ immediate: true });
 
 function syncOfflineQueue() {

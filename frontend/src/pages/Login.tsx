@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, type To } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth';
 import Logo from '../components/Logo';
@@ -18,23 +18,29 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const isDemo = import.meta.env.VITE_DEMO === 'true';
+  const from = (location.state as { from?: To } | null)?.from ?? '/projects';
 
   // 已登录用户直接跳过登录页
-  if (user) return <Navigate to={(location.state as any)?.from ?? '/projects'} replace />;
+  if (user) return <Navigate to={from} replace />;
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
+  const doLogin = async (em: string, pw: string) => {
     setErr('');
     setBusy(true);
     try {
-      const d = await api<{ token: string; user: User; trialExpiresAt?: string }>('/api/auth/login', { body: { email, password } });
+      const d = await api<{ token: string; user: User; trialExpiresAt?: string }>('/api/auth/login', { body: { email: em, password: pw } });
       login(d.token, d.user, d.trialExpiresAt ?? null);
-      nav((location.state as any)?.from ?? '/projects', { replace: true });
+      nav(from, { replace: true });
     } catch (e2) {
       setErr((e2 as Error).message);
     } finally {
       setBusy(false);
     }
+  };
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    await doLogin(email, password);
   };
 
   return (
@@ -48,6 +54,20 @@ export default function Login() {
           <CardDescription>登录你的账号</CardDescription>
         </CardHeader>
         <CardContent>
+          {isDemo && (
+            <div className="mb-4 space-y-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+              <p className="text-sm text-foreground">这是功能预览演示，无需账号，点击下方按钮直接进入</p>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full border-amber-500/60"
+                disabled={busy}
+                onClick={() => void doLogin('demo@anon.local', 'demo-pass-123')}
+              >
+                {busy ? '登录中…' : '进入演示'}
+              </Button>
+            </div>
+          )}
           <form onSubmit={submit} className="space-y-3">
             <div className="space-y-1.5">
               <Label htmlFor="email">邮箱</Label>
