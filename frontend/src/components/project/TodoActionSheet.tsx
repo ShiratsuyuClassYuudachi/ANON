@@ -60,8 +60,10 @@ export function TodoActionSheet({ open, onOpenChange, title, noteLabel, requireC
             type="file"
             multiple
             onChange={(e) => {
-              if (e.target.files?.length) setFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
+              // FileList 在重置 input 前同步取出，避免 updater 延迟执行时读到空列表
+              const picked = Array.from(e.target.files ?? []);
               e.target.value = '';
+              if (picked.length) setFiles((prev) => [...prev, ...picked]);
             }}
           />
         </div>
