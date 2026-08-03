@@ -37,6 +37,10 @@ export interface ProjectDetail {
   roles: Role[];
   createdBy: string;
 }
+export interface TodoUpdateItem {
+  note: string; createdBy: string; createdByName: string; createdAt: string;
+  attachments: { id: string; filename: string }[];
+}
 export interface TodoItem {
   id: string; title: string; category: string;
   assignees: { userId: string; name: string }[];
@@ -44,6 +48,7 @@ export interface TodoItem {
   status: 'open' | 'done'; note: string; createdAt: string;
   completedAt: string | null; completedBy: string | null; completionNote: string | null;
   attachments: { id: string; filename: string }[];
+  updates: TodoUpdateItem[];
 }
 export interface TxUser { userId: string; name: string; }
 export interface TransactionItem {

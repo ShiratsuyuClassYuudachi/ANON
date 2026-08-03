@@ -101,4 +101,21 @@ describe('todos', () => {
       .send({ title: 'A' });
     expect(res.status).toBe(403);
   });
+
+  it('编辑时空值清除原有字段（表单即完整表示）', async () => {
+    const t = await addTodo(owner.token, {
+      title: 'A',
+      category: '美工',
+      note: '备注',
+      dueAt: '2026-08-10T00:00:00Z',
+    });
+    const res = await request(app)
+      .patch(`/api/projects/${projectId}/todos/${t.id}`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ title: 'A', category: '', note: '', dueAt: '' });
+    expect(res.status).toBe(200);
+    expect(res.body.todo.category).toBe('');
+    expect(res.body.todo.note).toBe('');
+    expect(res.body.todo.dueAt).toBeNull();
+  });
 });
