@@ -153,7 +153,7 @@ interface StageItem { id: string; name: string; order: number; completedAt: stri
 - **POST /api/projects/:id/stages**（需 `project:manage`）
   请求 `{ name: string, order?: number }`（不传 order 追加到末尾）。400 名称为空
 - **PATCH /api/projects/:id/stages/reorder**（需 `project:manage`）
-  请求 `{ orderedIds: string[] }`（全量 id，按新顺序）。400 orderedIds 非非空数组
+  请求 `{ orderedIds: string[] }`（全量 id，按新顺序）。400 orderedIds 须为非空数组
 - **PATCH /api/projects/:id/stages/:stageId**（需 `project:manage`）
   请求 `{ completedAt?: string|null, note?: string }`（`completedAt: null` 取消完成）。404 阶段不存在
 - **DELETE /api/projects/:id/stages/:stageId**（需 `project:manage`）
