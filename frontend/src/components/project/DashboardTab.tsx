@@ -36,6 +36,7 @@ import type {
   RiskItem,
 } from '../../types';
 import { FormOverlay } from '@/components/FormOverlay';
+import { AnnouncementManager } from './AnnouncementManager';
 import { MilestoneSection } from './MilestoneSection';
 import { StageStepper } from './StageStepper';
 import { Badge } from '@/components/ui/badge';
@@ -102,6 +103,7 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
 
   const canCompleteTodo = myPermissions.some((p) => ['todo:complete', 'todo:manage', 'project:manage'].includes(p));
   const canManageRisk = myPermissions.includes('project:manage');
+  const canManageAnnouncement = myPermissions.some((p) => ['announcement:manage', 'project:manage'].includes(p));
 
   // Quick action states
   const [completingId, setCompletingId] = useState<string | null>(null);
@@ -120,6 +122,7 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
   const [view, setView] = useState<'personal' | 'project'>('personal');
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [confirmingAnnouncement, setConfirmingAnnouncement] = useState<string | null>(null);
+  const [announcementsManageOpen, setAnnouncementsManageOpen] = useState(false);
   const [range, setRange] = useState<7 | 30>(7);
   const rangeRef = useRef<7 | 30>(7);
   const prefsInitRef = useRef(false);
@@ -523,14 +526,24 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
       )}
 
       {/* 公告 */}
-      {announcements.items.length > 0 && !hidden.has('announcements') && (
+      {(announcements.items.length > 0 || canManageAnnouncement) && !hidden.has('announcements') && (
         <CollapsibleCard
           title="公告"
           icon={Megaphone}
           collapsed={isCollapsed('announcements')}
           onToggle={() => toggleCollapse('announcements')}
           style={{ order: orderOf('announcements') }}
+          headerExtra={
+            canManageAnnouncement ? (
+              <Button variant="ghost" size="sm" onClick={() => setAnnouncementsManageOpen(true)}>
+                <Settings2 className="size-4" /> 管理
+              </Button>
+            ) : undefined
+          }
         >
+          {announcements.items.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">暂无公告</p>
+          ) : (
           <div className="space-y-3">
             {announcements.items.map((a) => (
               <div key={a.id} className={`rounded-lg border p-3 ${a.type === 'emergency' ? 'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950' : a.type === 'important' ? 'border-orange-300 bg-orange-50 dark:border-orange-800 dark:bg-orange-950' : ''}`}>
@@ -559,6 +572,7 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
               </div>
             ))}
           </div>
+          )}
         </CollapsibleCard>
       )}
 
@@ -800,6 +814,15 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
           <Button type="submit" className="w-full" disabled={!ignoreReason.trim()}>确认忽略</Button>
         </form>
       </FormOverlay>
+
+      <AnnouncementManager
+        projectId={project.id}
+        members={members}
+        roles={project.roles.map((r) => r.name)}
+        open={announcementsManageOpen}
+        onOpenChange={setAnnouncementsManageOpen}
+        onChanged={load}
+      />
     </div>
   );
 }

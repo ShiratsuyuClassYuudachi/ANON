@@ -37,6 +37,15 @@ const ALL_PERMISSIONS = [
   'announcement:manage',
 ];
 
+/** routes/stages.ts stagesJson：变更类端点统一返回 {stages, currentStageIndex} */
+function stagesJson(p: DbProject) {
+  const stages = [...p.stages].sort((a, b) => a.order - b.order);
+  return {
+    stages: stages.map((s) => ({ id: s.id, name: s.name, order: s.order, completedAt: s.completedAt, note: s.note })),
+    currentStageIndex: stages.findIndex((s) => !s.completedAt),
+  };
+}
+
 export const projectRoutes: Route[] = [
   def('GET', '/api/projects', async (ctx) => {
     const { db } = ctx;
@@ -247,5 +256,62 @@ export const projectRoutes: Route[] = [
       },
       201,
     );
+  }),
+
+  // ---- 阶段 ----（reorder 必须排在 :sid 之前，路由器按数组顺序匹配）
+  def('POST', '/api/projects/:pid/stages', async (ctx) => {
+    const { project } = requireProject(ctx);
+    const b = bodyObj(ctx);
+    if (!b.name || !String(b.name).trim()) return badRequest('阶段名称必填');
+    const maxOrder = project.stages.length ? Math.max(...project.stages.map((s) => s.order)) : -1;
+    project.stages.push({
+      id: uid(),
+      name: String(b.name).trim(),
+      order: typeof b.order === 'number' ? b.order : maxOrder + 1,
+      completedAt: null,
+      note: '',
+    });
+    return json(stagesJson(project));
+  }),
+
+  def('PATCH', '/api/projects/:pid/stages/reorder', async (ctx) => {
+    const { project } = requireProject(ctx);
+    const b = bodyObj(ctx);
+    if (!Array.isArray(b.orderedIds) || b.orderedIds.length === 0) return badRequest('orderedIds 必须是非空数组');
+    const map = new Map(project.stages.map((s) => [s.id, s]));
+    project.stages = (b.orderedIds as unknown[])
+      .map((id, i) => {
+        const s = map.get(String(id));
+        if (s) s.order = i;
+        return s;
+      })
+      .filter((s): s is DbStage => !!s);
+    return json(stagesJson(project));
+  }),
+
+  def('PATCH', '/api/projects/:pid/stages/:sid', async (ctx) => {
+    const { params } = ctx;
+    const { project } = requireProject(ctx);
+    const s = project.stages.find((x) => x.id === params.sid);
+    if (!s) return notFound('阶段不存在');
+    const b = bodyObj(ctx);
+    if (b.completedAt !== undefined) {
+      s.completedAt = b.completedAt === null ? null : new Date(String(b.completedAt)).toISOString();
+    }
+    if (b.note !== undefined) s.note = String(b.note);
+    return json(stagesJson(project));
+  }),
+
+  def('DELETE', '/api/projects/:pid/stages/:sid', async (ctx) => {
+    const { db, params } = ctx;
+    const { project } = requireProject(ctx);
+    if (project.stages.length <= 1) return err(409, 'conflict', '至少需要保留一个阶段');
+    const idx = project.stages.findIndex((x) => x.id === params.sid);
+    if (idx < 0) return notFound('阶段不存在');
+    project.stages.splice(idx, 1);
+    db.milestones.forEach((m) => {
+      if (m.projectId === project.id && m.stageId === params.sid) m.stageId = null;
+    });
+    return json(stagesJson(project));
   }),
 ];

@@ -35,7 +35,7 @@ interface TodoItem {
 interface FileMeta { id: string; filename: string; mime: string; size: number }
 ```
 
-权限点全集：`project:manage`、`member:manage`、`role:manage`、`todo:create`、`todo:manage`、`todo:complete`、`file:upload`、`finance:manage`、`finance:add`、`materials:manage`、`accounts:manage`、`work:manage`（`finance:manage` 起为第二阶段新增，`finance:add` 为财务权限拆分新增，`work:manage` 为现场任务单新增，`todo:create` 为待办流程优化新增）。
+权限点全集：`project:manage`、`member:manage`、`role:manage`、`todo:create`、`todo:manage`、`todo:complete`、`file:upload`、`finance:manage`、`finance:add`、`materials:manage`、`accounts:manage`、`work:manage`、`announcement:manage`（`finance:manage` 起为第二阶段新增，`finance:add` 为财务权限拆分新增，`work:manage` 为现场任务单新增，`todo:create` 为待办流程优化新增，`announcement:manage` 为公告管理新增）。
 `project:manage` 等价于拥有全部权限；超级管理员在所有项目中视为拥有全部权限。
 
 预置角色：主办=全部权限；美工/宣发=`file:upload, todo:create, todo:complete, finance:add`；一般staff=`todo:create, todo:complete, finance:add`。既有项目的角色是创建时快照，不含新权限点；可经 `project:manage` 放行或在角色 Tab 勾选补全。
@@ -140,6 +140,25 @@ interface FileMeta { id: string; filename: string; mime: string; size: number }
   - 不传 `targetUserId`：开放链接，任何登录用户可接受（一次性）
   - 传 `targetUserId`：仅该用户可接受
 
+### 项目阶段
+
+挂载于 `/api/projects/:id/stages`。变更类端点均需 `project:manage`，统一返回 `{ stages: StageItem[], currentStageIndex }`（stages 按 order 升序；`currentStageIndex` = 第一个未完成阶段的下标，全部完成为 -1）。「当前阶段」由完成态推导，无独立切换端点：标记完成即推进。
+
+```ts
+interface StageItem { id: string; name: string; order: number; completedAt: string|null; note: string }
+```
+
+- **GET /api/projects/:id/stages**（成员）
+  响应 200：`{ stages: StageItem[], currentStageIndex: number }`
+- **POST /api/projects/:id/stages**（需 `project:manage`）
+  请求 `{ name: string, order?: number }`（不传 order 追加到末尾）。400 名称为空
+- **PATCH /api/projects/:id/stages/reorder**（需 `project:manage`）
+  请求 `{ orderedIds: string[] }`（全量 id，按新顺序）。400 orderedIds 非非空数组
+- **PATCH /api/projects/:id/stages/:stageId**（需 `project:manage`）
+  请求 `{ completedAt?: string|null, note?: string }`（`completedAt: null` 取消完成）。404 阶段不存在
+- **DELETE /api/projects/:id/stages/:stageId**（需 `project:manage`）
+  删除后关联里程碑自动改为不关联阶段。409 `conflict`（至少需要保留一个阶段）；404 阶段不存在
+
 ---
 
 ## 邀请接受
@@ -233,6 +252,45 @@ Query（均可选）：
   请求：`{ template: <导出的 JSON>, anchor: "start"|"end", date: "2026-10-01" }`
   以 `date` 为新锚点批量生成待办（无指派人）。
   响应 201：`{ created: number }`
+
+---
+
+## 公告
+
+挂载于 `/api/projects/:id/announcements`，需项目成员身份。管理类端点需 `announcement:manage`（`project:manage` 等价放行）；列表与确认成员即可。
+可见范围 `visibility: { userIds: [], roleNames: [] }`：两数组均空 = 全员可见；非空仅列出的用户/角色可见（对管理者同样生效；超管不受限）。
+
+```ts
+interface AnnouncementItem {
+  id: string; title: string; content: string;
+  type: 'normal'|'important'|'emergency';
+  isPinned: boolean; requireConfirmation: boolean;
+  publishedBy: { userId: string; name: string };
+  publishedAt: string; expiresAt: string|null;
+  confirmedByMe: boolean;
+}
+```
+
+- **GET /api/projects/:id/announcements**（成员）
+  Query（均可选）：`page`（默认 1）、`limit`（默认 20，上限 50）、`includeExpired=true`（默认排除已过期）。
+  排序：置顶优先，其后按发布时间倒序。按当前用户可见范围过滤（`total` 为可见范围过滤前的总数）。
+  响应 200：`{ announcements: AnnouncementItem[], total: number, page: number }`
+- **POST /api/projects/:id/announcements**（需 `announcement:manage`）
+  请求 `{ title: string, content?: string, type?: 'normal'|'important'|'emergency', isPinned?: boolean, requireConfirmation?: boolean, visibility?: Visibility, expiresAt?: string|null }`。
+  重要/紧急公告发布时向可见范围内成员发通知。400 标题为空。
+  响应 201：`{ announcement: { id: string, title: string } }`
+- **PATCH /api/projects/:id/announcements/:announcementId**（需 `announcement:manage`）
+  请求字段同 POST（均可选；`expiresAt: null` 清除过期时间）。404 公告不存在。
+  响应 200：`{ ok: true }`
+- **DELETE /api/projects/:id/announcements/:announcementId**（需 `announcement:manage`）
+  同时删除全部确认记录。404 公告不存在。
+  响应 200：`{ ok: true }`
+- **POST /api/projects/:id/announcements/:announcementId/confirm**（成员，且在可见范围内）
+  「我已知悉」确认，幂等不刷新时间戳。403 无权查看；404 公告不存在。
+  响应 200：`{ ok: true, confirmedAt: string }`
+- **GET /api/projects/:id/announcements/:announcementId/confirmations**（需 `announcement:manage`）
+  按项目全体成员拆分为已确认/未确认两组。404 公告不存在。
+  响应 200：`{ confirmed: { userId, name }[], unconfirmed: { userId, name }[] }`
 
 ---
 
