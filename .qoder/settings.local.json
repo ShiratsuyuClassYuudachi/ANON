@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /home/yuu/projects/anon/backend/src -type f | head -100; echo \"---FRONTEND---\"; find /home/yuu/projects/anon/frontend/src -type f | head -200)"
+    ]
+  }
+}

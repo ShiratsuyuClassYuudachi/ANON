@@ -30,14 +30,15 @@ interface TodoItem {
   status: 'open'|'done'; note: string; createdBy: string; createdAt: string;
   completedAt: string|null; completedBy: string|null; completionNote: string|null;
   attachments: { id: string; filename: string }[];
+  updates: { note: string; createdBy: string; createdByName: string; createdAt: string; attachments: { id: string; filename: string }[] }[];
 }
 interface FileMeta { id: string; filename: string; mime: string; size: number }
 ```
 
-权限点全集：`project:manage`、`member:manage`、`role:manage`、`todo:manage`、`todo:complete`、`file:upload`、`finance:manage`、`finance:add`、`materials:manage`、`accounts:manage`、`work:manage`（`finance:manage` 起为第二阶段新增，`finance:add` 为财务权限拆分新增，`work:manage` 为现场任务单新增）。
+权限点全集：`project:manage`、`member:manage`、`role:manage`、`todo:create`、`todo:manage`、`todo:complete`、`file:upload`、`finance:manage`、`finance:add`、`materials:manage`、`accounts:manage`、`work:manage`（`finance:manage` 起为第二阶段新增，`finance:add` 为财务权限拆分新增，`work:manage` 为现场任务单新增，`todo:create` 为待办流程优化新增）。
 `project:manage` 等价于拥有全部权限；超级管理员在所有项目中视为拥有全部权限。
 
-预置角色：主办=全部权限；美工/宣发=`file:upload, todo:complete, finance:add`；一般staff=`todo:complete, finance:add`。
+预置角色：主办=全部权限；美工/宣发=`file:upload, todo:create, todo:complete, finance:add`；一般staff=`todo:create, todo:complete, finance:add`。既有项目的角色是创建时快照，不含新权限点；可经 `project:manage` 放行或在角色 Tab 勾选补全。
 
 ---
 
@@ -181,10 +182,10 @@ Query（均可选）：
 
 ### POST /api/projects/:id/todos
 
-任何成员可创建。
+需 `todo:create`（或 `project:manage`）。
 请求：`{ title: string, category?: string, assigneeIds?: string[], nodeAt?: string, dueAt?: string, remindAt?: string, note?: string }`
 `assigneeIds` 必须全部为项目成员，否则 400。
-响应 201：`{ todo: TodoItem }`
+响应 201：`{ todo: TodoItem }`；403 无 `todo:create`
 
 ### PATCH /api/projects/:id/todos/:todoId
 
@@ -201,6 +202,13 @@ Query（均可选）：
 `multipart/form-data`：`completionNote?`（文本）、`files`（可多文件，每个 ≤20MB）。
 效果：`status=done`，记录完成人/时间/备注，文件入附件。
 响应 200：`{ todo: TodoItem }`；409 `already_done`
+
+### POST /api/projects/:id/todos/:todoId/updates
+
+权限与完成相同：`todo:manage`，或「当前用户是指派人且有 `todo:complete`」。
+`multipart/form-data`：`note?`（文本）、`files`（可多文件，每个 ≤20MB）。备注与附件至少其一非空，否则 400。
+效果：向待办追加一条进度（不可编辑/删除），形成进度时间线；已完成待办返回 409（完成备注承载最终说明）。
+响应 201：`{ todo: TodoItem }`；400 空内容 / 403 / 409 `already_done`
 
 ### 模板
 

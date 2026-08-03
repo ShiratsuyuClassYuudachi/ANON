@@ -2,6 +2,7 @@ import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../src/app';
 import { InviteCode } from '../src/models/InviteCode';
+import { Project } from '../src/models/Project';
 import { User } from '../src/models/User';
 import { createSuperAdmin, registerUser } from './helpers';
 
@@ -87,5 +88,34 @@ describe('todos', () => {
       .delete(`/api/projects/${projectId}/todos/${t.id}`)
       .set('Authorization', `Bearer ${staff.token}`);
     expect(del.status).toBe(403);
+  });
+
+  it('无 todo:create 权限的角色不能创建待办', async () => {
+    const project = await Project.findById(projectId);
+    const role = project!.roles.find((r) => r.name === '一般staff')!;
+    role.permissions = role.permissions.filter((p) => p !== 'todo:create');
+    await project!.save();
+    const res = await request(app)
+      .post(`/api/projects/${projectId}/todos`)
+      .set('Authorization', `Bearer ${staff.token}`)
+      .send({ title: 'A' });
+    expect(res.status).toBe(403);
+  });
+
+  it('编辑时空值清除原有字段（表单即完整表示）', async () => {
+    const t = await addTodo(owner.token, {
+      title: 'A',
+      category: '美工',
+      note: '备注',
+      dueAt: '2026-08-10T00:00:00Z',
+    });
+    const res = await request(app)
+      .patch(`/api/projects/${projectId}/todos/${t.id}`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ title: 'A', category: '', note: '', dueAt: '' });
+    expect(res.status).toBe(200);
+    expect(res.body.todo.category).toBe('');
+    expect(res.body.todo.note).toBe('');
+    expect(res.body.todo.dueAt).toBeNull();
   });
 });

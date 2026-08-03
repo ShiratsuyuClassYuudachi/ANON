@@ -326,3 +326,12 @@
 * 新增权限点 `work:manage`（`backend/src/services/permissions.ts`）。**预置角色快照说明**：角色权限以快照存于各项目文档，既有项目的预置角色不含新权限点，**不做数据迁移**——既有项目的主办角色凭 `project:manage` 在 `requirePermission` 中兜底放行全部现场操作；其他角色如需，由管理者在「角色」Tab 手动勾选（新建项目的预置角色快照自动包含该权限点）。
 * 后端路由：`/api/projects/:id/work-modules`（`backend/src/routes/workModules.ts`）——GET 列表项目成员可读，POST/PATCH/DELETE 需 `work:manage`；`confirm`/`unconfirm` 本人确认成员即可、代他人需 `work:manage` 或 `project:manage`，重复确认幂等；单条操作按项目隔离（跨项目 mid 返回 404）。`/api/projects/:id/work-sheet`（`backend/src/routes/workSheet.ts`）——GET `/` 本人任务单，GET `/:userId` 需 `work:manage`。服务层 `backend/src/services/workModules.ts`：`moduleJson` 统一输出形状、`buildSheet` 实时计算任务单。
 * 前端：工作台新增「现场」Tab（`frontend/src/components/project/WorkTab.tsx`：模块 CRUD/成员分配/确认与代确认/打印入口；移动端底部导航收入「更多」）；打印版式页 `/p/:id/work-sheet/print`（`frontend/src/pages/WorkSheetPrint.tsx`，`?user=me|<userId>|all`，全员模式按人分页连排，含签字/日期栏，浏览器打印或另存为 PDF）；RolesTab 权限清单自动包含新权限点。
+
+---
+
+### 2026-08-03 待办流程优化（快速创建 + 进度时间线 + 编辑/重新打开 + 分组列表）
+
+* 新增权限点 `todo:create`（`backend/src/services/permissions.ts`），预置角色 美工/宣发/一般staff 默认获得。**预置角色快照说明**：既有项目角色不迁移，凭 `project:manage` 在 `requirePermission` 兜底放行（同 `work:manage` 先例），其余角色由管理者在「角色」Tab 勾选「创建待办」。
+* 后端：`POST /todos` 加 `todo:create` gate（此前无权限校验）；`Todo` 新增嵌入式 `updates[]`（`_id: false`，note/attachments/createdBy/createdAt，不可编辑/删除）；新端点 `POST /todos/:todoId/updates`（multipart note + files），权限同完成（`todo:manage` 或持 `todo:complete` 的指派人），空内容 400、已完成 409；完成与进度共用中间件 `loadActionableTodo`（原 `loadTodoForComplete` 更名）；`todoJson` 批量查询扩展至 updates 的创建人与附件，输出新增 `updates[]`；通知类型新增 `todo:progress`（活动日志同步）。
+* 前端：「待办」Tab 重构为按类别分组列表（组头 + 数量，「未分类」最后），顶部快速创建行（标题回车即建，「详细」预填标题打开完整表单）；新组件 `TodoFormDialog`（创建/编辑共用，默认 标题/指派人/到期，「更多字段」折叠类别/节点/提醒/备注，编辑全字段提交、空值清除）、`TodoActionSheet`（完成/进度共用备注+附件弹层）；卡片左侧圆圈一键完成，「进度」按钮提交进度形成时间线（倒序、默认 2 条可展开），⋯ 菜单纳入编辑与重新打开（`PATCH { status: 'open' }`）。
+* 测试：后端新增 8 用例（todos.test.ts 2 + todo-updates.test.ts 6），共 153 全绿；前端 build（含 tsc）通过。文档同步：api.md/features.md/README/help/progress.md 与本节。
