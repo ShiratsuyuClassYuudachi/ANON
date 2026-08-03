@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authRequired } from '../middleware/auth';
+import { TrialSession } from '../models/TrialSession';
 import { publicUser } from '../models/User';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
@@ -10,7 +11,11 @@ meRouter.use(authRequired);
 meRouter.get(
   '/',
   ah(async (req, res) => {
-    res.json({ user: publicUser(req.user!) });
+    const session = await TrialSession.findOne({ userId: req.userId }).lean();
+    res.json({
+      user: publicUser(req.user!),
+      trialExpiresAt: session ? session.expiresAt.toISOString() : null,
+    });
   }),
 );
 

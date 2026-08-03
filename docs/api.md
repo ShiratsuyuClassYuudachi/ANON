@@ -50,13 +50,15 @@ interface FileMeta { id: string; filename: string; mime: string; size: number }
 
 请求：`{ inviteCode?: string, email: string, name: string, password: string }`（password ≥ 8 位）
 响应 201：`{ token: string, user: User }`
-错误：400 `invalid_invite` / `bad_request`；409 `email_taken`
+错误：400 `invalid_invite` / `bad_request`；409 `email_taken` / `email_reserved`（试用账号邮箱保留，见登录）
 
 ### POST /api/auth/login（公开）
 
 请求：`{ email: string, password: string }`
-响应 200：`{ token: string, user: User }`
-错误：401 `bad_credentials`
+响应 200：`{ token: string, user: User, trialExpiresAt?: string }`
+错误：401 `bad_credentials`；400 `bad_request`（试用密码 < 8 位）；429 `trial_limit`
+
+**试用模式**：邮箱等于 `TRIAL_EMAIL`（默认 `admin@test.com`，置空禁用）且未被真实用户占用时，按 `sha256(trial:<JWT_SECRET>:<password>)` 为 key 进入独立演示环境：首次登录即时播种一套演示数据（试用管理员 + 4 虚拟成员 + 项目「2026 秋季同人展」全模块数据），同密码 24h 内复用同一环境，到期由进程内清扫器（每 10 分钟）级联销毁；响应带 `trialExpiresAt`（ISO 时间）。试用密码要求 ≥ 8 位；活跃试用环境上限 50 个，超出返回 429。
 
 ---
 
@@ -64,7 +66,7 @@ interface FileMeta { id: string; filename: string; mime: string; size: number }
 
 ### GET /api/me
 
-响应 200：`{ user: User }`
+响应 200：`{ user: User, trialExpiresAt: string | null }`（试用会话返回销毁时间，非试用恒为 `null`）
 
 ### PATCH /api/me
 

@@ -19,6 +19,8 @@ export const config = {
   },
   cronSecret: process.env.CRON_SECRET ?? '',
   superAdminEmail: (process.env.SUPER_ADMIN_EMAIL ?? '').toLowerCase(),
+  // 试用模式账号邮箱：该邮箱 + 任意 ≥8 位密码登录进入独立演示环境；置空禁用
+  trialEmail: (process.env.TRIAL_EMAIL ?? 'admin@test.com').toLowerCase(),
   smtp: {
     host: process.env.SMTP_HOST ?? '',
     port: Number(process.env.SMTP_PORT ?? 587),

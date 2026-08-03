@@ -5,7 +5,8 @@ import type { User } from './types';
 interface AuthState {
   user: User | null;
   loading: boolean;
-  login: (token: string, user: User) => void;
+  trialExpiresAt: string | null;
+  login: (token: string, user: User, trialExpiresAt?: string | null) => void;
   logout: () => void;
   refresh: () => Promise<void>;
 }
@@ -15,18 +16,22 @@ const AuthCtx = createContext<AuthState>(null as never);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [trialExpiresAt, setTrialExpiresAt] = useState<string | null>(null);
 
   const refresh = async () => {
     if (!getToken()) {
       setUser(null);
+      setTrialExpiresAt(null);
       setLoading(false);
       return;
     }
     try {
-      const d = await api<{ user: User }>('/api/me');
+      const d = await api<{ user: User; trialExpiresAt?: string | null }>('/api/me');
       setUser(d.user);
+      setTrialExpiresAt(d.trialExpiresAt ?? null);
     } catch {
       setUser(null);
+      setTrialExpiresAt(null);
     } finally {
       setLoading(false);
     }
@@ -41,13 +46,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         loading,
-        login: (token, u) => {
+        trialExpiresAt,
+        login: (token, u, expiresAt) => {
           setToken(token);
           setUser(u);
+          setTrialExpiresAt(expiresAt ?? null);
         },
         logout: () => {
           setToken(null);
           setUser(null);
+          setTrialExpiresAt(null);
         },
         refresh,
       }}

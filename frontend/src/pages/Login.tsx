@@ -27,8 +27,8 @@ export default function Login() {
     setErr('');
     setBusy(true);
     try {
-      const d = await api<{ token: string; user: User }>('/api/auth/login', { body: { email, password } });
-      login(d.token, d.user);
+      const d = await api<{ token: string; user: User; trialExpiresAt?: string }>('/api/auth/login', { body: { email, password } });
+      login(d.token, d.user, d.trialExpiresAt ?? null);
       nav((location.state as any)?.from ?? '/projects', { replace: true });
     } catch (e2) {
       setErr((e2 as Error).message);
