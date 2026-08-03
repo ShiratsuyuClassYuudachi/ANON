@@ -217,3 +217,26 @@
 
 ### 测试
 - `backend/tests/push.test.ts` 10 用例（`vi.mock('web-push')`）：路由——401/公钥/endpoint 去重 upsert/非法 endpoint 与 base64 拒绝/20 条上限淘汰最旧/删除幂等；渠道——VAPID details 与 JSON 载荷（url/tag）、只推本人设备、410 清理失效订阅、未配置跳过
+
+## 2026-08-03 待办流程优化：快速创建 + 进度时间线 + 编辑/重新打开 + 分组列表
+
+依据 `local://todo-flow-plan.md` 落地，分支 feat/todo-flow。后端 153 个 vitest 用例全绿（145 + 新增 8）、typecheck 通过，前端 `npm run build` 通过。
+
+### 后端
+- `services/permissions.ts`：新增权限点 `todo:create`；预置角色 美工/宣发/一般staff 默认获得（主办与超管自动包含）
+- `routes/todos.ts`：`POST /todos` 加 `todo:create` gate（此前无权限校验）；`todoJson` 改为按 userIds/fileIds 并集批量查询（原两次查询扩展为含 updates 的 2 次）；`loadTodoForComplete` 更名 `loadActionableTodo` 复用于完成与进度两端点
+- 新端点 `POST /todos/:todoId/updates`：multipart（note + files），权限与完成相同（`todo:manage` 或持 `todo:complete` 的指派人），空内容 400、已完成 409；进度 push 入 `Todo.updates[]`（`_id: false`，不可编辑/删除），活动日志 `todo:progress`，通知其他指派人
+- `models/Todo.ts`：`updates` 嵌入式数组（note/attachments/createdBy/createdAt）；`services/notifications.ts` 新增 `todo:progress` 类型
+
+### 前端
+- 新组件 `TodoFormDialog.tsx`：创建/编辑共用弹层——默认 标题/指派人/到期时间，「更多字段」折叠 类别（datalist 补全）/节点/提醒/备注；编辑模式全字段提交（空值清除原值）
+- 新组件 `TodoActionSheet.tsx`：完成/进度共用备注+附件弹层，附件 chips 可逐个删除，防重复提交
+- `TodosTab.tsx` 重构：快速创建行（回车即建 + 「详细」预填标题）、按类别分组列表（组头 + 数量，「未分类」最后）、卡片左侧完成圆圈一键直达、进度按钮与进度时间线（倒序、默认 2 条可展开）、⋯ 菜单纳入编辑/重新打开；删除旧创建/完成 FormOverlay
+- `types.ts` 新增 `TodoUpdateItem`；`RolesTab.tsx` 权限标签加「创建待办」
+
+### 测试
+- `todos.test.ts` +2：无 `todo:create` 角色创建 403；编辑时空值清除字段（表单即完整表示）
+- 新 `todo-updates.test.ts` 6 用例：指派 staff 提交进度（备注/署名/附件）、非指派 403、空内容 400、已完成 409、`todo:manage` 任意提交、列表序列化契约
+
+### 文档
+- `docs/api.md`（TodoItem.updates、权限点、POST gate、updates 端点）、`docs/features.md`（创建/分组/进度/完成/编辑重开）、README、帮助文档待办章、本日志与 design.md 摘要
