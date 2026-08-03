@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 680" width="480" height="680">
+  <defs>
+    <linearGradient id="dusk" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2b1055"/>
+      <stop offset="0.5" stop-color="#7597de"/>
+      <stop offset="1" stop-color="#ff9a62"/>
+    </linearGradient>
+    <linearGradient id="sea2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c3f6e"/>
+      <stop offset="1" stop-color="#0d2444"/>
+    </linearGradient>
+  </defs>
+  <rect width="480" height="680" fill="url(#dusk)"/>
+  <circle cx="240" cy="290" r="100" fill="#ffdf9e"/>
+  <circle cx="240" cy="290" r="78" fill="#fff0c8"/>
+  <circle cx="240" cy="290" r="120" fill="none" stroke="#ffe9b8" stroke-width="3" opacity="0.5"/>
+  <rect y="370" width="480" height="310" fill="url(#sea2)"/>
+  <path d="M0 395 Q120 375 240 395 T480 395 V680 H0 Z" fill="#274e7d" opacity="0.8"/>
+  <path d="M0 435 Q120 412 240 435 T480 435 V680 H0 Z" fill="#1d4066" opacity="0.85"/>
+  <path d="M40 300 l18 34 l-36 0 z" fill="#12294a"/>
+  <path d="M70 308 l14 26 l-28 0 z" fill="#12294a"/>
+  <path d="M400 292 l18 34 l-36 0 z" fill="#12294a"/>
+  <path d="M60 480 q30 -26 60 0 q-30 18 -60 0" fill="#cfe8f7" opacity="0.9"/>
+  <path d="M330 512 q34 -30 68 0 q-34 20 -68 0" fill="#cfe8f7" opacity="0.85"/>
+  <text x="240" y="118" text-anchor="middle" font-family="sans-serif" font-size="54" font-weight="700" fill="#fff2d8">夏日同人祭</text>
+  <text x="240" y="166" text-anchor="middle" font-family="sans-serif" font-size="22" fill="#ffe3c2">SUMMER FES · 上海世博展览馆</text>
+  <text x="240" y="640" text-anchor="middle" font-family="sans-serif" font-size="20" fill="#bcd9ef">主视觉海报 · v2 终稿（加深对比）</text>
+</svg>

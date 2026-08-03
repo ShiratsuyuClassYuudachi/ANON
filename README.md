@@ -69,7 +69,7 @@
 
 ### 更多体验
 
-试用模式（`admin@test.com` + 任意 ≥8 位密码即建独立演示环境，24h 自动销毁，全站「试用」横幅标识）、双风格主题（简洁/明快 × 日/夜）、新手引导（欢迎幻灯 + 界面导览）、内置图文帮助文档（/help）、移动端优先布局。
+试用模式（`admin@test.com` + 任意 ≥8 位密码即建独立演示环境，24h 自动销毁，全站「试用」横幅标识）、纯前端演示站（`npm run build:demo` 一键构建 Cloudflare Pages 预览站，浏览器内 mock 数据、访客免登录、修改会话内保留）、双风格主题（简洁/明快 × 日/夜）、新手引导（欢迎幻灯 + 界面导览）、内置图文帮助文档（/help）、移动端优先布局。
 
 ## 技术栈
 
@@ -107,6 +107,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 - [docs/features.md](docs/features.md) — 功能使用指南
 - [docs/api.md](docs/api.md) — 接口契约
 - [docs/design.md](docs/design.md) — 设计说明与变更记录
+- [docs/demo-site.md](docs/demo-site.md) — 纯前端演示站（Cloudflare Pages）：构建部署、mock 内核与会话保留语义
 
 ## 贡献
 

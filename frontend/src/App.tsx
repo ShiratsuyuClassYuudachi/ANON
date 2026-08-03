@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { api } from './api/client';
 import { useAuth } from './auth';
 import Layout from './components/Layout';
+import DemoBadge from './components/DemoBadge';
 import { OnboardingDialog } from './components/onboarding/OnboardingDialog';
 import { startTour } from './components/onboarding/tour';
 import { Skeleton } from './components/ui/skeleton';
@@ -91,6 +92,7 @@ export default function App() {
           <Route path="/admin" element={<Admin />} />
         </Route>
       </Routes>
+      <DemoBadge />
       <OnboardingGate />
     </>
   );

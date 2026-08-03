@@ -1,0 +1,23 @@
+import { accountRoutes } from './accounts';
+import { authRoutes } from './auth';
+import { dashboardRoutes } from './dashboard';
+import { financeRoutes } from './finance';
+import { materialRoutes } from './materials';
+import { physicalRoutes } from './physical';
+import { projectRoutes } from './projects';
+import { todoRoutes } from './todos';
+import { workRoutes } from './work';
+import type { Route } from '../router';
+
+/** 合并顺序即匹配顺序；各文件内部已保证「字面量路由先于参数路由」 */
+export const routes: Route[] = [
+  ...authRoutes,
+  ...projectRoutes,
+  ...dashboardRoutes,
+  ...todoRoutes,
+  ...financeRoutes,
+  ...materialRoutes,
+  ...physicalRoutes,
+  ...accountRoutes,
+  ...workRoutes,
+];
