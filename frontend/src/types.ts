@@ -143,6 +143,11 @@ export interface AnnouncementItem {
   publishedAt: string; expiresAt: string | null;
   confirmedByMe: boolean;
 }
+export interface AnnouncementListResponse { announcements: AnnouncementItem[]; total: number; page: number; }
+export interface AnnouncementConfirmations {
+  confirmed: { userId: string; name: string }[];
+  unconfirmed: { userId: string; name: string }[];
+}
 export interface ActivityItem {
   id: string; actor: { userId: string; name: string };
   type: string; message: string;

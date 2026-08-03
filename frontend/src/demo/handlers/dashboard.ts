@@ -1,6 +1,7 @@
-import { badRequest, bodyObj, err, json, myPermissions, notFound, nowIso, requireProject } from '../helpers';
-import { buildDashboard, computeHealth, prefsOf, riskJsonFull, sortRisks } from '../aggregate';
+import { badRequest, bodyObj, canSee, json, membersJson, myPermissions, notFound, nowIso, parseVis, requireProject, uid } from '../helpers';
+import { announcementJson, buildDashboard, computeHealth, prefsOf, riskJsonFull, sortRisks } from '../aggregate';
 import { def, type Route } from '../router';
+import type { DbAnnouncement } from '../types';
 
 export const dashboardRoutes: Route[] = [
   def('GET', '/api/projects/:pid/dashboard', async (ctx) => {
@@ -87,6 +88,87 @@ export const dashboardRoutes: Route[] = [
     return json({ ok: true, confirmedAt: nowIso() });
   }),
 
-  // 未实现的管理端点统一提示（发布公告/删除公告等在演示环境只读）
-  def('POST', '/api/projects/:pid/announcements', async () => err(403, 'demo_readonly', '演示环境公告为示例数据，不支持新建')),
+  // 管理列表：镜像后端 GET /announcements（对管理者同样按可见范围过滤，total 取分页前长度）
+  def('GET', '/api/projects/:pid/announcements', async (ctx) => {
+    const { db, query } = ctx;
+    const { project, membership } = requireProject(ctx);
+    const page = Math.max(1, Number(query.get('page')) || 1);
+    const limit = Math.min(50, Math.max(1, Number(query.get('limit')) || 20));
+    const includeExpired = query.get('includeExpired') === 'true';
+    const now = Date.now();
+    const visible = db.announcements
+      .filter((a) => a.projectId === project.id)
+      .filter((a) => includeExpired || !a.expiresAt || new Date(a.expiresAt).getTime() > now)
+      .filter((a) => canSee(a.visibility, db.currentUserId, membership.roleName))
+      .sort(
+        (a, b) =>
+          Number(b.isPinned) - Number(a.isPinned) ||
+          new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime(),
+      );
+    const total = visible.length;
+    const pageItems = visible.slice((page - 1) * limit, page * limit);
+    return json({ announcements: pageItems.map((a) => announcementJson(db, a)), total, page });
+  }),
+
+  def('POST', '/api/projects/:pid/announcements', async (ctx) => {
+    const { db } = ctx;
+    const { project } = requireProject(ctx);
+    const b = bodyObj(ctx);
+    if (!b.title || !String(b.title).trim()) return badRequest('标题必填');
+    const t = String(b.type);
+    const a: DbAnnouncement = {
+      id: uid(),
+      projectId: project.id,
+      title: String(b.title).trim(),
+      content: String(b.content ?? ''),
+      type: ['normal', 'important', 'emergency'].includes(t) ? (t as DbAnnouncement['type']) : 'normal',
+      isPinned: !!b.isPinned,
+      requireConfirmation: !!b.requireConfirmation,
+      visibility: parseVis(b.visibility),
+      publishedBy: db.currentUserId,
+      publishedAt: nowIso(),
+      expiresAt: b.expiresAt ? new Date(String(b.expiresAt)).toISOString() : null,
+      confirmedBy: [],
+    };
+    db.announcements.push(a);
+    return json({ announcement: { id: a.id, title: a.title } }, 201);
+  }),
+
+  def('PATCH', '/api/projects/:pid/announcements/:aid', async (ctx) => {
+    const { db, params } = ctx;
+    const { project } = requireProject(ctx);
+    const a = db.announcements.find((x) => x.id === params.aid && x.projectId === project.id);
+    if (!a) return notFound('公告不存在');
+    const b = bodyObj(ctx);
+    if (b.title !== undefined) a.title = String(b.title).trim();
+    if (b.content !== undefined) a.content = String(b.content);
+    if (b.type !== undefined && ['normal', 'important', 'emergency'].includes(String(b.type))) {
+      a.type = String(b.type) as DbAnnouncement['type'];
+    }
+    if (b.isPinned !== undefined) a.isPinned = !!b.isPinned;
+    if (b.requireConfirmation !== undefined) a.requireConfirmation = !!b.requireConfirmation;
+    if (b.visibility !== undefined) a.visibility = parseVis(b.visibility);
+    if (b.expiresAt !== undefined) a.expiresAt = b.expiresAt ? new Date(String(b.expiresAt)).toISOString() : null;
+    return json({ ok: true });
+  }),
+
+  def('DELETE', '/api/projects/:pid/announcements/:aid', async (ctx) => {
+    const { db, params } = ctx;
+    const { project } = requireProject(ctx);
+    const idx = db.announcements.findIndex((x) => x.id === params.aid && x.projectId === project.id);
+    if (idx < 0) return notFound('公告不存在');
+    db.announcements.splice(idx, 1);
+    return json({ ok: true });
+  }),
+
+  def('GET', '/api/projects/:pid/announcements/:aid/confirmations', async (ctx) => {
+    const { db, params } = ctx;
+    const { project } = requireProject(ctx);
+    const a = db.announcements.find((x) => x.id === params.aid && x.projectId === project.id);
+    if (!a) return notFound('公告不存在');
+    const members = membersJson(db, project.id);
+    const confirmed = members.filter((m) => a.confirmedBy.includes(m.userId)).map((m) => ({ userId: m.userId, name: m.name }));
+    const unconfirmed = members.filter((m) => !a.confirmedBy.includes(m.userId)).map((m) => ({ userId: m.userId, name: m.name }));
+    return json({ confirmed, unconfirmed });
+  }),
 ];

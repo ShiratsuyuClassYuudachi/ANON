@@ -10,7 +10,7 @@ import type {
   ScheduleItem,
 } from '../types';
 import { canSee, currentStageOf, memberInfos, membersJson, nameOf } from './helpers';
-import type { Db, DbProject, DbRisk } from './types';
+import type { Db, DbAnnouncement, DbProject, DbRisk } from './types';
 
 // 聚合规则 R1–R7：逻辑移植自后端源码（出处见各函数注释），按 demo store 现算，
 // 保证会话内的修改在看板/列表/汇总上正确联动。
@@ -287,14 +287,9 @@ export function prefsOf(db: Db, projectId: string): DashboardPreferences {
     : { ...DEFAULT_PREFS };
 }
 
-function buildAnnouncements(db: Db, p: DbProject, membershipRole: string | null, limit = 5) {
-  const now = Date.now();
-  const visible = db.announcements
-    .filter((a) => a.projectId === p.id && (!a.expiresAt || new Date(a.expiresAt).getTime() > now))
-    .filter((a) => canSee(a.visibility, db.currentUserId, membershipRole))
-    .sort((a, b) => Number(b.isPinned) - Number(a.isPinned) || new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
-    .slice(0, limit);
-  return visible.map((a) => ({
+/** routes/announcements.ts 列表端点单条 shape（看板聚合与管理列表共用） */
+export function announcementJson(db: Db, a: DbAnnouncement) {
+  return {
     id: a.id,
     title: a.title,
     content: a.content,
@@ -305,7 +300,17 @@ function buildAnnouncements(db: Db, p: DbProject, membershipRole: string | null,
     publishedAt: a.publishedAt,
     expiresAt: a.expiresAt,
     confirmedByMe: a.confirmedBy.includes(db.currentUserId),
-  }));
+  };
+}
+
+function buildAnnouncements(db: Db, p: DbProject, membershipRole: string | null, limit = 5) {
+  const now = Date.now();
+  const visible = db.announcements
+    .filter((a) => a.projectId === p.id && (!a.expiresAt || new Date(a.expiresAt).getTime() > now))
+    .filter((a) => canSee(a.visibility, db.currentUserId, membershipRole))
+    .sort((a, b) => Number(b.isPinned) - Number(a.isPinned) || new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
+    .slice(0, limit);
+  return visible.map((a) => announcementJson(db, a));
 }
 
 function buildActivities(db: Db, p: DbProject, permissions: Set<string>, limit = 10) {

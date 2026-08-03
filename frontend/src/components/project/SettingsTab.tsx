@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
 import type { ProjectDetail } from '../../types';
+import { StageManager } from './StageManager';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -47,8 +48,9 @@ export default function SettingsTab({ project, myPermissions, onChanged }: Props
   };
 
   return (
-    <Card>
-      <CardContent>
+    <div className="space-y-3">
+      <Card>
+        <CardContent>
         <form onSubmit={submit} className="space-y-3">
           <div className="space-y-1.5">
             <Label htmlFor="settings-name">项目名称</Label>
@@ -90,6 +92,8 @@ export default function SettingsTab({ project, myPermissions, onChanged }: Props
           {canManage && <Button type="submit">保存</Button>}
         </form>
       </CardContent>
-    </Card>
+      </Card>
+      <StageManager project={project} myPermissions={myPermissions} onChanged={onChanged} />
+    </div>
   );
 }
