@@ -240,3 +240,11 @@
 
 ### 文档
 - `docs/api.md`（TodoItem.updates、权限点、POST gate、updates 端点）、`docs/features.md`（创建/分组/进度/完成/编辑重开）、README、帮助文档待办章、本日志与 design.md 摘要
+
+## 2026-08-03 修复：表单弹层移动端被虚拟键盘盖住
+
+分支 fix/mobile-dialog-keyboard。后端 153 个 vitest 用例全绿、typecheck 通过，前端 `npm run build` 通过；Playwright 双视口走查 21 断言全过 + 键盘高度视口（390×440）下弹层全可见实测。
+
+- 问题：`FormOverlay` 移动端渲染底部 Sheet，聚焦输入框后虚拟键盘盖住备注与提交按钮（完成待办/进度等所有表单弹层）。
+- 修复：`FormOverlay` 统一渲染浮动居中 Dialog（`max-h-[85dvh]` 内部滚动）；`index.html` viewport 加 `interactive-widget=resizes-content`，键盘弹出时布局视口收缩、弹层随之上移；删除仅被其引用的 `useMediaQuery` hook。
+- 影响面：全部 12 处 FormOverlay 调用点（TodoFormDialog/TodoActionSheet/DashboardTab/FinanceTab/MaterialsTab/MilestoneSection/PhysicalTab/AccountsTab/WorkTab/TodosTab 导入模板/Projects）；移动「更多」底部 Sheet 无输入框不受影响；AccountsTab 解密 Dialog 原为居中 Dialog 不受影响。

@@ -335,3 +335,9 @@
 * 后端：`POST /todos` 加 `todo:create` gate（此前无权限校验）；`Todo` 新增嵌入式 `updates[]`（`_id: false`，note/attachments/createdBy/createdAt，不可编辑/删除）；新端点 `POST /todos/:todoId/updates`（multipart note + files），权限同完成（`todo:manage` 或持 `todo:complete` 的指派人），空内容 400、已完成 409；完成与进度共用中间件 `loadActionableTodo`（原 `loadTodoForComplete` 更名）；`todoJson` 批量查询扩展至 updates 的创建人与附件，输出新增 `updates[]`；通知类型新增 `todo:progress`（活动日志同步）。
 * 前端：「待办」Tab 重构为按类别分组列表（组头 + 数量，「未分类」最后），顶部快速创建行（标题回车即建，「详细」预填标题打开完整表单）；新组件 `TodoFormDialog`（创建/编辑共用，默认 标题/指派人/到期，「更多字段」折叠类别/节点/提醒/备注，编辑全字段提交、空值清除）、`TodoActionSheet`（完成/进度共用备注+附件弹层）；卡片左侧圆圈一键完成，「进度」按钮提交进度形成时间线（倒序、默认 2 条可展开），⋯ 菜单纳入编辑与重新打开（`PATCH { status: 'open' }`）。
 * 测试：后端新增 8 用例（todos.test.ts 2 + todo-updates.test.ts 6），共 153 全绿；前端 build（含 tsc）通过。文档同步：api.md/features.md/README/help/progress.md 与本节。
+
+---
+
+### 2026-08-03 表单弹层移动端浮动化（键盘防遮盖修复）
+
+* `FormOverlay` 由「移动端底部 Sheet / 桌面端居中 Dialog」改为**全端浮动居中 Dialog**（`max-h-[85dvh]` 内部滚动）——底部 Sheet 在移动端聚焦输入框后会被虚拟键盘盖住备注与提交按钮。`index.html` viewport 增加 `interactive-widget=resizes-content`，键盘弹出时布局视口收缩、弹层随之上移。删除仅被引用的 `useMediaQuery` hook。12 处调用点全部受益；无输入框的移动「更多」Sheet 保持底部形态。
