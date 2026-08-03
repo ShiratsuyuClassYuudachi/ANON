@@ -341,3 +341,14 @@
 ### 2026-08-03 表单弹层移动端浮动化（键盘防遮盖修复）
 
 * `FormOverlay` 由「移动端底部 Sheet / 桌面端居中 Dialog」改为**全端浮动居中 Dialog**（`max-h-[85dvh]` 内部滚动）——底部 Sheet 在移动端聚焦输入框后会被虚拟键盘盖住备注与提交按钮。`index.html` viewport 增加 `interactive-widget=resizes-content`，键盘弹出时布局视口收缩、弹层随之上移。删除仅被引用的 `useMediaQuery` hook。12 处调用点全部受益；无输入框的移动「更多」Sheet 保持底部形态。
+
+---
+
+### 2026-08-03 纯前端演示站（Cloudflare Pages）
+
+* 目标：不依赖任何后端，在 Cloudflare Pages 部署可公开访问的功能预览站。形态：运行真实前端 + 浏览器内 mock 全部 `/api` + 中文示例数据，访客免登录直进。
+* **构建隔离**：`vite build --mode demo` 为同仓库变体——demo 模式摘 VitePWA（防 SW 缓存 mock 响应）、alias `virtual:pwa-register` 到 no-op stub、`build.target=es2022`（入口顶层 await 安装 mock 需要）；`main.tsx` 以 `import.meta.env.VITE_DEMO === 'true'` + 动态 `import('./demo/install')` 加载 mock，生产构建静态替换为 false 后 demo chunk 被 tree-shake（产物零 demo 字符串，已验证），生产与 Docker 部署零影响。
+* **mock 内核**（`frontend/src/demo/`）：`install.ts` 种 token + 恢复/重建内存库 + 包装 `window.fetch`（必须包 fetch 而非仅 api client——`AuthImg`/CSV 导出直调 window.fetch）；`router.ts` 表驱动有序匹配（字面量先于参数路由）；`handlers/` 9 模块响应 shape 逐字段对齐 `types.ts` 与后端错误信封、永不 401；`aggregate.ts` 按后端公式现算项目列表/dashboard/finance/onsite（R1–R7），访客会话修改正确驱动看板指标与结算建议。
+* **会话保留**：mutation 后统一 `persist()` 到 `sessionStorage['anon-demo-db']`——按标签页隔离、关页即清（明确不用 localStorage）；写失败静默退化；`DB_VERSION` 递增作废旧会话防 schema 漂移；横幅「还原示例数据」删键 reload 即重种。
+* **种子**（`seed.ts`）：日期全部相对 `new Date()`（任意时刻打开都是「筹备中」）；2 项目/6 成员/15 待办/9 账目/5 物料/3 账号/4 现场模块等；微博密码为真 `encryptWithPassphrase` 密文（口令 `demo`），解密走生产同一 WebCrypto 路径。
+* **标识**：`DemoBadge` 右下角角标（print:hidden）+ `DemoBanner` 顶部横幅（还原按钮）+ Login「进入演示」按钮，均以 `VITE_DEMO` 为条件静态消除；mock 注册 403 `demo_readonly`。部署说明与维护指南见 `docs/demo-site.md`，实施计划见 `docs/superpowers/plans/2026-08-03-demo-pages.md`。

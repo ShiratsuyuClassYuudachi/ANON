@@ -248,3 +248,28 @@
 - 问题：`FormOverlay` 移动端渲染底部 Sheet，聚焦输入框后虚拟键盘盖住备注与提交按钮（完成待办/进度等所有表单弹层）。
 - 修复：`FormOverlay` 统一渲染浮动居中 Dialog（`max-h-[85dvh]` 内部滚动）；`index.html` viewport 加 `interactive-widget=resizes-content`，键盘弹出时布局视口收缩、弹层随之上移；删除仅被其引用的 `useMediaQuery` hook。
 - 影响面：全部 12 处 FormOverlay 调用点（TodoFormDialog/TodoActionSheet/DashboardTab/FinanceTab/MaterialsTab/MilestoneSection/PhysicalTab/AccountsTab/WorkTab/TodosTab 导入模板/Projects）；移动「更多」底部 Sheet 无输入框不受影响；AccountsTab 解密 Dialog 原为居中 Dialog 不受影响。
+
+## 2026-08-03 纯前端演示站（Cloudflare Pages）
+
+分支 feat/demo-pages，依据 `docs/superpowers/plans/2026-08-03-demo-pages.md`（A–E 五步 + R1–R7 聚合规则）落地。前端 `tsc --noEmit` / `build:demo` / 生产 `build` 全通过；生产产物零 demo 字符串与 chunk（tree-shake 验证）；vite preview 浏览器冒烟全绿（零真实 /api 请求、物料 SVG 预览与版本切换、账号口令解密、会话保留与还原、CSV BOM、打印页、登录页演示入口）。
+
+### 构建模式
+- `frontend/.env.demo`（`VITE_DEMO=true`）+ `build:demo` script；`vite.config.ts` 改函数式：demo 模式摘 VitePWA、alias `virtual:pwa-register` 到 no-op stub、`build.target=es2022`（入口顶层 await 需要）
+- `frontend/public/_redirects`（Pages SPA 回退）；`main.tsx` 渲染前动态 `import('./demo/install')`，生产构建静态消除
+
+### Mock 内核（`frontend/src/demo/`）
+- `install.ts`：种 token → 恢复/重建内存库 → 包装 `window.fetch` 拦截全部 `/api`（AuthImg/CSV 导出等直调 fetch 的路径因此也被覆盖）
+- `router.ts` 表驱动有序路由 + `handlers/` 9 模块（auth/projects/dashboard/todos/finance/materials/physical/accounts/work），响应 shape 逐字段对齐 `types.ts` 与后端错误信封，永不 401
+- `aggregate.ts`：项目列表/dashboard/finance/onsite 按后端公式现算（R1–R7），会话修改正确反映到看板与结算
+- 文件策略：种子附件指向 `public/demo/*.svg` 透传，会话上传转 data URL 入库；CSV 导出浏览器内拼串（BOM + CRLF）
+
+### 种子与会话
+- `seed.ts`：2 项目、6 成员、15 待办、9 账目 + 双票种、5 物料资源、3 平台账号（微博密文为真 PBKDF2 加密，口令 `demo`）、4 现场模块、实物/公告/风险/动态/里程碑/邀请码；日期全部相对当前时刻，`DB_VERSION` 防 schema 漂移
+- 会话保留仅 sessionStorage（按标签页隔离、关页即清），写失败静默退化；横幅「还原示例数据」一键重种
+
+### 界面标识
+- `DemoBadge` 右下角角标（print:hidden）、`DemoBanner` 顶部横幅（版式复制 TrialBanner）、Login 页「进入演示」按钮；均以 `VITE_DEMO` 为条件，生产构建消除
+- mock 注册 403 `demo_readonly`；push config 返回 null（PushBanner 自然隐藏）
+
+### 文档
+- 新 `docs/demo-site.md`（部署/原理/会话语义/维护/冒烟清单）、计划归档 `docs/superpowers/plans/2026-08-03-demo-pages.md`、本日志与 design.md、README/docs readme 功能清单
