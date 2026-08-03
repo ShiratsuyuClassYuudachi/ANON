@@ -28,13 +28,25 @@ todosRouter.use(authRequired, loadMembership);
 const SORTS: Record<string, string> = { dueAt: 'dueAt', nodeAt: 'nodeAt', createdAt: 'createdAt' };
 
 async function todoJson(t: TodoDoc) {
-  const users = await User.find({ _id: { $in: t.assigneeIds } }).lean();
-  const files = await File.find({ _id: { $in: t.attachments } }).lean();
+  const userIds = new Set<string>(t.assigneeIds.map((id) => id.toString()));
+  const fileIds = new Set<string>(t.attachments.map((id) => id.toString()));
+  for (const u of t.updates) {
+    userIds.add(u.createdBy.toString());
+    for (const id of u.attachments) fileIds.add(id.toString());
+  }
+  const [users, files] = await Promise.all([
+    User.find({ _id: { $in: [...userIds] } }).lean(),
+    File.find({ _id: { $in: [...fileIds] } }).lean(),
+  ]);
+  const userMap = new Map(users.map((u) => [u._id.toString(), u.name]));
+  const fileMap = new Map(files.map((f) => [f._id.toString(), { id: f._id.toString(), filename: f.filename }]));
   return {
     id: t._id.toString(),
     title: t.title,
     category: t.category,
-    assignees: users.map((u) => ({ userId: u._id.toString(), name: u.name })),
+    assignees: t.assigneeIds
+      .map((id) => ({ userId: id.toString(), name: userMap.get(id.toString()) ?? '' }))
+      .filter((a) => !!a.name),
     nodeAt: t.nodeAt ?? null,
     dueAt: t.dueAt ?? null,
     remindAt: t.remindAt ?? null,
@@ -45,7 +57,18 @@ async function todoJson(t: TodoDoc) {
     completedAt: t.completedAt ?? null,
     completedBy: t.completedBy?.toString() ?? null,
     completionNote: t.completionNote ?? null,
-    attachments: files.map((f) => ({ id: f._id.toString(), filename: f.filename })),
+    attachments: t.attachments
+      .map((id) => fileMap.get(id.toString()))
+      .filter((x): x is { id: string; filename: string } => !!x),
+    updates: t.updates.map((u) => ({
+      note: u.note,
+      createdBy: u.createdBy.toString(),
+      createdByName: userMap.get(u.createdBy.toString()) ?? '',
+      createdAt: u.createdAt,
+      attachments: u.attachments
+        .map((id) => fileMap.get(id.toString()))
+        .filter((x): x is { id: string; filename: string } => !!x),
+    })),
   };
 }
 
@@ -94,6 +117,7 @@ todosRouter.get(
 
 todosRouter.post(
   '/',
+  ...requirePermission('todo:create'),
   ah(async (req, res) => {
     const { title, category, assigneeIds, nodeAt, dueAt, remindAt, note } = req.body ?? {};
     if (!title || !String(title).trim()) throw new AppError(400, 'bad_request', '标题必填');
@@ -214,7 +238,7 @@ todosRouter.delete(
   }),
 );
 
-const loadTodoForComplete = ah(async (req, _res, next) => {
+const loadActionableTodo = ah(async (req, _res, next) => {
   const todo = await Todo.findOne({ _id: req.params.todoId, projectId: req.project!._id });
   if (!todo) throw new AppError(404, 'not_found', '待办不存在');
   const perms = req.myPermissions!;
@@ -228,8 +252,43 @@ const loadTodoForComplete = ah(async (req, _res, next) => {
 });
 
 todosRouter.post(
+  '/:todoId/updates',
+  loadActionableTodo,
+  upload.array('files', 10),
+  ah(async (req, res) => {
+    const todo = req.todo!;
+    const note = String(req.body?.note ?? '').trim();
+    const uploaded = (req.files as Express.Multer.File[]) ?? [];
+    if (!note && uploaded.length === 0) throw new AppError(400, 'bad_request', '进度内容不能为空');
+    const fileDocs = await persistUploads(uploaded, req.project!._id, req.userId);
+    todo.updates.push({
+      note,
+      attachments: fileDocs.map((f) => f._id),
+      createdBy: req.userId as never,
+      createdAt: new Date(),
+    });
+    await todo.save();
+    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'todo:progress', message: `${req.user!.name}提交了待办「${todo.title}」的进度`, sourceType: 'todo', sourceId: todo._id });
+    const others = todo.assigneeIds.map((id) => id.toString()).filter((id) => id !== req.userId);
+    if (others.length) {
+      notify({
+        projectId: req.project!._id,
+        type: 'todo:progress',
+        title: `待办有新进度：${todo.title}`,
+        body: `${req.user!.name} 提交了进度${note ? `：${note.slice(0, 50)}` : ''}`,
+        link: todoLink(req.project!._id),
+        metadata: { todoId: todo._id.toString() },
+        recipients: others,
+        actorId: req.userId!,
+      });
+    }
+    res.status(201).json({ todo: await todoJson(todo) });
+  }),
+);
+
+todosRouter.post(
   '/:todoId/complete',
-  loadTodoForComplete,
+  loadActionableTodo,
   upload.array('files', 10),
   ah(async (req, res) => {
     const todo = req.todo!;

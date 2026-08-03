@@ -2,6 +2,7 @@ import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../src/app';
 import { InviteCode } from '../src/models/InviteCode';
+import { Project } from '../src/models/Project';
 import { User } from '../src/models/User';
 import { createSuperAdmin, registerUser } from './helpers';
 
@@ -87,5 +88,17 @@ describe('todos', () => {
       .delete(`/api/projects/${projectId}/todos/${t.id}`)
       .set('Authorization', `Bearer ${staff.token}`);
     expect(del.status).toBe(403);
+  });
+
+  it('无 todo:create 权限的角色不能创建待办', async () => {
+    const project = await Project.findById(projectId);
+    const role = project!.roles.find((r) => r.name === '一般staff')!;
+    role.permissions = role.permissions.filter((p) => p !== 'todo:create');
+    await project!.save();
+    const res = await request(app)
+      .post(`/api/projects/${projectId}/todos`)
+      .set('Authorization', `Bearer ${staff.token}`)
+      .send({ title: 'A' });
+    expect(res.status).toBe(403);
   });
 });

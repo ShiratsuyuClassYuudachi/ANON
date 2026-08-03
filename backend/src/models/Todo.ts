@@ -1,5 +1,12 @@
 import { Schema, model, models, type HydratedDocument, type Model, type Types } from 'mongoose';
 
+export interface ITodoUpdate {
+  note: string;
+  attachments: Types.ObjectId[];
+  createdBy: Types.ObjectId;
+  createdAt: Date;
+}
+
 export interface ITodo {
   projectId: Types.ObjectId;
   title: string;
@@ -15,6 +22,7 @@ export interface ITodo {
   completedBy?: Types.ObjectId;
   completionNote?: string;
   attachments: Types.ObjectId[];
+  updates: ITodoUpdate[];
 }
 
 export type TodoDoc = HydratedDocument<ITodo>;
@@ -35,6 +43,16 @@ const schema = new Schema<ITodo>(
     completedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     completionNote: String,
     attachments: [{ type: Schema.Types.ObjectId, ref: 'File' }],
+    updates: {
+      type: [{
+        _id: false,
+        note: { type: String, default: '' },
+        attachments: [{ type: Schema.Types.ObjectId, ref: 'File' }],
+        createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+        createdAt: { type: Date, default: Date.now },
+      }],
+      default: [],
+    },
   },
   { timestamps: true },
 );

@@ -10,6 +10,7 @@ import { webPushChannel } from './webpush';
 export type NotificationType =
   | 'todo:assigned'
   | 'todo:completed'
+  | 'todo:progress'
   | 'todo:remind'
   | 'todo:due'
   | 'milestone:approaching'

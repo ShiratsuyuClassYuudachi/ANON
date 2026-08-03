@@ -22,6 +22,7 @@ const PERMISSIONS = [
   { key: 'project:manage', label: '项目管理' },
   { key: 'member:manage', label: '成员管理' },
   { key: 'role:manage', label: '角色管理' },
+  { key: 'todo:create', label: '创建待办' },
   { key: 'todo:manage', label: '待办管理' },
   { key: 'todo:complete', label: '完成待办' },
   { key: 'file:upload', label: '上传文件' },
