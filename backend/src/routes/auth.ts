@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { config } from '../config';
 import { InviteCode } from '../models/InviteCode';
 import { User, publicUser } from '../models/User';
+import { trialLogin } from '../services/trial';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
 import { signToken } from '../utils/jwt';
@@ -21,6 +22,11 @@ authRouter.post(
     const userCount = await User.countDocuments();
     const isBootstrap =
       userCount === 0 && config.superAdminEmail !== '' && normalizedEmail === config.superAdminEmail;
+
+    // 试用账号邮箱保留：首用户引导（SUPER_ADMIN_EMAIL 同为该邮箱）除外
+    if (!isBootstrap && config.trialEmail && normalizedEmail === config.trialEmail) {
+      throw new AppError(409, 'email_reserved', '该邮箱为试用账号保留');
+    }
 
     let codeDoc = null;
     if (!isBootstrap) {
@@ -54,9 +60,19 @@ authRouter.post(
 authRouter.post(
   '/login',
   ah(async (req, res) => {
-    const { email, password } = req.body ?? {};
-    const user = await User.findOne({ email: String(email ?? '').toLowerCase().trim() });
-    if (!user || !(await bcrypt.compare(String(password ?? ''), user.passwordHash))) {
+    const email = String(req.body?.email ?? '').toLowerCase().trim();
+    const password = String(req.body?.password ?? '');
+    // 试用入口：邮箱未被真实用户占用时，按密码 key 进入独立演示环境
+    if (config.trialEmail && email === config.trialEmail) {
+      const existing = await User.findOne({ email });
+      if (!existing) {
+        res.json(await trialLogin(password));
+        return;
+      }
+      // 已有真实用户占用该邮箱（历史数据）：落入正常登录流程
+    }
+    const user = await User.findOne({ email });
+    if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
       throw new AppError(401, 'bad_credentials', '邮箱或密码错误');
     }
     res.json({ token: signToken(user._id.toString()), user: publicUser(user) });

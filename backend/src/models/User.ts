@@ -28,7 +28,16 @@ const userSchema = new Schema<IUser>(
 // vitest 在同一 fork 中跨测试文件复用外部化的 mongoose 实例，模型需幂等注册
 export const User: Model<IUser> = models.User ?? model<IUser>('User', userSchema);
 
-export function publicUser(u: UserDoc) {
+export interface PublicUser {
+  id: string;
+  email: string;
+  name: string;
+  isSuperAdmin: boolean;
+  contacts: { platform: string; value: string }[];
+  onboardedAt: Date | null;
+}
+
+export function publicUser(u: UserDoc): PublicUser {
   return {
     id: u._id.toString(),
     email: u.email,

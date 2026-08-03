@@ -51,6 +51,7 @@ services:
       UPLOAD_DIR: uploads
       CRON_SECRET: ${CRON_SECRET:-}
       SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:-}
+      TRIAL_EMAIL: ${TRIAL_EMAIL-admin@test.com}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
