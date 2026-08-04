@@ -109,7 +109,7 @@ export default function ProjectHome() {
 
   return (
     <div className="pb-20 md:flex md:gap-6 md:pb-0">
-      <aside className="hidden md:block md:w-44 md:shrink-0">
+      <aside className="hidden md:block md:w-44 md:shrink-0" data-tour="tab-nav">
         <div className="sticky top-18 space-y-1">
           {visibleTabs.map((t) => (
             <button
@@ -176,7 +176,7 @@ export default function ProjectHome() {
       </div>
 
       {/* 移动端底部导航 */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden" data-tour="mobile-tab-nav">
         <div
           className="grid"
           style={{ gridTemplateColumns: `repeat(${mainTabs.length + (moreTabs.length > 0 ? 1 : 0)}, minmax(0, 1fr))` }}

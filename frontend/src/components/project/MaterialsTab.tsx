@@ -368,7 +368,7 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
   if (view === 'physical') {
     return (
       <div className="space-y-3">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2" data-tour="tab-materials">
           <h3 className="text-lg font-semibold">物料</h3>
           {viewSwitcher}
         </div>
@@ -379,7 +379,7 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2" data-tour="tab-materials">
         <h3 className="text-lg font-semibold">物料</h3>
         {viewSwitcher}
       </div>

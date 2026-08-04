@@ -146,7 +146,7 @@ export default function Layout() {
         onSkip={() => setReplayOpen(false)}
         onStartTour={() => {
           setReplayOpen(false);
-          startTour(() => {});
+          void startTour({ nav, projectId: id });
         }}
       />
     </div>

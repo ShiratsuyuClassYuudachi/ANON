@@ -65,7 +65,7 @@ export default function MembersTab({ project, members, myPermissions, onChanged 
   const removingMember = members.find((m) => m.userId === removingId);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" data-tour="tab-members">
       {canManage && (
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-base">邀请成员</CardTitle></CardHeader>

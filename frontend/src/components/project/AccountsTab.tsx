@@ -163,7 +163,7 @@ export default function AccountsTab({ project, members, myPermissions }: Props) 
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2" data-tour="tab-accounts">
         <Select value={platformFilter || 'all'} onValueChange={(v) => setPlatformFilter(v === 'all' ? '' : v)}>
           <SelectTrigger className="w-36"><SelectValue placeholder="平台" /></SelectTrigger>
           <SelectContent>

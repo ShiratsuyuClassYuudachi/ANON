@@ -206,7 +206,7 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2" data-tour="tab-finance">
         <h3 className="text-lg font-semibold">财务</h3>
         <div className="flex gap-2">
           {canManage && (

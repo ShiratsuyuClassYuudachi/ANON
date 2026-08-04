@@ -162,7 +162,7 @@ export default function OnsitePage() {
   return (
     <div className="mx-auto max-w-2xl space-y-4 pb-8">
       {/* 顶部：返回 + 标题 + 时间 */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2" data-tour="onsite-content">
         <Button variant="ghost" size="icon" className="h-11 w-11" onClick={() => nav(`/p/${id}`)} aria-label="返回项目">
           <ArrowLeft className="size-5" />
         </Button>

@@ -96,8 +96,8 @@ export default function Projects() {
         </Card>
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
-          {projects.map((p) => (
-            <Link key={p.id} to={'/p/' + p.id}>
+          {projects.map((p, i) => (
+            <Link key={p.id} to={'/p/' + p.id} data-tour={i === 0 ? 'project-card' : undefined}>
               <Card className="h-full transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md">
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-base">

@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactElement } from 'react';
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { api } from './api/client';
 import { useAuth } from './auth';
 import Layout from './components/Layout';
@@ -36,6 +36,7 @@ function RequireAuth({ children }: { children: ReactElement }) {
 function OnboardingGate() {
   const { user, refresh } = useAuth();
   const location = useLocation();
+  const nav = useNavigate();
   const [showSlides, setShowSlides] = useState(false);
   useEffect(() => {
     if (user && !user.onboardedAt && location.pathname === '/projects') setShowSlides(true);
@@ -48,7 +49,7 @@ function OnboardingGate() {
     } catch {
       /* 落库失败不阻塞用户 */
     }
-    if (tour) startTour(() => {});
+    if (tour) void startTour({ nav });
   };
   if (!user) return null;
   return <OnboardingDialog open={showSlides} onSkip={() => finish(false)} onStartTour={() => finish(true)} />;

@@ -356,7 +356,7 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
       </Card>
 
       {/* 视图切换 + 自定义入口 */}
-      <div className="flex items-center gap-2" style={{ order: -2 }}>
+      <div className="flex items-center gap-2" style={{ order: -2 }} data-tour="tab-dashboard">
         <div className="flex flex-1 gap-1 rounded-lg bg-muted p-1">
           <button
             onClick={() => switchView('personal')}
