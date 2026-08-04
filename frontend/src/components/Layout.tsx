@@ -1,7 +1,9 @@
-import { useState } from 'react';
-import { BookOpen, LogOut, Moon, Palette, ShieldCheck, Sparkles, Sun, UserRound } from 'lucide-react';
-import { Link, Outlet, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { BookOpen, Check, ChevronDown, FolderOpen, LayoutGrid, LogOut, Moon, Palette, ShieldCheck, Sparkles, Sun, UserRound } from 'lucide-react';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth';
+import { api } from '../api/client';
+import type { ProjectSummary } from '../types';
 import Logo from './Logo';
 import DemoBanner from './DemoBanner';
 import PushBanner from './PushBanner';
@@ -23,6 +25,22 @@ export default function Layout() {
   const nav = useNavigate();
   const { mode, style, toggleMode, setStyle } = useTheme();
   const [replayOpen, setReplayOpen] = useState(false);
+  const id = useLocation().pathname.match(/^\/p\/([^/]+)/)?.[1];
+  const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
+  useEffect(() => {
+    if (!id) {
+      setProjects(null);
+      return;
+    }
+    let alive = true;
+    api<{ projects: ProjectSummary[] }>('/api/projects')
+      .then((d) => alive && setProjects(d.projects))
+      .catch(() => alive && setProjects([]));
+    return () => {
+      alive = false;
+    };
+  }, [id]);
+  const current = projects?.find((p) => p.id === id);
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur">
@@ -30,6 +48,37 @@ export default function Layout() {
           <Link to="/projects" aria-label="返回项目列表" className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <Logo />
           </Link>
+          {current && (
+            <>
+              <button
+                onClick={() => nav(`/p/${id}`)}
+                aria-label="返回看板"
+                title={current.name}
+                className="min-w-0 max-w-40 rounded-md px-1.5 py-1 text-sm font-medium hover:bg-muted md:max-w-56"
+              >
+                <span className="block truncate">{current.name}</span>
+              </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button aria-label="切换项目" className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+                    <ChevronDown className="size-4" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="max-w-64">
+                  {projects?.map((p) => (
+                    <DropdownMenuItem key={p.id} onClick={() => nav(`/p/${p.id}`)}>
+                      {p.id === id ? <Check className="size-4" /> : <FolderOpen className="size-4" />}
+                      <span className="truncate">{p.name}</span>
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => nav('/projects')}>
+                    <LayoutGrid className="size-4" /> 全部项目
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          )}
           <span className="flex-1" />
           <div className="hidden items-center gap-2 md:flex" data-tour="theme-controls">
             <StylePicker />
