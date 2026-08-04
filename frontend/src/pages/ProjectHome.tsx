@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ClipboardList,
   FolderOpen,
@@ -29,7 +29,6 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface Detail {
   project: ProjectDetail;
@@ -50,6 +49,8 @@ const TABS = [
   { key: 'settings', label: '设置', icon: Settings, visible: (p: string[]) => p.includes('project:manage') },
 ] as const;
 
+const MOBILE_MAIN_KEYS = ['todos', 'finance', 'materials'] as const;
+
 function hasAny(p: string[], keys: string[]) {
   return keys.some((k) => p.includes(k));
 }
@@ -58,13 +59,21 @@ export default function ProjectHome() {
   const { id } = useParams<{ id: string }>();
   const nav = useNavigate();
   const [detail, setDetail] = useState<Detail | null>(null);
-  const [tab, setTab] = useState<(typeof TABS)[number]['key']>('dashboard');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const setTab = useCallback(
+    (key: (typeof TABS)[number]['key']) => setSearchParams({ tab: key }),
+    [setSearchParams],
+  );
   const [err, setErr] = useState('');
   const [moreOpen, setMoreOpen] = useState(false);
 
-  const handleNavigate = useCallback((targetTab: string) => {
-    setTab(targetTab as (typeof TABS)[number]['key']);
-  }, []);
+  const handleNavigate = useCallback(
+    (targetTab: string) => {
+      setTab(targetTab as (typeof TABS)[number]['key']);
+    },
+    [setTab],
+  );
 
   const load = useCallback(async () => {
     const d = await api<Detail>(`/api/projects/${id}`);
@@ -92,27 +101,37 @@ export default function ProjectHome() {
 
   // 按权限过滤可见 tab；当前 tab 不可见时渲染期回退到第一个可见 tab（免 useEffect）
   const visibleTabs = TABS.filter((t) => t.visible(detail.myPermissions));
-  const mainTabs = visibleTabs.slice(0, 4);
-  const moreTabs = visibleTabs.slice(4);
-  const activeTab = visibleTabs.some((t) => t.key === tab) ? tab : (visibleTabs[0]?.key ?? 'todos');
+  const mainTabs = visibleTabs.filter((t) => (MOBILE_MAIN_KEYS as readonly string[]).includes(t.key));
+  const moreTabs = visibleTabs.filter((t) => !(MOBILE_MAIN_KEYS as readonly string[]).includes(t.key));
+  const activeTab = visibleTabs.some((t) => t.key === tabParam)
+    ? (tabParam as (typeof TABS)[number]['key'])
+    : (visibleTabs[0]?.key ?? 'todos');
 
   return (
-    <div className="pb-20 md:pb-0">
+    <div className="pb-20 md:flex md:gap-6 md:pb-0">
+      <aside className="hidden md:block md:w-44 md:shrink-0">
+        <div className="sticky top-18 space-y-1">
+          {visibleTabs.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm ${activeTab === t.key ? 'bg-primary/10 font-medium text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+            >
+              <t.icon className="size-4" />
+              {t.label}
+            </button>
+          ))}
+          <Button variant="outline" className="mt-3 w-full justify-start" onClick={() => nav(`/p/${id}/onsite`)}>
+            <Smartphone className="size-4" /> 现场模式
+          </Button>
+        </div>
+      </aside>
+
+      <div className="min-w-0 flex-1">
       <div className="mb-3 flex items-center gap-2">
         <h2 className="text-xl font-semibold">{detail.project.name}</h2>
         <Badge variant="secondary">{detail.myRole}</Badge>
       </div>
-
-      {/* 桌面端顶部标签 */}
-      <Tabs value={activeTab} onValueChange={(v) => setTab(v as typeof tab)} className="hidden md:block">
-        <TabsList>
-          {visibleTabs.map((t) => (
-            <TabsTrigger key={t.key} value={t.key}>
-              {t.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
 
       {/* Tab 内容 */}
       <div className="mt-3">
@@ -137,14 +156,7 @@ export default function ProjectHome() {
           <AccountsTab project={detail.project} members={detail.members} myPermissions={detail.myPermissions} />
         )}
         {activeTab === 'work' && (
-          <div className="space-y-3">
-            <div className="flex justify-end">
-              <Button variant="outline" onClick={() => nav(`/p/${id}/onsite`)}>
-                <Smartphone className="size-4" /> 现场模式
-              </Button>
-            </div>
-            <WorkTab project={detail.project} members={detail.members} myPermissions={detail.myPermissions} />
-          </div>
+          <WorkTab project={detail.project} members={detail.members} myPermissions={detail.myPermissions} />
         )}
         {activeTab === 'members' && (
           <MembersTab
@@ -161,9 +173,10 @@ export default function ProjectHome() {
           <SettingsTab project={detail.project} myPermissions={detail.myPermissions} onChanged={load} />
         )}
       </div>
+      </div>
 
       {/* 移动端底部导航 */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
         <div
           className="grid"
           style={{ gridTemplateColumns: `repeat(${mainTabs.length + (moreTabs.length > 0 ? 1 : 0)}, minmax(0, 1fr))` }}
@@ -196,6 +209,16 @@ export default function ProjectHome() {
             <SheetTitle>更多</SheetTitle>
           </SheetHeader>
           <div className="grid gap-2 p-4">
+            <Button
+              variant="outline"
+              className="justify-start"
+              onClick={() => {
+                setMoreOpen(false);
+                nav(`/p/${id}/onsite`);
+              }}
+            >
+              <Smartphone className="size-4" /> 现场模式
+            </Button>
             {moreTabs.map((t) => (
               <Button
                 key={t.key}

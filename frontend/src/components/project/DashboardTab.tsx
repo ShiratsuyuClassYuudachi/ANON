@@ -20,8 +20,10 @@ import {
   RotateCcw,
   Settings2,
   ShieldOff,
+  Smartphone,
   Wallet,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
 import { eventCountdown, fmtLocal } from '../../lib/datetime';
@@ -98,6 +100,7 @@ function mergeCardOrder(saved: string[]): string[] {
 
 export default function DashboardTab({ project, members, myPermissions, onNavigate }: Props) {
   const [data, setData] = useState<DashboardData | null>(null);
+  const nav = useNavigate();
   const [err, setErr] = useState('');
   const [ignoredRisks, setIgnoredRisks] = useState<RiskItem[]>([]);
 
@@ -370,6 +373,9 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
         </div>
         <Button variant="outline" size="icon" onClick={() => setCustomizeOpen(true)} aria-label="自定义看板" title="自定义看板">
           <Settings2 className="size-4" />
+        </Button>
+        <Button variant="outline" onClick={() => nav(`/p/${project.id}/onsite`)}>
+          <Smartphone className="size-4" /> 现场模式
         </Button>
       </div>
 
