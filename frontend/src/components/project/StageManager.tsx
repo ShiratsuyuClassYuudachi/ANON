@@ -113,13 +113,13 @@ export function StageManager({ project, myPermissions, onChanged }: Props) {
       <CardContent className="space-y-3">
         <div className="space-y-1">
           {stages.map((s, idx) => (
-            <div key={s.id} className="flex items-center gap-2 rounded-lg border p-2.5">
+            <div key={s.id} className="flex flex-wrap items-center gap-2 rounded-lg border p-2.5">
               {s.completedAt ? (
                 <Check className="size-4 shrink-0 text-green-600 dark:text-green-400" />
               ) : (
                 <Circle className="size-4 shrink-0 text-muted-foreground" />
               )}
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 basis-40">
                 <div className="flex items-center gap-2">
                   <p className={`truncate text-sm ${s.completedAt ? 'text-muted-foreground line-through' : 'font-medium'}`}>
                     {s.name}
@@ -129,7 +129,7 @@ export function StageManager({ project, myPermissions, onChanged }: Props) {
                 {s.note && <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{s.note}</p>}
               </div>
               {canManage && (
-                <div className="flex shrink-0 items-center gap-0.5">
+                <div className="ml-auto flex shrink-0 items-center gap-0.5 max-md:w-full max-md:justify-end">
                   <Button variant="ghost" size="sm" disabled={busy} onClick={() => void toggleComplete(s)}>
                     {s.completedAt ? '取消完成' : '标记完成'}
                   </Button>
