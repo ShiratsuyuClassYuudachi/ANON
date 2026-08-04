@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BookOpen, LogOut, ShieldCheck, Sparkles, UserRound } from 'lucide-react';
+import { BookOpen, LogOut, Moon, Palette, ShieldCheck, Sparkles, Sun, UserRound } from 'lucide-react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth';
 import Logo from './Logo';
@@ -8,7 +8,7 @@ import PushBanner from './PushBanner';
 import TrialBanner from './TrialBanner';
 import { OnboardingDialog } from './onboarding/OnboardingDialog';
 import { startTour } from './onboarding/tour';
-import { ModeToggle, StylePicker } from '../theme';
+import { ModeToggle, StylePicker, useTheme } from '../theme';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -21,6 +21,7 @@ import {
 export default function Layout() {
   const { user, logout } = useAuth();
   const nav = useNavigate();
+  const { mode, style, toggleMode, setStyle } = useTheme();
   const [replayOpen, setReplayOpen] = useState(false);
   return (
     <div className="min-h-screen bg-background">
@@ -30,7 +31,7 @@ export default function Layout() {
             <Logo />
           </Link>
           <span className="flex-1" />
-          <div className="flex items-center gap-2" data-tour="theme-controls">
+          <div className="hidden items-center gap-2 md:flex" data-tour="theme-controls">
             <StylePicker />
             <ModeToggle />
           </div>
@@ -45,6 +46,14 @@ export default function Layout() {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem className="md:hidden" onClick={() => setStyle(style === 'minimal' ? 'playful' : 'minimal')}>
+                <Palette className="size-4" /> 界面风格：{style === 'minimal' ? '简洁' : '明快'}
+              </DropdownMenuItem>
+              <DropdownMenuItem className="md:hidden" onClick={toggleMode}>
+                {mode === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
+                {mode === 'dark' ? '切换到日间模式' : '切换到夜间模式'}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="md:hidden" />
               <DropdownMenuItem onClick={() => nav('/me')}>
                 <UserRound className="size-4" /> 个人资料
               </DropdownMenuItem>
