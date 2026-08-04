@@ -45,7 +45,11 @@ export default function Layout() {
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur">
         <div className="mx-auto flex h-14 w-full max-w-3xl items-center gap-2 px-4 md:max-w-5xl">
-          <Link to="/projects" aria-label="返回项目列表" className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <Link
+            to={id ? `/p/${id}` : '/projects'}
+            aria-label={id ? '返回当前项目看板' : '查看项目列表'}
+            className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
             <Logo />
           </Link>
           {current && (
@@ -73,7 +77,7 @@ export default function Layout() {
                   ))}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => nav('/projects')}>
-                    <LayoutGrid className="size-4" /> 全部项目
+                    <LayoutGrid className="size-4" /> 查看全部项目
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
