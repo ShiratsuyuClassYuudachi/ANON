@@ -49,18 +49,18 @@ export default function Layout() {
             <Logo />
           </Link>
           {current && (
-            <>
+            <div className="flex min-w-0 max-w-44 items-stretch overflow-hidden rounded-md border md:max-w-64">
               <button
                 onClick={() => nav(`/p/${id}`)}
                 aria-label="返回看板"
-                title={current.name}
-                className="min-w-0 max-w-40 rounded-md px-1.5 py-1 text-sm font-medium hover:bg-muted md:max-w-56"
+                title={`${current.name} — 点击回看板`}
+                className="min-w-0 flex-1 truncate px-2.5 py-1.5 text-sm font-medium hover:bg-muted"
               >
-                <span className="block truncate">{current.name}</span>
+                {current.name}
               </button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button aria-label="切换项目" className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+                  <button aria-label="切换项目" title="切换项目" className="border-l bg-muted/60 px-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
                     <ChevronDown className="size-4" />
                   </button>
                 </DropdownMenuTrigger>
@@ -77,7 +77,7 @@ export default function Layout() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            </>
+            </div>
           )}
           <span className="flex-1" />
           <div className="hidden items-center gap-2 md:flex" data-tour="theme-controls">
