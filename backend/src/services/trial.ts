@@ -6,11 +6,13 @@
 import { createHash } from 'crypto';
 import bcrypt from 'bcryptjs';
 import { config } from '../config';
+import { RefreshToken } from '../models/RefreshToken';
 import { TrialSession, type TrialSessionDoc } from '../models/TrialSession';
 import { User, publicUser, type PublicUser } from '../models/User';
 import { AppError } from '../utils/errors';
 import { signToken } from '../utils/jwt';
 import { deleteDemoData, seedDemoData } from './demoSeed';
+import { issueRefreshToken } from './session';
 
 const TRIAL_TTL_MS = 24 * 3600 * 1000;
 const MAX_TRIAL_SESSIONS = 50;
@@ -18,13 +20,15 @@ const SWEEP_INTERVAL_MS = 10 * 60 * 1000;
 
 async function destroyTrial(session: TrialSessionDoc): Promise<void> {
   await deleteDemoData({ userIds: session.userIds, projectId: session.projectId });
+  // 试用用户被级联删除，其 refresh token 不得残留
+  await RefreshToken.deleteMany({ userId: { $in: session.userIds } });
   // 会话最后删：保证“查到会话 ⇒ 数据大概率完整”
   await TrialSession.deleteOne({ _id: session._id });
 }
 
 export async function trialLogin(
   password: string,
-): Promise<{ token: string; user: PublicUser; trialExpiresAt: string }> {
+): Promise<{ token: string; refreshToken: string; user: PublicUser; trialExpiresAt: string }> {
   if (password.length < 8) {
     throw new AppError(400, 'bad_request', '试用密码至少 8 位');
   }
@@ -77,6 +81,7 @@ export async function trialLogin(
   if (!user) throw new AppError(500, 'trial_broken', '试用环境异常，请重试');
   return {
     token: signToken(user._id.toString()),
+    refreshToken: await issueRefreshToken(user._id),
     user: publicUser(user),
     trialExpiresAt: session.expiresAt.toISOString(),
   };

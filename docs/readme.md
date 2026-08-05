@@ -52,7 +52,7 @@ cd frontend && npm install && npm run dev
 | 变量 | 必填 | 说明 |
 | --- | --- | --- |
 | `MONGO_URI` | 是（有默认值 `mongodb://localhost:27017/anon`） | MongoDB 连接串 |
-| `JWT_SECRET` | 生产必填 | JWT 签名密钥；生产环境未配置会拒绝启动，开发环境用不安全的默认值 |
+| `JWT_SECRET` | 生产必填（≥32 字符） | JWT 签名密钥；生产环境未配置或不足 32 字符会拒绝启动，开发环境用不安全的默认值 |
 | `PORT` | 否 | 后端监听端口，默认 4000 |
 | `UPLOAD_DIR` | 否 | 上传文件本地存储目录，默认 `uploads`（已 gitignore）；仅在未配置 S3 时使用 |
 | `S3_ENDPOINT` / `S3_BUCKET` / `S3_REGION` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` | 否 | S3 兼容对象存储（MinIO / OSS / AWS S3）。配置 `S3_ENDPOINT` 后上传文件（含预览图）写入 S3，bucket 不存在时自动创建；未配置则回退本地磁盘 `UPLOAD_DIR`。历史本地文件与新 S3 文件可混合读取 |
@@ -119,6 +119,35 @@ docker compose -f docker-compose.prod.yml up -d --build
 - 编排项目名为 `anon-prod`，与开发用 `docker-compose.yml`（仅 mongo，端口 27017）互不干扰，可并存
 - 常用命令：`docker compose -f docker-compose.prod.yml logs -f backend`（看日志）/ `down`（停止）/ `down -v`（停止并清空数据卷，慎用）
 - cron 提醒：容器外执行 `curl -X POST -H "Authorization: Bearer $CRON_SECRET" http://localhost:8080/api/cron/reminders`（经前端代理）
+
+## 安全
+
+- **会话**：access JWT 15 分钟有效，refresh token 30 天滚动（每次刷新轮换，库中只存 sha256，单用户上限 10 个），退出登录即吊销。旧 30 天 JWT 在部署后仍有效直至自然过期（同一 JWT_SECRET），前端会自动走刷新流程续期。
+- **登录限流**：`/api/auth/*`（注册/登录/试用登录/refresh/logout）每 IP 15 分钟最多 50 次，防撞库与试用环境资源消耗。
+- **安全响应头**：nginx 对静态页下发 CSP（无 unsafe-inline 脚本，主题初始化脚本已外置 `theme-init.js`）、`X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`、`Permissions-Policy`；`server_tokens off` 隐藏版本号。
+- **权限化审计日志**：实物清单数量变动/状态变更需 `materials:manage`，无权限成员看不到「变动记录」入口。
+- **文件预览收敛**：仅位图（png/jpeg/webp/gif）内联预览；SVG 等可携带脚本的格式不生成预览、下载走 `Content-Disposition: attachment`。
+- **非 root 容器**：backend（node 用户）与 frontend（`nginxinc/nginx-unprivileged`，监听 8080）均不以 root 运行。
+- **依赖面**：multer 2.x（修复 CVE-2025-47935/47944）、vite 6.4+（修复 CVE-2026-39365，dev-server 路径穿越）、nodemailer 9.x、react-router 7.18+。
+- **依赖扫描 CI**：`.github/workflows/dependency-scan.yml` 用 osv-scanner（v2.4.0 固定版本 + SHA256 校验）扫描 backend/frontend 锁文件，push 涉及依赖变更时触发 + 每周一全量兜底；豁免清单在根目录 `osv-scanner.toml`（每条附原因，当前仅 GHSA-qwww-vcr4-c8h2——react-router RSC 模式专属、本项目纯 SPA 不可达，修复需 React 19 待整体升级解除）
+
+### 公网部署必须做的三件事
+
+1. **终止 TLS**：本仓库 nginx 仅监听明文端口，公网部署应在前面加反向代理（Caddy/nginx/certbot）终止 HTTPS。
+2. **修改默认口令**：内嵌 FerretDB 的 `DB_PASSWORD`、MinIO 的 `S3_ACCESS_KEY`/`S3_SECRET_KEY` 均有开发默认值，公网部署必须用强随机值覆盖（`.env`）。
+3. **JWT_SECRET 至少 32 字符**：`openssl rand -hex 32` 生成，生产启动校验。
+
+### 既有部署升级的一次性迁移
+
+后端容器改为非 root（node 用户，UID 1000）运行后，早期以 root 初始化的 `uploads-data` 卷需要一次属主迁移（否则 multer 写入 EACCES）：
+
+```bash
+docker compose -f docker-compose.prod.yml stop backend
+docker run --rm -v anon-prod_uploads-data:/data alpine chown -R 1000:1000 /data
+docker compose -f docker-compose.prod.yml up -d --build backend frontend
+```
+
+仅对已有部署执行一次；全新部署无需执行。
 
 ## 端到端冒烟
 

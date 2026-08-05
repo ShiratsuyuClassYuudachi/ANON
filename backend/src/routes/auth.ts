@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { config } from '../config';
 import { InviteCode } from '../models/InviteCode';
 import { User, publicUser } from '../models/User';
+import { issueRefreshToken, revokeRefreshToken, rotateRefreshToken } from '../services/session';
 import { trialLogin } from '../services/trial';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
@@ -53,7 +54,11 @@ authRouter.post(
       codeDoc.usedAt = new Date();
       await codeDoc.save();
     }
-    res.status(201).json({ token: signToken(user._id.toString()), user: publicUser(user) });
+    res.status(201).json({
+      token: signToken(user._id.toString()),
+      refreshToken: await issueRefreshToken(user._id),
+      user: publicUser(user),
+    });
   }),
 );
 
@@ -75,6 +80,37 @@ authRouter.post(
     if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
       throw new AppError(401, 'bad_credentials', '邮箱或密码错误');
     }
-    res.json({ token: signToken(user._id.toString()), user: publicUser(user) });
+    res.json({
+      token: signToken(user._id.toString()),
+      refreshToken: await issueRefreshToken(user._id),
+      user: publicUser(user),
+    });
+  }),
+);
+
+// 刷新：refresh token 本身是凭证，不鉴权；轮换旧凭证并签发新对
+authRouter.post(
+  '/refresh',
+  ah(async (req, res) => {
+    const rt = String(req.body?.refreshToken ?? '');
+    if (!rt) throw new AppError(400, 'bad_request', '缺少 refreshToken');
+    const rotated = await rotateRefreshToken(rt);
+    if (!rotated) throw new AppError(401, 'invalid_refresh', '登录已过期，请重新登录');
+    const user = await User.findById(rotated.userId);
+    if (!user) throw new AppError(401, 'invalid_refresh', '登录已过期，请重新登录');
+    res.json({
+      token: signToken(user._id.toString()),
+      refreshToken: rotated.refreshToken,
+      user: publicUser(user),
+    });
+  }),
+);
+
+authRouter.post(
+  '/logout',
+  ah(async (req, res) => {
+    const rt = String(req.body?.refreshToken ?? '');
+    if (rt) await revokeRefreshToken(rt);
+    res.json({ ok: true });
   }),
 );

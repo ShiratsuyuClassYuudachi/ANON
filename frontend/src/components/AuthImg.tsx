@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties } from 'react';
-import { getToken } from '../api/client';
+import { authorizedFetch } from '../api/client';
 
 interface Props {
   src: string;
@@ -18,7 +18,7 @@ export default function AuthImg({ src, alt, style, onClick }: Props) {
     let objectUrl: string | null = null;
     setUrl(null);
     setFailed(false);
-    fetch(src, { headers: { Authorization: `Bearer ${getToken()}` } })
+    authorizedFetch(src)
       .then((r) => {
         if (!r.ok) throw new Error(`http ${r.status}`);
         return r.blob();

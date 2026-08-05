@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import crypto from 'crypto';
 import { config } from '../config';
 import { Membership } from '../models/Membership';
 import { Milestone } from '../models/Milestone';
@@ -21,12 +22,19 @@ function getMonday(d: Date): Date {
   return date;
 }
 
+// 常数时间比较，防时序侧信道
+function secretOk(header: string): boolean {
+  const a = Buffer.from(header);
+  const b = Buffer.from(`Bearer ${config.cronSecret}`);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 cronRouter.post(
   '/reminders',
   ah(async (req, res) => {
     if (!config.cronSecret) throw new AppError(503, 'cron_disabled', '未配置 CRON_SECRET');
     const header = req.headers.authorization ?? '';
-    if (header !== `Bearer ${config.cronSecret}`) throw new AppError(401, 'unauthorized', '密钥错误');
+    if (!secretOk(header)) throw new AppError(401, 'unauthorized', '密钥错误');
 
     const now = new Date();
     const kinds = [
@@ -92,7 +100,7 @@ cronRouter.post(
   ah(async (req, res) => {
     if (!config.cronSecret) throw new AppError(503, 'cron_disabled', '未配置 CRON_SECRET');
     const header = req.headers.authorization ?? '';
-    if (header !== `Bearer ${config.cronSecret}`) throw new AppError(401, 'unauthorized', '密钥错误');
+    if (!secretOk(header)) throw new AppError(401, 'unauthorized', '密钥错误');
 
     const now = new Date();
     const weekStart = getMonday(now);

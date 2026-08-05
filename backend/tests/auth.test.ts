@@ -1,4 +1,5 @@
 import request from 'supertest';
+import jwt from 'jsonwebtoken';
 import { describe, expect, it } from 'vitest';
 import { app } from '../src/app';
 import { InviteCode } from '../src/models/InviteCode';
@@ -67,6 +68,58 @@ describe('auth', () => {
 
   it('受保护接口无 token 返回 401', async () => {
     const res = await request(app).get('/api/me');
+    expect(res.status).toBe(401);
+  });
+});
+
+describe('auth refresh tokens', () => {
+  it('登录返回 refreshToken，refresh 轮换后旧 token 重放被拒', async () => {
+    await createSuperAdmin();
+    const login = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'admin@example.com', password: 'password123' });
+    expect(login.status).toBe(200);
+    expect(login.body.token).toBeTruthy();
+    expect(login.body.refreshToken).toBeTruthy();
+
+    const rt = login.body.refreshToken as string;
+    const refreshed = await request(app).post('/api/auth/refresh').send({ refreshToken: rt });
+    expect(refreshed.status).toBe(200);
+    expect(refreshed.body.token).toBeTruthy();
+    expect(refreshed.body.refreshToken).toBeTruthy();
+    expect(refreshed.body.refreshToken).not.toBe(rt);
+
+    // 新 access 可用
+    const me = await request(app)
+      .get('/api/me')
+      .set('Authorization', `Bearer ${refreshed.body.token}`);
+    expect(me.status).toBe(200);
+
+    // 旧 refreshToken 一次性作废：重放 401
+    const replay = await request(app).post('/api/auth/refresh').send({ refreshToken: rt });
+    expect(replay.status).toBe(401);
+    expect(replay.body.error.code).toBe('invalid_refresh');
+  });
+
+  it('logout 吊销 refreshToken，之后 refresh 401', async () => {
+    await createSuperAdmin();
+    const login = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'admin@example.com', password: 'password123' });
+    const rt = login.body.refreshToken as string;
+
+    const out = await request(app).post('/api/auth/logout').send({ refreshToken: rt });
+    expect(out.status).toBe(200);
+    expect(out.body.ok).toBe(true);
+
+    const refresh = await request(app).post('/api/auth/refresh').send({ refreshToken: rt });
+    expect(refresh.status).toBe(401);
+  });
+
+  it('过期 access token 返回 401', async () => {
+    const { user } = await createSuperAdmin();
+    const expired = jwt.sign({ sub: user.id }, 'dev-only-insecure-secret', { expiresIn: '-1s' });
+    const res = await request(app).get('/api/me').set('Authorization', `Bearer ${expired}`);
     expect(res.status).toBe(401);
   });
 });

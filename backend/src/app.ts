@@ -1,4 +1,6 @@
 import express from 'express';
+import helmet from 'helmet';
+import { rateLimit } from 'express-rate-limit';
 import { errorHandler } from './middleware/errorHandler';
 import { accountsRouter } from './routes/accounts';
 import { activitiesRouter } from './routes/activities';
@@ -24,11 +26,22 @@ import { workModulesRouter } from './routes/workModules';
 import { workSheetRouter } from './routes/workSheet';
 
 export const app = express();
+app.set('trust proxy', 1); // nginx 单跳代理，取真实客户端 IP 供限流
+app.use(helmet({ contentSecurityPolicy: false })); // CSP 由 nginx 对静态页下发；API 不需要
 app.use(express.json({ limit: '2mb' }));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
-app.use('/api/auth', authRouter);
+// 认证端点限流：登录/注册/试用登录/refresh/logout，50 次/15 分钟/IP
+const authLimiter = rateLimit({
+  windowMs: 15 * 60_000,
+  limit: 50,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === 'test', // 测试单进程同 IP 大量登录，跳过
+  message: { error: { code: 'rate_limited', message: '请求过于频繁，请稍后再试' } },
+});
+app.use('/api/auth', authLimiter, authRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/me', meRouter);
 app.use('/api/push', pushRouter);

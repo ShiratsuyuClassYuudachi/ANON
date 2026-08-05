@@ -49,16 +49,33 @@ interface FileMeta { id: string; filename: string; mime: string; size: number }
 注册。普通用户必须带有效邀请码；当数据库无任何用户且配置了 `SUPER_ADMIN_EMAIL` 且邮箱匹配时，可不带邀请码注册并自动成为超级管理员。
 
 请求：`{ inviteCode?: string, email: string, name: string, password: string }`（password ≥ 8 位）
-响应 201：`{ token: string, user: User }`
+响应 201：`{ token: string, refreshToken: string, user: User }`
 错误：400 `invalid_invite` / `bad_request`；409 `email_taken` / `email_reserved`（试用账号邮箱保留，见登录）
 
 ### POST /api/auth/login（公开）
 
 请求：`{ email: string, password: string }`
-响应 200：`{ token: string, user: User, trialExpiresAt?: string }`
+响应 200：`{ token: string, refreshToken: string, user: User, trialExpiresAt?: string }`
 错误：401 `bad_credentials`；400 `bad_request`（试用密码 < 8 位）；429 `trial_limit`
 
 **试用模式**：邮箱等于 `TRIAL_EMAIL`（默认 `admin@test.com`，置空禁用）且未被真实用户占用时，按 `sha256(trial:<JWT_SECRET>:<password>)` 为 key 进入独立演示环境：首次登录即时播种一套演示数据（试用管理员 + 4 虚拟成员 + 项目「2026 秋季同人展」全模块数据），同密码 24h 内复用同一环境，到期由进程内清扫器（每 10 分钟）级联销毁；响应带 `trialExpiresAt`（ISO 时间）。试用密码要求 ≥ 8 位；活跃试用环境上限 50 个，超出返回 429。
+
+### POST /api/auth/refresh（公开）
+
+用 refresh token 换取新凭证对。refresh token 本身是凭证，无需 Authorization 头。每次刷新轮换：旧 refresh token 立即作废，返回新对；access token 有效期 15 分钟。
+
+请求：`{ refreshToken: string }`
+响应 200：`{ token: string, refreshToken: string, user: User }`
+错误：400 `bad_request`（缺少 refreshToken）；401 `invalid_refresh`（无效/已过期/已轮换/已吊销）
+
+### POST /api/auth/logout（公开）
+
+吊销 refresh token（登出后该 token 不可再刷新）。无 token 时也返回成功。
+
+请求：`{ refreshToken?: string }`
+响应 200：`{ ok: true }`
+
+> 限流：`/api/auth/*`（注册/登录/refresh/logout）每 IP 15 分钟最多 50 次，超出返回 429 `rate_limited`。
 
 ---
 
@@ -84,7 +101,7 @@ interface FileMeta { id: string; filename: string; mime: string; size: number }
 
 ### POST /api/admin/invite-codes
 
-请求：`{ code?: string }`（不传则自动生成 `ANON-XXXXXXXX`）
+请求：`{ code?: string }`（不传则自动生成 `ANON-XXXXXXXX`；自定义 code 最少 6 位）
 响应 201：`{ id: string, code: string }`
 
 ### GET /api/admin/invite-codes
@@ -135,7 +152,7 @@ interface FileMeta { id: string; filename: string; mime: string; size: number }
 ### 邀请
 
 - **POST /api/projects/:id/invites**（需 `member:manage`）
-  请求 `{ roleName: string, targetUserId?: string, expiresInHours?: number }`（默认 72 小时）
+  请求 `{ roleName: string, targetUserId?: string, expiresInHours?: number }`（默认 72 小时，合法范围 1~720）
   响应 201：`{ token: string, url: "/invite/<token>" }`（前端拼 `location.origin + url` 发给对方）
   - 不传 `targetUserId`：开放链接，任何登录用户可接受（一次性）
   - 传 `targetUserId`：仅该用户可接受
@@ -273,7 +290,7 @@ interface AnnouncementItem {
 
 - **GET /api/projects/:id/announcements**（成员）
   Query（均可选）：`page`（默认 1）、`limit`（默认 20，上限 50）、`includeExpired=true`（默认排除已过期）。
-  排序：置顶优先，其后按发布时间倒序。按当前用户可见范围过滤（`total` 为可见范围过滤前的总数）。
+  排序：置顶优先，其后按发布时间倒序。按当前用户可见范围过滤（`total` 为当前用户可见总数，不泄露不可见公告数量）。
   响应 200：`{ announcements: AnnouncementItem[], total: number, page: number }`
 - **POST /api/projects/:id/announcements**（需 `announcement:manage`）
   请求 `{ title: string, content?: string, type?: 'normal'|'important'|'emergency', isPinned?: boolean, requireConfirmation?: boolean, visibility?: Visibility, expiresAt?: string|null }`。
@@ -494,7 +511,7 @@ interface ResourceVersionItem {
 
 ## 实物清单
 
-挂载于 `/api/projects/:id/physical`，需登录且为项目成员。查看类操作成员即可；增删改分类与物资条目需 `materials:manage`（`project:manage` 等价放行，超管不受限）；数量变动日志成员即可记录。实物清单与数字资源相互独立，在「物料」Tab 内通过视图切换访问。
+挂载于 `/api/projects/:id/physical`，需登录且为项目成员。查看类操作成员即可；增删改分类与物资条目、数量变动日志均需 `materials:manage`（`project:manage` 等价放行，超管不受限）。实物清单与数字资源相互独立，在「物料」Tab 内通过视图切换访问。
 
 ### 数据类型
 
@@ -545,7 +562,7 @@ interface PhysicalSummary {
 
 ### 数量变动与日志
 
-- **POST /api/projects/:id/physical/items/:itemId/log**（成员）
+- **POST /api/projects/:id/physical/items/:itemId/log**（需 `materials:manage`）
   请求 `{ type: 'adjust_on_hand'|'adjust_used'|'adjust_lost'|'status_change', delta?: number, status?: PhysicalItemStatus, note? }`。数量类 `delta` 须为整数，结果不能为负；`status_change` 须带合法 `status`。每次成功记录一条日志（`status_change` 日志的 `status` 字段记录目标状态）。响应 200：`{ item: PhysicalItemItem }`
 - **GET /api/projects/:id/physical/items/:itemId/logs**（成员）
   按时间倒序，最多 100 条。响应 200：`{ logs: PhysicalLogItem[] }`

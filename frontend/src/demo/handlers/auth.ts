@@ -17,8 +17,14 @@ function userJson(u: DbUser) {
 export const authRoutes: Route[] = [
   // 演示登录：接受任意凭据
   def('POST', '/api/auth/login', async (ctx) => {
-    return json({ token: 'demo-token', user: userJson(currentUser(ctx.db)) });
+    return json({ token: 'demo-token', refreshToken: 'demo-refresh-token', user: userJson(currentUser(ctx.db)) });
   }),
+
+  // 演示 token 不过期，正常流程不会触发；兜底防登出
+  def('POST', '/api/auth/refresh', async (ctx) => {
+    return json({ token: 'demo-token', refreshToken: 'demo-refresh-token', user: userJson(currentUser(ctx.db)) });
+  }),
+  def('POST', '/api/auth/logout', async () => json({ ok: true })),
 
   // 演示环境关闭注册
   def('POST', '/api/auth/register', async () => {

@@ -34,18 +34,7 @@ export default defineConfig(({ mode }) => {
               },
               workbox: {
                 navigateFallback: '/index.html',
-                runtimeCaching: [
-                  {
-                    urlPattern: /\/api\/.*/,
-                    handler: 'NetworkFirst',
-                    method: 'GET',
-                    options: {
-                      cacheName: 'api-cache',
-                      networkTimeoutSeconds: 5,
-                      expiration: { maxAgeSeconds: 24 * 60 * 60 },
-                    },
-                  },
-                ],
+                navigateFallbackDenylist: [/^\/api\//],
               },
             }),
           ]),

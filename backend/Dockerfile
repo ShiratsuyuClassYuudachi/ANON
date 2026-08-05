@@ -14,6 +14,9 @@ WORKDIR /app
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./
+# 非 root 运行（node 用户）：upload 目录归属 node，避免 multer 暂存 EACCES
+RUN mkdir -p /app/uploads && chown -R node:node /app
+USER node
 EXPOSE 4000
 VOLUME ["/app/uploads"]
 CMD ["node", "dist/index.js"]

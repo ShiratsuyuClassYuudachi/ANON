@@ -11,17 +11,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="ANON" />
     <title>ANON</title>
-    <script>
-      try {
-        var mode = localStorage.getItem('anon-theme') || 'light';
-        var style = localStorage.getItem('anon-style') || 'minimal';
-        var el = document.documentElement;
-        if (mode === 'dark') el.classList.add('dark');
-        el.dataset.style = style;
-        var m = document.querySelector('meta[name=theme-color]');
-        if (m) m.content = mode === 'dark' ? '#111418' : '#f6f7f9';
-      } catch (e) {}
-    </script>
+    <!-- 主题初始化外置（public/theme-init.js）：同步加载防 FOUC，且不引入内联脚本，满足严格 CSP -->
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>

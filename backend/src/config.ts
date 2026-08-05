@@ -2,7 +2,7 @@ import 'dotenv/config';
 
 const isProd = process.env.NODE_ENV === 'production';
 const jwtSecret = process.env.JWT_SECRET ?? '';
-if (isProd && !jwtSecret) throw new Error('生产环境必须配置 JWT_SECRET');
+if (isProd && jwtSecret.length < 32) throw new Error('生产环境 JWT_SECRET 至少 32 字符');
 
 export const config = {
   port: Number(process.env.PORT ?? 4000),

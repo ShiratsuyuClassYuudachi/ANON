@@ -1,12 +1,12 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { api, getToken, setToken } from './api/client';
+import { api, getToken, setTokens } from './api/client';
 import type { User } from './types';
 
 interface AuthState {
   user: User | null;
   loading: boolean;
   trialExpiresAt: string | null;
-  login: (token: string, user: User, trialExpiresAt?: string | null) => void;
+  login: (token: string, user: User, trialExpiresAt?: string | null, refreshToken?: string) => void;
   logout: () => void;
   refresh: () => Promise<void>;
 }
@@ -47,13 +47,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         loading,
         trialExpiresAt,
-        login: (token, u, expiresAt) => {
-          setToken(token);
+        login: (token, u, expiresAt, refreshToken) => {
+          setTokens(token, refreshToken);
           setUser(u);
           setTrialExpiresAt(expiresAt ?? null);
         },
         logout: () => {
-          setToken(null);
+          // 服务端吊销 refresh token（失败不阻塞本地登出）
+          void fetch('/api/auth/logout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken: localStorage.getItem('anon-refresh-token') }),
+          }).catch(() => {});
+          setTokens(null, null);
+          if ('caches' in window) void caches.delete('api-cache'); // 清历史残留缓存
           setUser(null);
           setTrialExpiresAt(null);
         },

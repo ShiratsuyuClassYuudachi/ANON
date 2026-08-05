@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { ArrowRight, Download, MoreHorizontal, Paperclip, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { api, downloadFile, getToken } from '../../api/client';
+import { api, authorizedFetch, downloadFile } from '../../api/client';
 import { useAuth } from '../../auth';
 import type { FinanceSummary, Member, ProjectDetail, TransactionItem } from '../../types';
 import { FormOverlay } from '@/components/FormOverlay';
@@ -175,9 +175,7 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
     setErr('');
     try {
       const q = exportUserId ? `?userId=${exportUserId}` : '';
-      const res = await fetch(`/api/projects/${project.id}/finance/export${q}`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
-      });
+      const res = await authorizedFetch(`/api/projects/${project.id}/finance/export${q}`);
       if (!res.ok) throw new Error('导出失败');
       const url = URL.createObjectURL(await res.blob());
       const a = document.createElement('a');

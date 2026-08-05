@@ -482,9 +482,9 @@ export default function PhysicalTab({ project, members, myPermissions }: Props) 
                       {it.spec && <p className="mt-0.5 text-xs text-muted-foreground">{it.spec}</p>}
                     </div>
                     <div className="flex shrink-0 gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => openLog(it)} title="数量变动 / 记录"><History className="size-4" /></Button>
                       {canManage && (
                         <>
+                          <Button variant="ghost" size="icon" onClick={() => openLog(it)} title="数量变动 / 记录"><History className="size-4" /></Button>
                           <Button variant="ghost" size="sm" onClick={() => openEdit(it)}>编辑</Button>
                           <Button variant="ghost" size="icon" onClick={() => setDeleteItem(it)}><Trash2 className="size-4" /></Button>
                         </>

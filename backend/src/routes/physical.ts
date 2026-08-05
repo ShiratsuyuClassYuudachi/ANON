@@ -1,5 +1,5 @@
 import { Router, type Request } from 'express';
-import { Types } from 'mongoose';
+import { Types, isValidObjectId } from 'mongoose';
 import { authRequired } from '../middleware/auth';
 import { loadMembership, requirePermission } from '../middleware/projectAccess';
 import { Membership } from '../models/Membership';
@@ -146,9 +146,18 @@ physicalRouter.get(
   ah(async (req, res) => {
     const { categoryId, status, responsibleId, tag, sort, order } = req.query;
     const filter: Record<string, unknown> = { projectId: req.project!._id };
-    if (categoryId) filter.categoryId = categoryId;
+    if (categoryId) {
+      const cid = String(categoryId);
+      // 原值进 Mongo filter 可注入操作符（qs 可传 {$ne:...}）；先校验 ObjectId
+      if (!isValidObjectId(cid)) throw new AppError(400, 'bad_request', '筛选参数无效');
+      filter.categoryId = cid;
+    }
     if (status && PHYSICAL_ITEM_STATUSES.includes(status as PhysicalItemStatus)) filter.status = status;
-    if (responsibleId) filter.responsibleId = responsibleId;
+    if (responsibleId) {
+      const rid = String(responsibleId);
+      if (!isValidObjectId(rid)) throw new AppError(400, 'bad_request', '筛选参数无效');
+      filter.responsibleId = rid;
+    }
     if (tag) filter.tags = String(tag);
 
     const sortField = sort === 'status' ? 'status' : sort === 'plannedQty' ? 'plannedQty' : 'name';
@@ -277,6 +286,7 @@ physicalRouter.delete(
 
 physicalRouter.post(
   '/items/:itemId/log',
+  ...requirePermission('materials:manage'),
   ah(async (req, res) => {
     const it = await loadItem(req);
     const b = req.body ?? {};
