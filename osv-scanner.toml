@@ -1,0 +1,5 @@
+# osv-scanner 豁免清单（依赖扫描 CI 共用）
+# 新增豁免必须附 reason；只有「确认不可达或已规划升级」的漏洞才允许豁免。
+[[IgnoredVulns]]
+id = "GHSA-qwww-vcr4-c8h2"
+reason = "react-router RSC 模式专属 CSRF（官方注明仅影响 unstable RSC APIs）；本项目为纯客户端 SPA（无 RSC/SSR），代码路径不可达。修复版本 8.3.0 要求 React >=19.2.7，待整体升级 React 时解除"
