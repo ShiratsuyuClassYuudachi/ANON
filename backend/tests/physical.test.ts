@@ -94,10 +94,10 @@ describe('physical inventory', () => {
     expect(adj.status).toBe(200);
     expect(adj.body.item.onHandQty).toBe(8);
 
-    // staff 也可记日志（成员即可）
+    // 负值拒绝（管理者视角）
     const adj2 = await request(app)
       .post(`/api/projects/${projectId}/physical/items/${itemId}/log`)
-      .set('Authorization', `Bearer ${staff.token}`)
+      .set('Authorization', `Bearer ${owner.token}`)
       .send({ type: 'adjust_on_hand', delta: -10 });
     expect(adj2.status).toBe(400); // 不能为负
 
@@ -107,6 +107,31 @@ describe('physical inventory', () => {
     expect(logs.status).toBe(200);
     expect(logs.body.logs.length).toBe(1);
     expect(logs.body.logs[0].qty).toBe(8);
+  });
+
+  it('staff 无 materials:manage 不能记数量变动 log', async () => {
+    const cats = await request(app)
+      .get(`/api/projects/${projectId}/physical/categories`)
+      .set('Authorization', `Bearer ${owner.token}`);
+    const catId = cats.body.categories[0].id;
+    const item = await request(app)
+      .post(`/api/projects/${projectId}/physical/items`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ name: '隔离带', categoryId: catId });
+    const itemId = item.body.item.id;
+
+    const blocked = await request(app)
+      .post(`/api/projects/${projectId}/physical/items/${itemId}/log`)
+      .set('Authorization', `Bearer ${staff.token}`)
+      .send({ type: 'status_change', status: 'in_stock' });
+    expect(blocked.status).toBe(403);
+
+    // owner 仍可
+    const ok = await request(app)
+      .post(`/api/projects/${projectId}/physical/items/${itemId}/log`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ type: 'status_change', status: 'in_stock' });
+    expect(ok.status).toBe(200);
   });
 
   it('状态流转 log 更新 status', async () => {

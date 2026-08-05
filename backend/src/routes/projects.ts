@@ -249,13 +249,17 @@ projectsRouter.post(
     if (targetUserId && !(await User.exists({ _id: targetUserId }))) {
       throw new AppError(400, 'bad_request', '目标用户不存在');
     }
+    const hours = Number(expiresInHours ?? 72);
+    if (!Number.isFinite(hours) || hours <= 0 || hours > 720) {
+      throw new AppError(400, 'bad_request', '有效期需为 1~720 小时');
+    }
     const token = crypto.randomBytes(24).toString('hex');
     await ProjectInvite.create({
       projectId: req.project!._id,
       token,
       targetUserId: targetUserId || undefined,
       roleName: String(roleName),
-      expiresAt: new Date(Date.now() + Number(expiresInHours ?? 72) * 3600_000),
+      expiresAt: new Date(Date.now() + hours * 3600_000),
     });
     res.status(201).json({ token, url: `/invite/${token}` });
   }),

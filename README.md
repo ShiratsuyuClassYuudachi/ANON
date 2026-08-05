@@ -59,7 +59,7 @@
 
 ### 成员与权限
 
-邀请链接入项、预置/自定义角色与权限点；界面按权限过滤——成员只看到自己有权限的 Tab 与按钮。
+邀请链接入项、预置/自定义角色与权限点；界面按权限过滤——成员只看到自己有权限的 Tab 与按钮。安全特性：短期访问令牌 + refresh token 滚动轮换（30 天）、登录限流防撞库、安全响应头（CSP/nosniff/X-Frame-Options）、实物清单变动审计需 `materials:manage` 权限。
 
 ![成员 Tab](frontend/public/help/tab-members.png)
 
@@ -73,8 +73,8 @@
 
 ## 技术栈
 
-- **后端**：Express 4 + TypeScript + MongoDB（Mongoose 8），JWT 鉴权，vitest + mongodb-memory-server
-- **前端**：Vite 5 + React 18 + TypeScript + Tailwind CSS v4 + shadcn/ui（Radix）+ lucide-react + sonner
+- **后端**：Express 4 + TypeScript + MongoDB（Mongoose 8），JWT 鉴权（15 分钟 access + 轮换 refresh），登录限流，vitest + mongodb-memory-server
+- **前端**：Vite 6 + React 18 + TypeScript + Tailwind CSS v4 + shadcn/ui（Radix）+ lucide-react + sonner
 
 ## 快速开始
 

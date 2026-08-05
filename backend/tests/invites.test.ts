@@ -63,4 +63,24 @@ describe('project invites', () => {
       .set('Authorization', `Bearer ${guest.token}`);
     expect(again.status).toBe(410);
   });
+
+  it('expiresInHours 超出 1~720 范围返回 400', async () => {
+    const neg = await request(app)
+      .post(`/api/projects/${projectId}/invites`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ roleName: '一般staff', expiresInHours: -5 });
+    expect(neg.status).toBe(400);
+
+    const huge = await request(app)
+      .post(`/api/projects/${projectId}/invites`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ roleName: '一般staff', expiresInHours: 9999 });
+    expect(huge.status).toBe(400);
+
+    const nan = await request(app)
+      .post(`/api/projects/${projectId}/invites`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ roleName: '一般staff', expiresInHours: 'abc' });
+    expect(nan.status).toBe(400);
+  });
 });

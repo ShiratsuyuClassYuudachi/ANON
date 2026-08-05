@@ -28,8 +28,8 @@ export default function Login() {
     setErr('');
     setBusy(true);
     try {
-      const d = await api<{ token: string; user: User; trialExpiresAt?: string }>('/api/auth/login', { body: { email: em, password: pw } });
-      login(d.token, d.user, d.trialExpiresAt ?? null);
+      const d = await api<{ token: string; user: User; trialExpiresAt?: string; refreshToken?: string }>('/api/auth/login', { body: { email: em, password: pw } });
+      login(d.token, d.user, d.trialExpiresAt ?? null, d.refreshToken);
       nav(from, { replace: true });
     } catch (e2) {
       setErr((e2 as Error).message);

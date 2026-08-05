@@ -26,10 +26,10 @@ export default function Register() {
     setErr('');
     setBusy(true);
     try {
-      const d = await api<{ token: string; user: User }>('/api/auth/register', {
+      const d = await api<{ token: string; user: User; refreshToken?: string }>('/api/auth/register', {
         body: { ...form, inviteCode: form.inviteCode || undefined },
       });
-      login(d.token, d.user);
+      login(d.token, d.user, null, d.refreshToken);
       nav((location.state as any)?.from ?? '/projects', { replace: true });
     } catch (e2) {
       setErr((e2 as Error).message);

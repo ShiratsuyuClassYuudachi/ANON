@@ -14,6 +14,24 @@ import { AppError } from '../utils/errors';
 export const announcementsRouter = Router({ mergeParams: true });
 announcementsRouter.use(authRequired, loadMembership);
 
+const TYPES = ['normal', 'important', 'emergency'] as const;
+
+function parseVisibility(v: unknown): { userIds: string[]; roleNames: string[] } | undefined {
+  if (v === undefined) return undefined;
+  const o = (v ?? {}) as { userIds?: unknown; roleNames?: unknown };
+  return {
+    userIds: Array.isArray(o.userIds) ? o.userIds.map(String) : [],
+    roleNames: Array.isArray(o.roleNames) ? o.roleNames.map(String) : [],
+  };
+}
+
+function parseExpiresAt(v: unknown): Date | undefined {
+  if (!v) return undefined;
+  const d = new Date(String(v));
+  if (Number.isNaN(d.getTime())) throw new AppError(400, 'bad_request', '截止时间无效');
+  return d;
+}
+
 function viewerOf(req: Express.Request): Viewer {
   return {
     userId: req.userId!,
@@ -33,25 +51,23 @@ announcementsRouter.get(
     const filter: Record<string, unknown> = { projectId: req.project!._id };
     if (!includeExpired) filter.$or = [{ expiresAt: { $exists: false } }, { expiresAt: null }, { expiresAt: { $gt: new Date() } }];
 
-    const total = await Announcement.countDocuments(filter);
-    const docs = await Announcement.find(filter)
-      .sort({ isPinned: -1, publishedAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .lean();
-
+    // 先取全部匹配再按可见性过滤：total=当前用户可见总数，且不泄露不可见公告数量
+    const docs = await Announcement.find(filter).sort({ isPinned: -1, publishedAt: -1 }).lean();
     const visible = docs.filter((a) => canSee(viewer, a.visibility));
-    const pubIds = [...new Set(visible.map((a) => a.publishedBy.toString()))];
+    const total = visible.length;
+    const paged = visible.slice((page - 1) * limit, page * limit);
+
+    const pubIds = [...new Set(paged.map((a) => a.publishedBy.toString()))];
     const users = await User.find({ _id: { $in: pubIds } }).lean();
     const nameMap = new Map(users.map((u) => [u._id.toString(), u.name]));
 
     const myConfirms = await AnnouncementConfirmation.find({
-      announcementId: { $in: visible.map((a) => a._id) },
+      announcementId: { $in: paged.map((a) => a._id) },
       userId: req.userId,
     }).lean();
     const confirmedSet = new Set(myConfirms.map((c) => c.announcementId.toString()));
 
-    const announcements = visible.map((a) => ({
+    const announcements = paged.map((a) => ({
       id: a._id.toString(),
       title: a.title,
       content: a.content,
@@ -74,6 +90,7 @@ announcementsRouter.post(
   ah(async (req, res) => {
     const { title, content, type, isPinned, requireConfirmation, visibility, expiresAt } = req.body ?? {};
     if (!title || !String(title).trim()) throw new AppError(400, 'bad_request', '标题必填');
+    if (type !== undefined && !TYPES.includes(type)) throw new AppError(400, 'bad_request', '公告类型无效');
     const a = await Announcement.create({
       projectId: req.project!._id,
       title: String(title).trim(),
@@ -81,10 +98,10 @@ announcementsRouter.post(
       type: type ?? 'normal',
       isPinned: !!isPinned,
       requireConfirmation: !!requireConfirmation,
-      visibility: visibility ?? { userIds: [], roleNames: [] },
+      visibility: parseVisibility(visibility) ?? { userIds: [], roleNames: [] },
       publishedBy: req.userId,
       publishedAt: new Date(),
-      expiresAt: expiresAt ? new Date(expiresAt) : undefined,
+      expiresAt: parseExpiresAt(expiresAt),
     });
     logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'announcement:publish', message: `${req.user!.name}发布了公告「${a.title}」`, sourceType: 'announcement', sourceId: a._id });
     if (a.type === 'important' || a.type === 'emergency') {
@@ -121,11 +138,17 @@ announcementsRouter.patch(
     const { title, content, type, isPinned, requireConfirmation, visibility, expiresAt } = req.body ?? {};
     if (title !== undefined) a.title = String(title).trim();
     if (content !== undefined) a.content = String(content);
-    if (type !== undefined) a.type = type;
+    if (type !== undefined) {
+      if (!TYPES.includes(type)) throw new AppError(400, 'bad_request', '公告类型无效');
+      a.type = type;
+    }
     if (isPinned !== undefined) a.isPinned = !!isPinned;
     if (requireConfirmation !== undefined) a.requireConfirmation = !!requireConfirmation;
-    if (visibility !== undefined) a.visibility = visibility;
-    if (expiresAt !== undefined) a.expiresAt = expiresAt ? new Date(expiresAt) : undefined;
+    if (visibility !== undefined) {
+      const parsed = parseVisibility(visibility); // null → 空数组（全员可见），结构正规化
+      if (parsed) a.visibility = parsed as never; // mongoose 运行期把 string[] cast 成 ObjectId[]（同 materials.ts）
+    }
+    if (expiresAt !== undefined) a.expiresAt = parseExpiresAt(expiresAt);
     await a.save();
     res.json({ ok: true });
   }),

@@ -42,6 +42,11 @@ self.addEventListener('notificationclick', (event) => {
     }),
   );
 });
+
+// 清历史 api-cache 运行时缓存（workbox 的 cleanupOutdatedCaches 只清 precache）
+self.addEventListener('activate', (event) => {
+  event.waitUntil(caches.delete('api-cache').catch(() => false));
+});
 `;
 
 const sw = await readFile(swPath, 'utf8');

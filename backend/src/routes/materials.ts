@@ -13,6 +13,9 @@ import { canSee, type Viewer } from '../services/visibility';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
 
+// 仅位图格式允许内联预览；SVG 等 image/* 可携带脚本，避免同源存储型 XSS 面
+const PREVIEW_MIMES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
+
 export const materialsRouter = Router({ mergeParams: true });
 materialsRouter.use(authRequired, loadMembership);
 
@@ -192,7 +195,7 @@ materialsRouter.post(
       let latest: ResourceVersionDoc | null = null;
       if (req.file) {
         // 预览生成需要读本地暂存文件，必须在 persistUploads（S3 模式会删除暂存）之前
-        previewRef = req.file.mimetype.startsWith('image/')
+        previewRef = PREVIEW_MIMES.has(req.file.mimetype)
           ? await generatePreview(req.file.path)
           : null;
         [fileDoc] = await persistUploads([req.file], req.project!._id, req.userId);
@@ -292,7 +295,7 @@ materialsRouter.post(
       });
       if (!resource) throw new AppError(404, 'not_found', '资源不存在');
       if (!req.file) throw new AppError(400, 'bad_request', '缺少文件');
-      previewRef = req.file.mimetype.startsWith('image/')
+      previewRef = PREVIEW_MIMES.has(req.file.mimetype)
         ? await generatePreview(req.file.path)
         : null;
       [fileDoc] = await persistUploads([req.file], req.project!._id, req.userId);
@@ -355,7 +358,7 @@ materialsRouter.get(
       return;
     }
     const file = await File.findById(v.fileId);
-    if (file?.mime.startsWith('image/')) {
+    if (file && PREVIEW_MIMES.has(file.mime)) {
       await sendStoredFile(res, file.path);
       return;
     }
@@ -374,7 +377,7 @@ materialsRouter.get(
       return;
     }
     const file = await File.findById(latest.fileId);
-    if (file?.mime.startsWith('image/')) {
+    if (file && PREVIEW_MIMES.has(file.mime)) {
       await sendStoredFile(res, file.path);
       return;
     }
