@@ -12,6 +12,7 @@ export const ALL_PERMISSIONS = [
   'accounts:manage',
   'work:manage',
   'announcement:manage',
+  'tools:manage',
 ] as const;
 
 export type Permission = (typeof ALL_PERMISSIONS)[number];

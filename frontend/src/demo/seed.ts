@@ -2,7 +2,7 @@ import { encryptWithPassphrase } from '../crypto';
 import type { Db, DbProject, DbStage, DbUser } from './types';
 
 /** 种子结构版本：变更时递增，旧会话数据自动作废重种，防 schema 漂移 */
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 
 // 种子数据：全部日期相对构建时刻（new Date()）计算，保证演示站任何时候打开都「正在进行中」。
 
@@ -426,6 +426,21 @@ export async function buildSeed(): Promise<Db> {
     { id: 'i-01', projectId: 'p-demo', moduleId: 'wm-01', category: 'equipment', note: '排插数量不足，需再备 2 个', reporterId: 'u-04', status: 'open', createdAt: rel(-1, -3) },
   ];
 
+  const stageRundowns: Db['stageRundowns'] = [
+    {
+      id: 'sr-01', projectId: 'p-demo', name: 'Day1 主舞台', startAt: dayAt(21, 10), note: '主舞台 A 区，提前 30 分钟候场',
+      items: [
+        { id: 'sri-01', name: '开场舞《跃动晴空》', durationMin: 12, participants: [{ cn: '阿喵', contact: 'QQ 11001001' }, { cn: '露露', contact: '微信 lulu_dance' }], attachmentIds: [], note: '开场即满功率，音响推满' },
+        { id: 'sri-02', name: '宅歌连唱', durationMin: 20, participants: [{ cn: '千羽', contact: '微信 qianyu_live' }], attachmentIds: [], note: '' },
+        { id: 'sri-03', name: 'COS 走秀（社团专场）', durationMin: 25, participants: [{ cn: '老白', contact: '' }, { cn: '苏苏', contact: 'QQ 33003300' }, { cn: '阿桔', contact: '' }], attachmentIds: [], note: '按报名表顺序出场' },
+        { id: 'sri-04', name: '嘉宾见面会 · 签售', durationMin: 40, participants: [{ cn: '星野（特邀）', contact: '经纪人 13800001111' }], attachmentIds: [], note: '签售物料提前摆台' },
+        { id: 'sri-05', name: '随机宅舞', durationMin: 30, participants: [{ cn: '全场自由上台', contact: '' }], attachmentIds: [], note: '歌单 B 盘，主持人口播规则' },
+        { id: 'sri-06', name: '闭幕合唱《给明天的信》', durationMin: 10, participants: [{ cn: '全体成员', contact: '' }], attachmentIds: [], note: '' },
+      ],
+      createdBy: 'u-demo', createdAt: rel(-3), updatedAt: rel(-3),
+    },
+  ];
+
   const dashboardPreferences: Db['dashboardPreferences'] = [
     { userId: 'u-demo', projectId: 'p-demo', defaultView: 'project', collapsedCards: [], hiddenCards: [], scheduleRange: 7, cardOrder: [] },
   ];
@@ -456,6 +471,7 @@ export async function buildSeed(): Promise<Db> {
     activities,
     milestones,
     incidents,
+    stageRundowns,
     dashboardPreferences,
     inviteCodes,
     invites: [],

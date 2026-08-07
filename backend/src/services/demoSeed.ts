@@ -25,6 +25,7 @@ import { Resource } from '../models/Resource';
 import { ResourceType } from '../models/ResourceType';
 import { ResourceVersion } from '../models/ResourceVersion';
 import { RiskInstance } from '../models/RiskInstance';
+import { StageRundown } from '../models/StageRundown';
 import { Todo } from '../models/Todo';
 import { Transaction } from '../models/Transaction';
 import { User } from '../models/User';
@@ -332,6 +333,26 @@ export async function seedDemoData(opts: DemoSeedOptions): Promise<DemoSeedResul
     { _id: oid(), projectId, itemId: piItems[6]._id, type: 'adjust_lost', qty: 1, note: '运输损坏', operatorId: artId, createdAt: new Date(now.getTime() - 2 * 86400000) },
   ]);
 
+  // --- Stage Rundown（实用工具） ---
+  await db.collection('stagerundowns').insertOne({
+    _id: oid(),
+    projectId,
+    name: 'Day1 主舞台',
+    startAt: new Date('2026-10-17T10:00:00+08:00'),
+    note: '主舞台 A 区，提前 30 分钟候场',
+    items: [
+      { _id: oid(), name: '开场舞《跃动晴空》', durationMin: 12, participants: [{ cn: '阿喵', contact: 'QQ 11001001' }, { cn: '露露', contact: '微信 lulu_dance' }], attachmentIds: [], note: '开场即满功率，音响推满' },
+      { _id: oid(), name: '宅歌连唱', durationMin: 20, participants: [{ cn: '千羽', contact: '微信 qianyu_live' }], attachmentIds: [], note: '' },
+      { _id: oid(), name: 'COS 走秀（社团专场）', durationMin: 25, participants: [{ cn: '老白', contact: '' }, { cn: '苏苏', contact: 'QQ 33003300' }, { cn: '阿桔', contact: '' }], attachmentIds: [], note: '按报名表顺序出场' },
+      { _id: oid(), name: '嘉宾见面会 · 签售', durationMin: 40, participants: [{ cn: '星野（特邀）', contact: '经纪人 13800001111' }], attachmentIds: [], note: '签售物料提前摆台' },
+      { _id: oid(), name: '随机宅舞', durationMin: 30, participants: [{ cn: '全场自由上台', contact: '' }], attachmentIds: [], note: '歌单 B 盘，主持人口播规则' },
+      { _id: oid(), name: '闭幕合唱《给明天的信》', durationMin: 10, participants: [{ cn: '全体成员', contact: '' }], attachmentIds: [], note: '' },
+    ],
+    createdBy: adminId,
+    createdAt: now,
+    updatedAt: now,
+  });
+
   // --- Invite Code（仅 CLI 演示创建；不写 used/usedBy/usedAt，注册逻辑按 usedBy 不存在判定未用） ---
   if (opts.inviteCode) {
     await db.collection('invitecodes').insertOne({
@@ -376,6 +397,7 @@ export async function deleteDemoData(ref: {
     ResourceType, Todo, Transaction, PlatformAccount, WorkModule, Announcement,
     AnnouncementConfirmation, Activity, Milestone, RiskInstance, DashboardPreference,
     Incident, PhysicalCategory, PhysicalItem, PhysicalItemLog, ProjectInvite, WeeklyReportLog,
+    StageRundown,
   ];
   for (const m of projectScoped) await m.deleteMany({ projectId });
   await Project.deleteMany({ _id: projectId });
