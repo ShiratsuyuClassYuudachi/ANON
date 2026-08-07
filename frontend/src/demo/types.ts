@@ -283,6 +283,27 @@ export interface DbDashboardPreference {
   cardOrder: string[];
 }
 
+export interface DbStageRundownItem {
+  id: string;
+  name: string;
+  durationMin: number;
+  participants: { cn: string; contact: string }[];
+  attachmentIds: string[];
+  note: string;
+}
+
+export interface DbStageRundown {
+  id: string;
+  projectId: string;
+  name: string;
+  startAt: string;
+  note: string;
+  items: DbStageRundownItem[];
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface DbInviteCode {
   id: string;
   code: string;
@@ -320,6 +341,7 @@ export interface Db {
   activities: DbActivity[];
   milestones: DbMilestone[];
   incidents: DbIncident[];
+  stageRundowns: DbStageRundown[];
   dashboardPreferences: DbDashboardPreference[];
   inviteCodes: DbInviteCode[];
   invites: DbProjectInvite[];

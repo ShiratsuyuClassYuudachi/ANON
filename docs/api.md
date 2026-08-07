@@ -35,7 +35,7 @@ interface TodoItem {
 interface FileMeta { id: string; filename: string; mime: string; size: number }
 ```
 
-权限点全集：`project:manage`、`member:manage`、`role:manage`、`todo:create`、`todo:manage`、`todo:complete`、`file:upload`、`finance:manage`、`finance:add`、`materials:manage`、`accounts:manage`、`work:manage`、`announcement:manage`（`finance:manage` 起为第二阶段新增，`finance:add` 为财务权限拆分新增，`work:manage` 为现场任务单新增，`todo:create` 为待办流程优化新增，`announcement:manage` 为公告管理新增）。
+权限点全集：`project:manage`、`member:manage`、`role:manage`、`todo:create`、`todo:manage`、`todo:complete`、`file:upload`、`finance:manage`、`finance:add`、`materials:manage`、`accounts:manage`、`work:manage`、`announcement:manage`、`tools:manage`（`finance:manage` 起为第二阶段新增，`finance:add` 为财务权限拆分新增，`work:manage` 为现场任务单新增，`todo:create` 为待办流程优化新增，`announcement:manage` 为公告管理新增，`tools:manage` 为实用工具新增）。
 `project:manage` 等价于拥有全部权限；超级管理员在所有项目中视为拥有全部权限。
 
 预置角色：主办=全部权限；美工/宣发=`file:upload, todo:create, todo:complete, finance:add`；一般staff=`todo:create, todo:complete, finance:add`。既有项目的角色是创建时快照，不含新权限点；可经 `project:manage` 放行或在角色 Tab 勾选补全。
@@ -685,3 +685,86 @@ interface WorkSheetData {
 错误：403 `forbidden`；404 `not_found`（该用户不是项目成员）
 
 前端说明：项目工作台新增「现场」Tab（`WorkTab.tsx`）：模块列表/新建/编辑/删除、成员确认与代确认、打印入口。打印版式页 `/p/:id/work-sheet/print?user=me|<userId>|all`（`WorkSheetPrint.tsx`）：A4 表格（模块/时间/地点/工作内容/确认状态）+ 签字日期栏，`user=all` 时每人一页分页连排，浏览器打印或另存为 PDF。
+
+## 舞台 Rundown（实用工具）
+
+挂载于 `/api/projects/:id/stage-rundowns`，需登录且为项目成员。查看类操作成员即可；Rundown 与节目的增删改、排序均需 `tools:manage`（`project:manage` 等价放行，超管不受限）。每项目可建多份 Rundown（如 Day1/Day2、主/副舞台）。
+
+### 数据类型
+
+```ts
+interface StageParticipant { cn: string; contact: string }
+interface StageRundownAttachment { id: string; filename: string; mime: string; size: number }
+interface StageRundownItem {
+  id: string; name: string; durationMin: number;
+  participants: StageParticipant[]; attachments: StageRundownAttachment[]; note: string;
+}
+interface StageRundown {
+  id: string; name: string; startAt: string; note: string;
+  items: StageRundownItem[]; createdBy: string; createdAt: string; updatedAt: string;
+}
+interface StageRundownSummary {
+  id: string; name: string; startAt: string; note: string;
+  itemCount: number; totalDurationMin: number; createdAt: string; updatedAt: string;
+}
+```
+
+节目顺序即 `items` 数组下标（无独立 order 字段）；每个节目的起止时间由前端自 `startAt` 逐项累加 `durationMin` 推算。素材文件复用 File 模型与 `GET /api/files/:id` 下载。
+
+### GET /api/projects/:id/stage-rundowns
+
+成员。响应 200：`{ rundowns: StageRundownSummary[] }`（按 `startAt`、`createdAt` 升序；`totalDurationMin` 为全部节目时长之和）
+
+### POST /api/projects/:id/stage-rundowns（tools:manage）
+
+请求：`{ name: string, startAt: string, note?: string }`
+校验：`name` trim 后非空；`startAt` 须为可解析时间。
+响应 201：`{ rundown: StageRundown }`（items 为空数组）
+错误：400 `bad_request`；403 `forbidden`
+
+### GET /api/projects/:id/stage-rundowns/:rid
+
+成员。响应 200：`{ rundown: StageRundown }`（附件已解析为 StageRundownAttachment；缺失文件 id 跳过）
+错误：404 `not_found`（含跨项目 rid）
+
+### PATCH /api/projects/:id/stage-rundowns/:rid（tools:manage）
+
+请求字段同 POST（均可选）；`name` 提供但 trim 后为空、`startAt` 提供但不可解析 → 400。
+响应 200：`{ rundown: StageRundown }`
+错误：400 `bad_request`；403 `forbidden`；404 `not_found`
+
+### DELETE /api/projects/:id/stage-rundowns/:rid（tools:manage）
+
+级联删除全部节目的素材文件（存储对象 + File 文档）。
+响应 200：`{ ok: true }`
+错误：403 `forbidden`；404 `not_found`
+
+### POST /api/projects/:id/stage-rundowns/:rid/items（tools:manage）
+
+multipart/form-data（`files` 最多 10 个，单个 ≤ 20MB）。字段：
+- `name`：必填，trim 后非空
+- `durationMin`：必填，1–1440 的整数（否则 400「时长必须为 1–1440 分钟的整数」）
+- `participants`：可选，JSON 字符串数组 `[{ cn, contact }]`；解析失败或非数组 400；仅保留 `cn` trim 非空项，`contact` 缺省 `''`
+- `note`：可选
+
+上传文件按顺序落库为 File 文档并记为节目附件。
+响应 201：`{ item: StageRundownItem }`
+错误：400 `bad_request`；403 `forbidden`；404 `not_found`
+
+### PATCH /api/projects/:id/stage-rundowns/:rid/items/:itemId（tools:manage）
+
+multipart/form-data，字段同 POST（均可选），另支持 `removeAttachmentIds`（JSON 字符串数组）：命中的附件从节目移除并级联删除存储对象与 File 文档；新上传文件追加在附件列表末尾。
+响应 200：`{ item: StageRundownItem }`
+错误：400 `bad_request`；403 `forbidden`；404 `not_found`
+
+### DELETE /api/projects/:id/stage-rundowns/:rid/items/:itemId（tools:manage）
+
+删除节目并级联清理其附件文件。
+响应 200：`{ ok: true }`
+错误：403 `forbidden`；404 `not_found`
+
+### PATCH /api/projects/:id/stage-rundowns/:rid/items/reorder（tools:manage）
+
+请求：`{ order: string[] }`：必须与现有节目一一对应（长度相等、id 集合完全相同），否则 400「order 必须与现有节目一一对应」。按 order 重排 items 数组。
+响应 200：`{ rundown: StageRundown }`
+错误：400 `bad_request`；403 `forbidden`；404 `not_found`

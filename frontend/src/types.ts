@@ -231,3 +231,20 @@ export interface PhysicalSummary {
   total: { planned: number; onHand: number; used: number; lost: number; count: number };
   byCategory: { categoryId: string; planned: number; onHand: number; used: number; lost: number; count: number }[];
 }
+
+// --- Tools (实用工具) · 舞台 Rundown ---
+
+export interface StageParticipant { cn: string; contact: string }
+export interface StageRundownAttachment { id: string; filename: string; mime: string; size: number }
+export interface StageRundownItem {
+  id: string; name: string; durationMin: number;
+  participants: StageParticipant[]; attachments: StageRundownAttachment[]; note: string;
+}
+export interface StageRundown {
+  id: string; name: string; startAt: string; note: string;
+  items: StageRundownItem[]; createdBy: string; createdAt: string; updatedAt: string;
+}
+export interface StageRundownSummary {
+  id: string; name: string; startAt: string; note: string;
+  itemCount: number; totalDurationMin: number; createdAt: string; updatedAt: string;
+}

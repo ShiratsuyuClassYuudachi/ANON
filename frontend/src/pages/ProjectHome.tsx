@@ -12,6 +12,7 @@ import {
   Smartphone,
   Users,
   Wallet,
+  Wrench,
 } from 'lucide-react';
 import { api } from '../api/client';
 import AccountsTab from '../components/project/AccountsTab';
@@ -22,6 +23,7 @@ import MembersTab from '../components/project/MembersTab';
 import RolesTab from '../components/project/RolesTab';
 import SettingsTab from '../components/project/SettingsTab';
 import TodosTab from '../components/project/TodosTab';
+import ToolsTab from '../components/project/ToolsTab';
 import WorkTab from '../components/project/WorkTab';
 import type { Member, ProjectDetail } from '../types';
 import { Badge } from '@/components/ui/badge';
@@ -44,6 +46,7 @@ const TABS = [
   { key: 'materials', label: '物料', icon: FolderOpen, visible: () => true },
   { key: 'accounts', label: '账号', icon: KeyRound, visible: () => true },
   { key: 'work', label: '现场', icon: ClipboardList, visible: () => true },
+  { key: 'tools', label: '工具', icon: Wrench, visible: () => true },
   { key: 'members', label: '成员', icon: Users, visible: () => true },
   { key: 'roles', label: '角色', icon: Shield, visible: (p: string[]) => hasAny(p, ['project:manage', 'role:manage']) },
   { key: 'settings', label: '设置', icon: Settings, visible: (p: string[]) => p.includes('project:manage') },
@@ -157,6 +160,9 @@ export default function ProjectHome() {
         )}
         {activeTab === 'work' && (
           <WorkTab project={detail.project} members={detail.members} myPermissions={detail.myPermissions} />
+        )}
+        {activeTab === 'tools' && (
+          <ToolsTab project={detail.project} myPermissions={detail.myPermissions} />
         )}
         {activeTab === 'members' && (
           <MembersTab
