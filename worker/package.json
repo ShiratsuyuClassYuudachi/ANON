@@ -1,0 +1,11 @@
+{
+  "name": "anon-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "sh -c \"rm -rf .deploy-assets && cp -r ../frontend/dist .deploy-assets && rm -f .deploy-assets/_redirects && wrangler deploy && rm -rf .deploy-assets\""
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

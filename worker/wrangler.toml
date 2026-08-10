@@ -1,0 +1,19 @@
+name = "anon-app"
+main = "src/index.js"
+compatibility_date = "2026-08-10"
+
+# 回源主机:origin.anontokyo.design(CNAME -> anon.anontokyo.design,DDNS IP 自动跟随,橙云保证 zone 规则生效:
+# destination port=30362 + SSL=Full)。源站 NPMplus 需为该主机名配虚拟主机(指向应用,同 anon.anontokyo.design)
+[vars]
+ORIGIN = "https://origin.anontokyo.design"
+
+# 自定义域名 app.anontokyo.design 已在 CF 侧(Workers Domains)绑定,不写入 routes 配置——
+# 写 routes 会触发 wrangler 对 zone workers/routes 的读对账,要求额外的 Zone Workers Routes 权限
+
+# 静态资产 = 前端生产构建产物的干净副本(deploy 脚本生成,剔除 Pages 专用 _redirects,
+# 后者与 SPA not_found_handling 组合会触发 CF API 的无限重定向校验);run_worker_first 让 /api 先经 Worker 判定
+[assets]
+directory = ".deploy-assets"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = true
