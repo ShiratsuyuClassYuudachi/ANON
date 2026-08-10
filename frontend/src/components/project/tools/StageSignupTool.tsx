@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { ArrowLeft, Import, MoreHorizontal, Plus } from 'lucide-react';
+import { ArrowLeft, Check, ChevronLeft, Import, MoreHorizontal, Plus, Trash2, Vote, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../../api/client';
+import { useAuth } from '../../../auth';
 import { fmtLocal, toLocalInput } from '../../../lib/datetime';
 import type {
   ProjectDetail,
@@ -29,9 +30,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
@@ -39,6 +37,7 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import SignupItemDialog from './SignupItemDialog';
 import SignupReviewDialog from './SignupReviewDialog';
+import SwipeRow, { type SwipeAction } from './SwipeRow';
 import { computeSchedule, hhmm } from './rundownExport';
 
 interface Props {
@@ -152,6 +151,7 @@ function SignupItemRow({
   checked,
   onCheckedChange,
   canManage,
+  voted,
   onReview,
   onStatus,
   onEdit,
@@ -162,92 +162,141 @@ function SignupItemRow({
   checked: boolean;
   onCheckedChange: (v: boolean) => void;
   canManage: boolean;
+  voted: boolean;
   onReview: () => void;
   onStatus: (status: StageSignupItem['status']) => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
   const contacts = item.participants.filter((p) => p.contact);
-  return (
-    <Card>
-      <CardContent className="flex items-start gap-2 p-3">
-        <Checkbox
-          className="mt-1 shrink-0"
-          checked={checked}
-          onCheckedChange={(v) => onCheckedChange(v === true)}
-          aria-label={`选择 ${item.name}`}
-        />
-        <div className="min-w-0 flex-1 space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium">{item.name}</span>
-            {dup && (
-              <Badge variant="outline" className="border-amber-500/50 text-amber-600 dark:text-amber-400">
-                撞名
-              </Badge>
-            )}
-            <Badge variant={STATUS_VARIANT[item.status]}>{STATUS_LABEL[item.status]}</Badge>
-            <span className="text-sm text-muted-foreground">{item.durationMin} 分钟</span>
-          </div>
-          {item.participants.length > 0 && (
-            <p className="text-sm text-muted-foreground">
-              报名：{item.participants.map((p) => p.cn).join('、')}
-              {contacts.length > 0 && `（${contacts.map((p) => `${p.cn} ${p.contact}`).join('；')}）`}
-            </p>
+  const content = (
+    <CardContent className="flex items-start gap-2 p-3">
+      <Checkbox
+        className="mt-1 shrink-0"
+        checked={checked}
+        onCheckedChange={(v) => onCheckedChange(v === true)}
+        aria-label={`选择 ${item.name}`}
+      />
+      <div className="min-w-0 flex-1 space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-medium">{item.name}</span>
+          {dup && (
+            <Badge variant="outline" className="border-amber-500/50 text-amber-600 dark:text-amber-400">
+              撞名
+            </Badge>
           )}
-          {item.note && <p className="text-sm text-muted-foreground">{item.note}</p>}
-          {item.reviews.length > 0 && (
-            <div className="space-y-1">
-              {item.reviews.map((r) => (
-                <p key={r.userId} className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
-                  <Badge
-                    variant="outline"
-                    className={
-                      r.decision === 'approve'
-                        ? 'border-green-600/40 text-green-600 dark:text-green-400'
-                        : 'border-destructive/40 text-destructive'
-                    }
-                  >
-                    {r.decision === 'approve' ? '赞成' : '反对'}
-                  </Badge>
-                  <span>{r.userName}</span>
-                  {r.comment && <span>· {r.comment}</span>}
-                  <span>· {fmtLocal(r.updatedAt)}</span>
-                </p>
-              ))}
-            </div>
-          )}
+          <Badge variant={STATUS_VARIANT[item.status]}>{STATUS_LABEL[item.status]}</Badge>
+          <span className="text-sm text-muted-foreground">{item.durationMin} 分钟</span>
         </div>
-        {canManage && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label={`节目操作 ${item.name}`}>
-                <MoreHorizontal className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={onReview}>投票</DropdownMenuItem>
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>拍板</DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <DropdownMenuItem onClick={() => onStatus('pending')}>待审</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => onStatus('approved')}>通过</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => onStatus('rejected')}>不通过</DropdownMenuItem>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-              <DropdownMenuItem onClick={onEdit}>编辑</DropdownMenuItem>
-              <DropdownMenuItem className="text-destructive" onClick={onDelete}>
-                删除
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+        {item.participants.length > 0 && (
+          <p className="text-sm text-muted-foreground">
+            报名：{item.participants.map((p) => p.cn).join('、')}
+            {contacts.length > 0 && `（${contacts.map((p) => `${p.cn} ${p.contact}`).join('；')}）`}
+          </p>
         )}
-      </CardContent>
-    </Card>
+        {item.note && <p className="text-sm text-muted-foreground">{item.note}</p>}
+        {item.reviews.length > 0 && (
+          <div className="space-y-1">
+            {item.reviews.map((r) => (
+              <p key={r.userId} className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+                <Badge
+                  variant="outline"
+                  className={
+                    r.decision === 'approve'
+                      ? 'border-green-600/40 text-green-600 dark:text-green-400'
+                      : 'border-destructive/40 text-destructive'
+                  }
+                >
+                  {r.decision === 'approve' ? '赞成' : '反对'}
+                </Badge>
+                <span>{r.userName}</span>
+                {r.comment && <span>· {r.comment}</span>}
+                <span>· {fmtLocal(r.updatedAt)}</span>
+              </p>
+            ))}
+          </div>
+        )}
+      </div>
+    </CardContent>
+  );
+
+  if (!canManage) return <Card>{content}</Card>;
+
+  const swipeActions: SwipeAction[] = [
+    {
+      key: 'approve',
+      label: '通过',
+      ariaLabel: `拍板通过 ${item.name}`,
+      icon: <Check className="size-5" />,
+      className: 'bg-green-600 text-white',
+      onClick: () => onStatus('approved'),
+    },
+    {
+      key: 'reject',
+      label: '不通过',
+      ariaLabel: `拍板不通过 ${item.name}`,
+      icon: <X className="size-5" />,
+      className: 'bg-destructive text-white',
+      onClick: () => onStatus('rejected'),
+    },
+    {
+      key: 'remove',
+      label: '移除',
+      ariaLabel: `移除 ${item.name}`,
+      icon: <Trash2 className="size-5" />,
+      className: 'bg-zinc-500 text-white dark:bg-zinc-600',
+      onClick: onDelete,
+    },
+  ];
+
+  return (
+    <SwipeRow actions={swipeActions}>
+      {(ctl) => (
+        <Card>
+          <div className="flex items-start">
+            <div className="min-w-0 flex-1">{content}</div>
+            <div className="flex shrink-0 flex-col items-end gap-1 p-3 pl-0 sm:flex-row sm:items-center">
+              <Button variant="outline" size="sm" onClick={onReview}>
+                <Vote className="size-4" /> {voted ? '改投' : '投票'}
+              </Button>
+              <div className="flex items-center">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`展开操作 ${item.name}`}
+                  aria-expanded={ctl.open}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    ctl.toggle();
+                  }}
+                >
+                  <ChevronLeft className={`size-4 transition-transform ${ctl.open ? 'rotate-180' : ''}`} />
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" aria-label={`节目操作 ${item.name}`}>
+                      <MoreHorizontal className="size-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={onEdit}>编辑</DropdownMenuItem>
+                    {item.status !== 'pending' && (
+                      <DropdownMenuItem onClick={() => onStatus('pending')}>重置待审</DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+    </SwipeRow>
   );
 }
 
 export default function StageSignupTool({ project, myPermissions }: Props) {
   const canManage = myPermissions.includes('project:manage') || myPermissions.includes('tools:manage');
+  const { user } = useAuth();
   const base = `/api/projects/${project.id}/stage-signups`;
 
   const [signups, setSignups] = useState<StageSignupSummary[] | null>(null);
@@ -536,6 +585,7 @@ export default function StageSignupTool({ project, myPermissions }: Props) {
                 checked={checked.has(it.id)}
                 onCheckedChange={(v) => toggleChecked(it.id, v)}
                 canManage={canManage}
+                voted={!!user && it.reviews.some((r) => r.userId === user.id)}
                 onReview={() => {
                   setReviewItem(it);
                   setReviewOpen(true);
