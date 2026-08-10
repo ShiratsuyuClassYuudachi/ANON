@@ -248,3 +248,23 @@ export interface StageRundownSummary {
   id: string; name: string; startAt: string; note: string;
   itemCount: number; totalDurationMin: number; createdAt: string; updatedAt: string;
 }
+
+// --- Tools (实用工具) · 舞台报名审核 ---
+
+export interface StageSignupReview {
+  userId: string; userName: string; decision: 'approve' | 'reject'; comment: string; updatedAt: string;
+}
+export interface StageSignupItem {
+  id: string; name: string; durationMin: number;
+  participants: StageParticipant[]; note: string;
+  status: 'pending' | 'approved' | 'rejected'; reviews: StageSignupReview[];
+}
+export interface StageSignup {
+  id: string; name: string; startAt: string; endAt: string; note: string;
+  items: StageSignupItem[]; createdBy: string; createdAt: string; updatedAt: string;
+}
+export interface StageSignupSummary {
+  id: string; name: string; startAt: string; endAt: string; note: string;
+  itemCount: number; approvedCount: number; totalDurationMin: number; availableMin: number;
+  createdAt: string; updatedAt: string;
+}

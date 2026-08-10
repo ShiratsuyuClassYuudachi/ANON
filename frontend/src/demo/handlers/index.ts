@@ -6,6 +6,7 @@ import { materialRoutes } from './materials';
 import { physicalRoutes } from './physical';
 import { projectRoutes } from './projects';
 import { stageRundownRoutes } from './stageRundowns';
+import { stageSignupRoutes } from './stageSignups';
 import { todoRoutes } from './todos';
 import { workRoutes } from './work';
 import type { Route } from '../router';
@@ -22,4 +23,5 @@ export const routes: Route[] = [
   ...accountRoutes,
   ...workRoutes,
   ...stageRundownRoutes,
+  ...stageSignupRoutes,
 ];

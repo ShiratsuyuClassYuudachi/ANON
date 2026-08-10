@@ -8,7 +8,7 @@ export interface ScheduledItem extends StageRundownItem {
 }
 
 /** 从开始时间起逐项累加时长，推算每个节目的起止时间 */
-export function computeSchedule(startAt: string, items: StageRundownItem[]): ScheduledItem[] {
+export function computeSchedule<T extends { durationMin: number }>(startAt: string, items: T[]): (T & { start: Date; end: Date })[] {
   let cursor = new Date(startAt);
   return items.map((it) => {
     const start = cursor;

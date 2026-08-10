@@ -26,6 +26,7 @@ import { ResourceType } from '../models/ResourceType';
 import { ResourceVersion } from '../models/ResourceVersion';
 import { RiskInstance } from '../models/RiskInstance';
 import { StageRundown } from '../models/StageRundown';
+import { StageSignup } from '../models/StageSignup';
 import { Todo } from '../models/Todo';
 import { Transaction } from '../models/Transaction';
 import { User } from '../models/User';
@@ -353,6 +354,33 @@ export async function seedDemoData(opts: DemoSeedOptions): Promise<DemoSeedResul
     updatedAt: now,
   });
 
+  // --- Stage Signup（实用工具 · 舞台报名审核） ---
+  await db.collection('stagesignups').insertOne({
+    _id: oid(),
+    projectId,
+    name: 'Day1 舞台报名',
+    startAt: new Date('2026-10-17T10:00:00+08:00'),
+    endAt: new Date('2026-10-17T12:00:00+08:00'),
+    note: '主舞台 A 区，可用 120 分钟；按名称排序自查撞名',
+    items: [
+      { _id: oid(), name: '宅歌连唱', durationMin: 20, participants: [{ cn: '千羽', contact: '微信 qianyu_live' }], note: '', status: 'approved',
+        reviews: [
+          { userId: artId, decision: 'approve', comment: '上届压轴，唱功稳', updatedAt: new Date(now.getTime() - 5 * 3600000) },
+          { userId: prId, decision: 'approve', comment: '', updatedAt: new Date(now.getTime() - 3 * 3600000) },
+        ] },
+      { _id: oid(), name: 'COS 走秀（社团专场）', durationMin: 25, participants: [{ cn: '老白', contact: '' }, { cn: '苏苏', contact: 'QQ 33003300' }], note: '按报名表顺序出场', status: 'approved',
+        reviews: [{ userId: artId, decision: 'approve', comment: '', updatedAt: new Date(now.getTime() - 4 * 3600000) }] },
+      { _id: oid(), name: '脱口秀《漫展吐槽大会》', durationMin: 15, participants: [{ cn: '阿梗', contact: '微博 @ageng' }], note: '', status: 'rejected',
+        reviews: [{ userId: prId, decision: 'reject', comment: '时长压不住，容易冷场', updatedAt: new Date(now.getTime() - 2 * 3600000) }] },
+      { _id: oid(), name: '随机宅舞', durationMin: 30, participants: [{ cn: '全场自由上台', contact: '' }], note: '歌单 B 盘，主持人口播规则', status: 'pending', reviews: [] },
+      { _id: oid(), name: '随机宅舞', durationMin: 45, participants: [{ cn: '宅舞联萌', contact: 'QQ 55005500' }], note: '社团专场版，疑似与上上条撞名', status: 'pending', reviews: [] },
+      { _id: oid(), name: '乐队 Live《黄昏列车》', durationMin: 30, participants: [{ cn: '老白', contact: '' }], note: '需提前接电与返听', status: 'pending', reviews: [] },
+    ],
+    createdBy: adminId,
+    createdAt: now,
+    updatedAt: now,
+  });
+
   // --- Invite Code（仅 CLI 演示创建；不写 used/usedBy/usedAt，注册逻辑按 usedBy 不存在判定未用） ---
   if (opts.inviteCode) {
     await db.collection('invitecodes').insertOne({
@@ -397,7 +425,7 @@ export async function deleteDemoData(ref: {
     ResourceType, Todo, Transaction, PlatformAccount, WorkModule, Announcement,
     AnnouncementConfirmation, Activity, Milestone, RiskInstance, DashboardPreference,
     Incident, PhysicalCategory, PhysicalItem, PhysicalItemLog, ProjectInvite, WeeklyReportLog,
-    StageRundown,
+    StageRundown, StageSignup,
   ];
   for (const m of projectScoped) await m.deleteMany({ projectId });
   await Project.deleteMany({ _id: projectId });
