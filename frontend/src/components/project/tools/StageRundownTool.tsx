@@ -19,7 +19,6 @@ import { CSS } from '@dnd-kit/utilities';
 import {
   ArrowLeft,
   ClipboardCopy,
-  Columns3,
   Download,
   GripVertical,
   Image,
@@ -50,6 +49,9 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
@@ -405,26 +407,31 @@ export default function StageRundownTool({ project, myPermissions }: Props) {
             <div className="flex flex-wrap gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" aria-label="选择导出列">
-                    <Columns3 className="size-4" /> 导出列
+                  <Button variant="outline" size="sm">
+                    <Image className="size-4" /> 导出图片
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
-                  {RUNDOWN_COLUMNS.map((c) => (
-                    <DropdownMenuCheckboxItem
-                      key={c.key}
-                      checked={exportCols.includes(c.key)}
-                      onCheckedChange={() => toggleExportCol(c.key)}
-                      onSelect={(e) => e.preventDefault()}
-                    >
-                      {c.label}
-                    </DropdownMenuCheckboxItem>
-                  ))}
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>导出列（{exportCols.length}）</DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      {RUNDOWN_COLUMNS.map((c) => (
+                        <DropdownMenuCheckboxItem
+                          key={c.key}
+                          checked={exportCols.includes(c.key)}
+                          onCheckedChange={() => toggleExportCol(c.key)}
+                          onSelect={(e) => e.preventDefault()}
+                        >
+                          {c.label}
+                        </DropdownMenuCheckboxItem>
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                  <DropdownMenuItem onClick={() => exportRundownImage(detail, exportCols)}>
+                    导出 PNG
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Button variant="outline" size="sm" onClick={() => exportRundownImage(detail, exportCols)}>
-                <Image className="size-4" /> 导出图片
-              </Button>
               <Button variant="outline" size="sm" onClick={() => exportRundownText(detail)}>
                 <Download className="size-4" /> 导出文本
               </Button>
