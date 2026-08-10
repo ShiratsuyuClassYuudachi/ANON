@@ -2,7 +2,7 @@ import { encryptWithPassphrase } from '../crypto';
 import type { Db, DbProject, DbStage, DbUser } from './types';
 
 /** 种子结构版本：变更时递增，旧会话数据自动作废重种，防 schema 漂移 */
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 
 // 种子数据：全部日期相对构建时刻（new Date()）计算，保证演示站任何时候打开都「正在进行中」。
 
@@ -441,6 +441,28 @@ export async function buildSeed(): Promise<Db> {
     },
   ];
 
+  const stageSignups: Db['stageSignups'] = [
+    {
+      id: 'ss-01', projectId: 'p-demo', name: 'Day1 舞台报名',
+      startAt: dayAt(21, 10), endAt: dayAt(21, 12), note: '主舞台 A 区，可用 120 分钟；按名称排序自查撞名',
+      items: [
+        { id: 'ssi-01', name: '宅歌连唱', durationMin: 20, participants: [{ cn: '千羽', contact: '微信 qianyu_live' }], note: '', status: 'approved',
+          reviews: [
+            { userId: 'u-01', decision: 'approve', comment: '上届压轴，唱功稳', updatedAt: rel(-1, -5) },
+            { userId: 'u-02', decision: 'approve', comment: '', updatedAt: rel(-1, -3) },
+          ] },
+        { id: 'ssi-02', name: 'COS 走秀（社团专场）', durationMin: 25, participants: [{ cn: '老白', contact: '' }, { cn: '苏苏', contact: 'QQ 33003300' }], note: '按报名表顺序出场', status: 'approved',
+          reviews: [{ userId: 'u-01', decision: 'approve', comment: '', updatedAt: rel(-1, -4) }] },
+        { id: 'ssi-03', name: '脱口秀《漫展吐槽大会》', durationMin: 15, participants: [{ cn: '阿梗', contact: '微博 @ageng' }], note: '', status: 'rejected',
+          reviews: [{ userId: 'u-02', decision: 'reject', comment: '时长压不住，容易冷场', updatedAt: rel(-1, -2) }] },
+        { id: 'ssi-04', name: '随机宅舞', durationMin: 30, participants: [{ cn: '全场自由上台', contact: '' }], note: '歌单 B 盘，主持人口播规则', status: 'pending', reviews: [] },
+        { id: 'ssi-05', name: '随机宅舞', durationMin: 45, participants: [{ cn: '宅舞联萌', contact: 'QQ 55005500' }], note: '社团专场版，疑似与上上条撞名', status: 'pending', reviews: [] },
+        { id: 'ssi-06', name: '乐队 Live《黄昏列车》', durationMin: 30, participants: [{ cn: '老白', contact: '' }], note: '需提前接电与返听', status: 'pending', reviews: [] },
+      ],
+      createdBy: 'u-demo', createdAt: rel(-2), updatedAt: rel(-1),
+    },
+  ];
+
   const dashboardPreferences: Db['dashboardPreferences'] = [
     { userId: 'u-demo', projectId: 'p-demo', defaultView: 'project', collapsedCards: [], hiddenCards: [], scheduleRange: 7, cardOrder: [] },
   ];
@@ -472,6 +494,7 @@ export async function buildSeed(): Promise<Db> {
     milestones,
     incidents,
     stageRundowns,
+    stageSignups,
     dashboardPreferences,
     inviteCodes,
     invites: [],

@@ -304,6 +304,36 @@ export interface DbStageRundown {
   updatedAt: string;
 }
 
+export interface DbStageSignupReview {
+  userId: string;
+  decision: 'approve' | 'reject';
+  comment: string;
+  updatedAt: string;
+}
+
+export interface DbStageSignupItem {
+  id: string;
+  name: string;
+  durationMin: number;
+  participants: { cn: string; contact: string }[];
+  note: string;
+  status: 'pending' | 'approved' | 'rejected';
+  reviews: DbStageSignupReview[];
+}
+
+export interface DbStageSignup {
+  id: string;
+  projectId: string;
+  name: string;
+  startAt: string;
+  endAt: string;
+  note: string;
+  items: DbStageSignupItem[];
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface DbInviteCode {
   id: string;
   code: string;
@@ -342,6 +372,7 @@ export interface Db {
   milestones: DbMilestone[];
   incidents: DbIncident[];
   stageRundowns: DbStageRundown[];
+  stageSignups: DbStageSignup[];
   dashboardPreferences: DbDashboardPreference[];
   inviteCodes: DbInviteCode[];
   invites: DbProjectInvite[];

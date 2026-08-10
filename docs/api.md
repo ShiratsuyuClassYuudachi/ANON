@@ -768,3 +768,102 @@ multipart/form-data，字段同 POST（均可选），另支持 `removeAttachmen
 请求：`{ order: string[] }`：必须与现有节目一一对应（长度相等、id 集合完全相同），否则 400「order 必须与现有节目一一对应」。按 order 重排 items 数组。
 响应 200：`{ rundown: StageRundown }`
 错误：400 `bad_request`；403 `forbidden`；404 `not_found`
+
+---
+
+## 舞台报名审核（实用工具）
+
+挂载于 `/api/projects/:id/stage-signups`，需登录且为项目成员。查看类操作成员即可；批次与节目的增删改、投票、拍板、导入均需 `tools:manage`（`project:manage` 等价放行，超管不受限）。全部端点收发纯 JSON（报名条目无附件，不走 multipart）。每项目可建多个报名批次，可用时长 = `endAt` − `startAt`。
+
+### 数据类型
+
+```ts
+interface StageSignupReview {
+  userId: string; userName: string; decision: 'approve' | 'reject';
+  comment: string; updatedAt: string;
+}
+interface StageSignupItem {
+  id: string; name: string; durationMin: number;
+  participants: StageParticipant[]; note: string;
+  status: 'pending' | 'approved' | 'rejected'; reviews: StageSignupReview[];
+}
+interface StageSignup {
+  id: string; name: string; startAt: string; endAt: string; note: string;
+  items: StageSignupItem[]; createdBy: string; createdAt: string; updatedAt: string;
+}
+interface StageSignupSummary {
+  id: string; name: string; startAt: string; endAt: string; note: string;
+  itemCount: number; approvedCount: number; totalDurationMin: number; availableMin: number;
+  createdAt: string; updatedAt: string;
+}
+```
+
+`userName` 由后端按投票者解析（已注销用户显示「未知用户」）；`availableMin` = `endAt` − `startAt` 折算分钟。
+
+### GET /api/projects/:id/stage-signups
+
+成员。响应 200：`{ signups: StageSignupSummary[] }`（按 `startAt`、`createdAt` 升序）
+
+### POST /api/projects/:id/stage-signups（tools:manage）
+
+请求：`{ name: string, startAt: string, endAt: string, note?: string }`
+校验：`name` trim 后非空；`startAt`/`endAt` 须为可解析时间；`endAt` 必须晚于 `startAt`。
+响应 201：`{ signup: StageSignup }`（items 为空数组）
+错误：400 `bad_request`；403 `forbidden`
+
+### GET /api/projects/:id/stage-signups/:sid
+
+成员。响应 200：`{ signup: StageSignup }`
+错误：404 `not_found`（含跨项目 sid）
+
+### PATCH /api/projects/:id/stage-signups/:sid（tools:manage）
+
+请求字段同 POST（均可选）；合并后仍需 `endAt` 晚于 `startAt`。
+响应 200：`{ signup: StageSignup }`
+错误：400 `bad_request`；403 `forbidden`；404 `not_found`
+
+### DELETE /api/projects/:id/stage-signups/:sid（tools:manage）
+
+响应 200：`{ ok: true }`
+错误：403 `forbidden`；404 `not_found`
+
+### POST /api/projects/:id/stage-signups/:sid/items（tools:manage）
+
+请求：`{ name: string, durationMin: number, participants?: StageParticipant[], note?: string }`；`name` trim 后非空；`durationMin` 为 1–1440 整数；`participants` 为对象数组（每项取 `cn`/`contact` trim，过滤空 `cn`）。新节目 `status` 默认 `pending`。
+响应 201：`{ signup: StageSignup }`
+错误：400 `bad_request`；403 `forbidden`；404 `not_found`
+
+### PATCH /api/projects/:id/stage-signups/:sid/items/:itemId（tools:manage）
+
+请求字段同 POST（均可选）。
+响应 200：`{ signup: StageSignup }`
+错误：400 `bad_request`；403 `forbidden`；404 `not_found`（批次或节目不存在）
+
+### DELETE /api/projects/:id/stage-signups/:sid/items/:itemId（tools:manage）
+
+响应 200：`{ signup: StageSignup }`
+错误：403 `forbidden`；404 `not_found`
+
+### PATCH /api/projects/:id/stage-signups/:sid/items/:itemId/status（tools:manage）
+
+请求：`{ status: 'pending' | 'approved' | 'rejected' }`，其余值 400「无效的状态」。拍板状态，与投票互不影响。
+响应 200：`{ signup: StageSignup }`
+错误：400 `bad_request`；403 `forbidden`；404 `not_found`
+
+### PUT /api/projects/:id/stage-signups/:sid/items/:itemId/review（tools:manage）
+
+请求：`{ decision: 'approve' | 'reject', comment?: string }`，其余值 400「无效的投票」。按当前用户 upsert：已有本人投票则覆盖 decision/comment/updatedAt，否则新增；只记录意见，不改变节目状态。
+响应 200：`{ signup: StageSignup }`
+错误：400 `bad_request`；403 `forbidden`；404 `not_found`
+
+### DELETE /api/projects/:id/stage-signups/:sid/items/:itemId/review（tools:manage）
+
+撤回本人投票；没有则幂等返回。
+响应 200：`{ signup: StageSignup }`
+错误：403 `forbidden`；404 `not_found`
+
+### POST /api/projects/:id/stage-signups/:sid/import（tools:manage）
+
+请求：`{ rundownId: string }`：目标 Rundown 必须属于本项目，否则 404「Rundown 不存在」。把全部 `approved` 节目按 `{ name, durationMin, participants, note, attachmentIds: [] }` 追加到该 Rundown 条目末尾；追加语义不去重，重复导入会重复追加。无 `approved` 节目 → 400「没有已通过的节目可导入」。
+响应 200：`{ rundown: StageRundown }`（与舞台 Rundown 详情同形，附件已解析）
+错误：400 `bad_request`；403 `forbidden`；404 `not_found`
