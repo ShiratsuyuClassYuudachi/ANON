@@ -89,39 +89,97 @@ export async function copyRundownText(r: StageRundown) {
 const FONT = (weight: number | string, size: number) =>
   `${weight} ${size}px system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif`;
 
-/** 单元格单行省略：按列宽截断并补 … */
-function ellipsize(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
-  if (ctx.measureText(text).width <= maxWidth) return text;
-  let t = text;
-  while (t.length > 0 && ctx.measureText(`${t}…`).width > maxWidth) t = t.slice(0, -1);
-  return `${t}…`;
+export interface RundownColumn {
+  key: string;
+  label: string;
+  /** 基准宽度（px），导出时按选中列等比缩放到表格总宽 */
+  width: number;
 }
 
-/** 手写 canvas 表格导出 PNG（不引入 html2canvas：Tailwind v4 oklch 色值无法解析） */
-export function exportRundownImage(r: StageRundown) {
+/** 可导出列（勾选菜单与 PNG 表头共用此注册表） */
+export const RUNDOWN_COLUMNS: RundownColumn[] = [
+  { key: 'index', label: '序号', width: 56 },
+  { key: 'time', label: '时间', width: 150 },
+  { key: 'name', label: '节目', width: 330 },
+  { key: 'duration', label: '时长', width: 100 },
+  { key: 'participants', label: '参与者', width: 200 },
+  { key: 'contact', label: '联系方式', width: 200 },
+  { key: 'attachment', label: '素材', width: 194 },
+  { key: 'note', label: '备注', width: 220 },
+];
+
+/** 单元格自动换行：逐字符贪心断行（CJK 友好），显式 \n 另起一行，不截断任何内容 */
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  if (!text) return [''];
+  const lines: string[] = [];
+  let cur = '';
+  for (const ch of text) {
+    if (ch === '\n') {
+      lines.push(cur);
+      cur = '';
+      continue;
+    }
+    if (cur && ctx.measureText(cur + ch).width > maxWidth) {
+      lines.push(cur);
+      cur = ch;
+    } else {
+      cur += ch;
+    }
+  }
+  lines.push(cur);
+  return lines;
+}
+
+function cellText(it: ScheduledItem | null, index: number, key: string): string {
+  if (!it) return key === 'name' ? '（暂无节目）' : '';
+  switch (key) {
+    case 'index': return String(index + 1);
+    case 'time': return `${hhmm(it.start)}–${hhmm(it.end)}`;
+    case 'name': return it.name;
+    case 'duration': return `${it.durationMin}分钟`;
+    case 'participants': return it.participants.map((p) => p.cn).join('、');
+    case 'contact': return it.participants.filter((p) => p.contact).map((p) => `${p.cn} ${p.contact}`).join('；');
+    case 'attachment': return it.attachments.map((a) => a.filename).join('、');
+    case 'note': return it.note;
+    default: return '';
+  }
+}
+
+/** 手写 canvas 表格导出 PNG（不引入 html2canvas：Tailwind v4 oklch 色值无法解析）。长文本自动换行完整显示。 */
+export function exportRundownImage(r: StageRundown, columnKeys?: string[]) {
   const scheduled = computeSchedule(r.startAt, r.items);
   const total = r.items.reduce((sum, it) => sum + it.durationMin, 0);
+  const cols = RUNDOWN_COLUMNS.filter((c) => !columnKeys || columnKeys.includes(c.key));
+  if (cols.length === 0) return;
 
   const W = 1200;
   const SCALE = 2;
   const PAD = 32;
   const TITLE_H = 76;
   const HEADER_H = 40;
-  const ROW_H = 44;
-  const COLS = [56, 150, 330, 70, 200, 200, 194]; // 序号 时间 节目 时长 参与者 联系方式 素材
-  const HEADERS = ['序号', '时间', '节目', '时长', '参与者', '联系方式', '素材'];
+  const LINE_H = 17; // 13px 正文行高
+  const CELL_PAD_Y = 8;
+  const CELL_PAD_X = 8;
+  const TABLE_W = W - PAD * 2;
 
-  const rows = scheduled.map((it, i) => [
-    String(i + 1),
-    `${hhmm(it.start)}-${hhmm(it.end)}`,
-    it.name,
-    `${it.durationMin}分钟`,
-    it.participants.map((p) => p.cn).join('、'),
-    it.participants.filter((p) => p.contact).map((p) => `${p.cn} ${p.contact}`).join('；'),
-    it.attachments.map((a) => a.filename).join('、'),
-  ]);
+  // 选中列按基准宽度等比缩放铺满表格
+  const scaleW = TABLE_W / cols.reduce((s, c) => s + c.width, 0);
+  const widths = cols.map((c) => Math.max(36, Math.round(c.width * scaleW)));
+  widths[widths.length - 1] += TABLE_W - widths.reduce((s, w) => s + w, 0);
 
-  const H = PAD + TITLE_H + HEADER_H + Math.max(rows.length, 1) * ROW_H + PAD;
+  // 先用量尺上下文计算各行高度
+  const measureCanvas = document.createElement('canvas');
+  const mctx = measureCanvas.getContext('2d');
+  if (!mctx) return;
+  mctx.font = FONT('normal', 13);
+  const bodyItems: (ScheduledItem | null)[] = scheduled.length ? scheduled : [null];
+  const rows = bodyItems.map((it, i) => {
+    const cells = cols.map((c, ci) => wrapText(mctx, cellText(it, i, c.key), widths[ci] - CELL_PAD_X * 2));
+    const maxLines = Math.max(...cells.map((l) => l.length));
+    return { cells, height: maxLines * LINE_H + CELL_PAD_Y * 2 };
+  });
+
+  const H = PAD + TITLE_H + HEADER_H + rows.reduce((s, row) => s + row.height, 0) + PAD;
   const canvas = document.createElement('canvas');
   canvas.width = W * SCALE;
   canvas.height = H * SCALE;
@@ -150,37 +208,40 @@ export function exportRundownImage(r: StageRundown) {
 
   // 表头
   ctx.fillStyle = '#111827';
-  ctx.fillRect(PAD, y, W - PAD * 2, HEADER_H);
+  ctx.fillRect(PAD, y, TABLE_W, HEADER_H);
   ctx.fillStyle = '#ffffff';
   ctx.font = FONT('normal', 14);
   ctx.textBaseline = 'middle';
   let x = PAD;
-  for (let c = 0; c < COLS.length; c++) {
-    ctx.fillText(HEADERS[c], x + 8, y + HEADER_H / 2);
-    x += COLS[c];
+  for (let c = 0; c < cols.length; c++) {
+    ctx.fillText(cols[c].label, x + CELL_PAD_X, y + HEADER_H / 2);
+    x += widths[c];
   }
   y += HEADER_H;
 
-  // 数据行
+  // 数据行（顶对齐多行文本）
   ctx.font = FONT('normal', 13);
-  const bodyRows = rows.length ? rows : [['', '', '（暂无节目）', '', '', '', '']];
-  for (let ri = 0; ri < bodyRows.length; ri++) {
+  for (let ri = 0; ri < rows.length; ri++) {
+    const row = rows[ri];
     if (ri % 2 === 1) {
       ctx.fillStyle = '#f9fafb';
-      ctx.fillRect(PAD, y, W - PAD * 2, ROW_H);
+      ctx.fillRect(PAD, y, TABLE_W, row.height);
     }
     ctx.fillStyle = '#111827';
     let cx = PAD;
-    for (let c = 0; c < COLS.length; c++) {
-      ctx.fillText(ellipsize(ctx, bodyRows[ri][c], COLS[c] - 16), cx + 8, y + ROW_H / 2);
-      cx += COLS[c];
+    for (let c = 0; c < cols.length; c++) {
+      const lines = row.cells[c];
+      for (let li = 0; li < lines.length; li++) {
+        ctx.fillText(lines[li], cx + CELL_PAD_X, y + CELL_PAD_Y + LINE_H * li + LINE_H / 2);
+      }
+      cx += widths[c];
     }
     ctx.strokeStyle = '#e5e7eb';
     ctx.beginPath();
-    ctx.moveTo(PAD, y + ROW_H + 0.5);
-    ctx.lineTo(W - PAD, y + ROW_H + 0.5);
+    ctx.moveTo(PAD, y + row.height + 0.5);
+    ctx.lineTo(W - PAD, y + row.height + 0.5);
     ctx.stroke();
-    y += ROW_H;
+    y += row.height;
   }
 
   canvas.toBlob((b) => {

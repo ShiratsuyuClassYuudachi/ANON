@@ -19,6 +19,7 @@ import { CSS } from '@dnd-kit/utilities';
 import {
   ArrowLeft,
   ClipboardCopy,
+  Columns3,
   Download,
   GripVertical,
   Image,
@@ -46,6 +47,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
@@ -54,7 +56,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import ProgramFormDialog from './ProgramFormDialog';
-import { computeSchedule, copyRundownText, exportRundownImage, exportRundownText, hhmm, scheduleEndLabel } from './rundownExport';
+import { computeSchedule, copyRundownText, exportRundownImage, exportRundownText, hhmm, RUNDOWN_COLUMNS, scheduleEndLabel } from './rundownExport';
 
 interface Props {
   project: ProjectDetail;
@@ -221,6 +223,22 @@ export default function StageRundownTool({ project, myPermissions }: Props) {
   const [programFormOpen, setProgramFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<StageRundownItem | null>(null);
   const [deleteItem, setDeleteItem] = useState<StageRundownItem | null>(null);
+  const [exportCols, setExportCols] = useState<string[]>(RUNDOWN_COLUMNS.map((c) => c.key));
+
+  const toggleExportCol = (key: string) => {
+    setExportCols((prev) => {
+      if (prev.includes(key)) {
+        if (prev.length === 1) {
+          toast.error('至少保留一列');
+          return prev;
+        }
+        return prev.filter((k) => k !== key);
+      }
+      // 恢复时按注册表顺序插入，保持列序稳定
+      const next = [...prev, key];
+      return RUNDOWN_COLUMNS.map((c) => c.key).filter((k) => next.includes(k));
+    });
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -385,7 +403,26 @@ export default function StageRundownTool({ project, myPermissions }: Props) {
               )}
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={() => exportRundownImage(detail)}>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" aria-label="选择导出列">
+                    <Columns3 className="size-4" /> 导出列
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  {RUNDOWN_COLUMNS.map((c) => (
+                    <DropdownMenuCheckboxItem
+                      key={c.key}
+                      checked={exportCols.includes(c.key)}
+                      onCheckedChange={() => toggleExportCol(c.key)}
+                      onSelect={(e) => e.preventDefault()}
+                    >
+                      {c.label}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button variant="outline" size="sm" onClick={() => exportRundownImage(detail, exportCols)}>
                 <Image className="size-4" /> 导出图片
               </Button>
               <Button variant="outline" size="sm" onClick={() => exportRundownText(detail)}>
