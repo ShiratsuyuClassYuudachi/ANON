@@ -1,0 +1,15 @@
+name = "anon-app"
+main = "src/index.js"
+compatibility_date = "2026-08-10"
+
+# 生产源站(nginx,前后端一体);Worker 仅反代 /api
+[vars]
+ORIGIN = "https://anon.anontokyo.design:30362"
+
+# 静态资产 = 前端生产构建产物的干净副本(deploy 脚本生成,剔除 Pages 专用 _redirects,
+# 后者与 SPA not_found_handling 组合会触发 CF API 的无限重定向校验);run_worker_first 让 /api 先经 Worker 判定
+[assets]
+directory = ".deploy-assets"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = true

@@ -120,6 +120,34 @@ docker compose -f docker-compose.prod.yml up -d --build
 - 常用命令：`docker compose -f docker-compose.prod.yml logs -f backend`（看日志）/ `down`（停止）/ `down -v`（停止并清空数据卷，慎用）
 - cron 提醒：容器外执行 `curl -X POST -H "Authorization: Bearer $CRON_SECRET" http://localhost:8080/api/cron/reminders`（经前端代理）
 
+## Cloudflare Workers 边缘部署（外网入口）
+
+在源站（上述 Docker 编排）已公网可达的前提下，`worker/` 目录把前端静态资产托管到 Cloudflare 全球边缘，`/api/*` 反代回源站，对外提供统一 HTTPS 入口：
+
+```mermaid
+flowchart LR
+  U[用户] --> W[CF Worker anon-app]
+  W -->|静态| A[Workers Static Assets]
+  W -->|/api/*| O[源站 nginx<br/>anon.anontokyo.design:30362]
+```
+
+```bash
+cd frontend && npm run build            # 先出最新 dist
+cd ../worker && npm install             # 仅首次
+CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... npm run deploy
+# -> https://anon-app.<subdomain>.workers.dev
+```
+
+要点：
+
+- `deploy` 脚本会把 `frontend/dist` 拷成 `.deploy-assets/` 并剔除 `_redirects`（Pages 专用，与 SPA `not_found_handling` 组合会触发 CF API 无限重定向校验，code 100324），再 `wrangler deploy`
+- `/api` 反代时显式写 `X-Forwarded-For: <cf-connecting-ip>`，保证后端登录限流按真实客户端 IP 计数（否则全员共享 CF 出口 IP 配额）
+- 静态响应的安全头（CSP/nosniff/XFO 等）在 `worker/src/index.js` 复刻自 `frontend/nginx.conf`——改 nginx 安全头时两边同步
+- `ORIGIN` 在 `wrangler.toml [vars]` 配置；换源站/回源走 Tunnel 时只改这里
+- 绑自定义域名（如 `app.anontokyo.design`）：Dashboard -> Workers -> anon-app -> Domains 添加路由即可，token 需补 Workers Routes: Edit
+- 与 Pages 演示站（`anon-19b.pages.dev`，纯前端 mock）互不干扰；本 Worker 代理的是**真实后端**，无独立数据
+- 所需 token 权限：Workers Scripts: Edit（Pages 权限不影响，二者可共存于同一 token）
+
 ## 安全
 
 - **会话**：access JWT 15 分钟有效，refresh token 30 天滚动（每次刷新轮换，库中只存 sha256，单用户上限 10 个），退出登录即吊销。旧 30 天 JWT 在部署后仍有效直至自然过期（同一 JWT_SECRET），前端会自动走刷新流程续期。
