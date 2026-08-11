@@ -15,7 +15,7 @@ ANON 是一个「活动全流程追踪」协作系统，面向展会/同人活�
 
 界面：移动端优先，双风格主题（简洁/明快 × 日/夜），工作台 Tab 与按钮按项目内权限点过滤可见性。
 
-完整接口契约见 [`docs/api.md`](./api.md)；功能使用指南见 [`docs/features.md`](./features.md)；设计说明见 [`docs/design.md`](./design.md)。
+完整接口契约见 [`docs/api.md`](./api.md)；功能使用指南见 [`docs/features.md`](./features.md)；设计说明见 [`docs/design.md`](./design.md)；文件→功能模块索引（开发定位用）见 [`docs/file-index.md`](./file-index.md)。
 
 ## 环境要求
 
