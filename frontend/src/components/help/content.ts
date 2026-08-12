@@ -15,6 +15,13 @@ export const HELP_CHAPTERS: HelpChapter[] = [
     title: '快速上手',
     sections: [
       {
+        heading: '关于 ANON',
+        paragraphs: [
+          'ANON 是面向漫展、演出、展会等线下活动执行组的开源协作工具：以「项目」为单位组织协作，覆盖看板、待办、财务、物料、平台账号与现场执行等活动全流程。',
+          '项目源码与问题反馈（GitHub）：https://github.com/ShiratsuyuClassYuudachi/ANON',
+        ],
+      },
+      {
         heading: '试用模式',
         paragraphs: [
           '不注册也能体验：用试用账号邮箱（默认 admin@test.com）加任意不少于 8 位的密码登录，即可进入一套带完整演示数据的独立环境，自由体验系统全部功能。',
