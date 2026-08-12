@@ -8,6 +8,8 @@
 
 ## 部署（Cloudflare Pages，二选一）
 
+**自定义域名**：`https://demo.anontokyo.design`（已绑定激活，CA google 证书自动签发）。同账户 zone 解析链：DNS `demo.anontokyo.design` CNAME → `anon-19b.pages.dev`（proxied，记录建有 comment 标注）+ Pages 项目 anon → Custom domains 挂载（`POST /accounts/<id>/pages/projects/anon/domains`，需 token Pages: Edit）。主 subdomain `anon-19b.pages.dev` 与分支别名 `<branch>.anon-19b.pages.dev` 照旧可用。
+
 **Dashboard**：Pages 项目连仓库 →
 
 | 项 | 值 |

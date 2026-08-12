@@ -149,7 +149,7 @@ CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... npm run deploy
 - **回源链（同 zone 约束的完整解法）**：Worker 绑 `app.anontokyo.design` 后与源站域名同属一个 zone，Worker 子请求强制走 CF 边缘管线，不支持 `:30362` 非常用端口直连，且 Host 头改写需 Enterprise。落地方案四件套：DNS `origin.anontokyo.design` CNAME → `anon.anontokyo.design`（橙云，跟随 DDNS IP）+ Origin Rule（该主机名 destination port → 30362，Free 套餐唯一开放的回源改写）+ Configuration Rule（该主机名 SSL=Full，源站 30362 为 TLS）+ 源站 NPMplus 为 `origin.anontokyo.design` 配虚拟主机（转发与应用相同；Full 不校验证书，无需配 SSL）。`wrangler.toml [vars].ORIGIN = https://origin.anontokyo.design`；换源站/回源走 Tunnel 时改这里
 - **wrangler.toml 不写 routes**：自定义域名绑定存于 CF 侧 Workers Domains；写 routes 会触发 wrangler 对 zone workers/routes 的读对账，要求额外的 Zone Workers Routes 权限
 - 绑新自定义域名：Dashboard -> Workers -> anon-app -> Domains 添加，token 需补 Workers Routes: Edit
-- 与 Pages 演示站（`anon-19b.pages.dev`，纯前端 mock）互不干扰；本 Worker 代理的是**真实后端**，无独立数据
+- 与 Pages 演示站（**`demo.anontokyo.design`** / `anon-19b.pages.dev`，纯前端 mock）互不干扰；本 Worker 代理的是**真实后端**，无独立数据
 - 所需 token 权限：Account Workers Scripts: Edit；Zone Origin Rules / DNS / Config Rules: Edit（回源链规则维护）
 
 ## 安全
