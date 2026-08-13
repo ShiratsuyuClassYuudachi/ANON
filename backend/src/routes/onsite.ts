@@ -144,7 +144,7 @@ onsiteRouter.get(
         contacts: m.userId.contacts.map((c) => ({ platform: c.platform, value: c.value })),
       }));
 
-    res.json({ now: now.toISOString(), myModules, emergency, contacts, incidents });
+    res.json({ now: now.toISOString(), myModules, emergency, contacts, incidents, myPermissions: [...permissions] });
   }),
 );
 

@@ -1,5 +1,5 @@
 import { buildOnsite } from '../aggregate';
-import { badRequest, bodyObj, json, membersJson, nameOf, notFound, nowIso, requireProject, uid } from '../helpers';
+import { badRequest, bodyObj, json, membersJson, myPermissions, nameOf, notFound, nowIso, requireProject, uid } from '../helpers';
 import { def, type Route } from '../router';
 import type { Ctx, Db, DbWorkAssignee, DbWorkModule } from '../types';
 import type { IncidentCategory } from '../../types';
@@ -204,7 +204,7 @@ export const workRoutes: Route[] = [
   def('GET', '/api/projects/:pid/onsite', async (ctx) => {
     const { db } = ctx;
     const { project, membership } = requireProject(ctx);
-    return json(buildOnsite(db, project, membership.roleName));
+    return json(buildOnsite(db, project, membership.roleName, myPermissions(db, project, membership)));
   }),
 
   def('POST', '/api/projects/:pid/onsite/incidents', async (ctx) => {

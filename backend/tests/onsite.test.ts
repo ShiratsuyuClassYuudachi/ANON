@@ -264,6 +264,16 @@ describe('incidents', () => {
 });
 
 describe('GET /onsite 聚合', () => {
+  it('响应带 myPermissions：现场页按权限显隐失物登记入口', async () => {
+    const res = await request(app)
+      .get(`/api/projects/${projectId}/onsite`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.myPermissions)).toBe(true);
+    // 一般staff 预置角色默认含 lostfound:manage
+    expect(res.body.myPermissions).toContain('lostfound:manage');
+  });
+
   it('myModules：state 计算正确，按 current > upcoming(startAt 升) > done 排序，只含指派给自己的', async () => {
     const now = Date.now();
     const current = await addModule({

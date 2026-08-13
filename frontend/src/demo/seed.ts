@@ -2,7 +2,7 @@ import { encryptWithPassphrase } from '../crypto';
 import type { Db, DbProject, DbStage, DbUser } from './types';
 
 /** 种子结构版本：变更时递增，旧会话数据自动作废重种，防 schema 漂移 */
-export const DB_VERSION = 3;
+export const DB_VERSION = 4;
 
 // 种子数据：全部日期相对构建时刻（new Date()）计算，保证演示站任何时候打开都「正在进行中」。
 
@@ -35,12 +35,13 @@ const ALL_PERMS = [
   'todo:create',
   'todo:manage',
   'work:manage',
+  'lostfound:manage',
 ];
 
 const ROLES = [
   { name: '管理者', permissions: ALL_PERMS },
-  { name: '财务', permissions: ['finance:add', 'finance:manage'] },
-  { name: '成员', permissions: ['todo:complete', 'file:upload'] },
+  { name: '财务', permissions: ['finance:add', 'finance:manage', 'lostfound:manage'] },
+  { name: '成员', permissions: ['todo:complete', 'file:upload', 'lostfound:manage'] },
 ];
 
 const STAGE_NAMES = ['选题', '立项', '宣传', '售票', '筹备', '布展', '现场', '结算'];
@@ -472,6 +473,28 @@ export async function buildSeed(): Promise<Db> {
     { id: 'ic-02', code: 'ANON-USED001', used: true, usedAt: rel(-20), createdAt: rel(-25) },
   ];
 
+  const lostFoundItems: Db['lostFoundItems'] = [
+    {
+      id: 'lf-01', projectId: 'p-demo', name: '黑色折叠伞', note: '伞柄挂有橙色挂件',
+      hasPhoto: false, foundAt: rel(20, 3), foundLocation: 'A 馆入口服务台',
+      status: 'pending', claimedAt: null, claimNote: '', createdBy: 'u-01', createdAt: rel(20, 3), updatedAt: rel(20, 3),
+    },
+    {
+      id: 'lf-02', projectId: 'p-demo', name: '学生证', note: '蓝色卡套，贴有吧唧',
+      hasPhoto: false, foundAt: rel(20, 5), foundLocation: '同人摊位区 B-12',
+      status: 'pending', claimedAt: null, claimNote: '', createdBy: 'u-02', createdAt: rel(20, 5), updatedAt: rel(20, 5),
+    },
+    {
+      id: 'lf-03', projectId: 'p-demo', name: '充电宝（20000mAh）', note: '白色小米，带 Type-C 线',
+      hasPhoto: false, foundAt: rel(19, 6), foundLocation: '主舞台观众席',
+      status: 'claimed', claimedAt: rel(20, 1), claimNote: '失主 CN 阿凪，已现场归还', createdBy: 'u-01', createdAt: rel(19, 6), updatedAt: rel(20, 1),
+    },
+  ];
+
+  const lostFoundShares: Db['lostFoundShares'] = [
+    { projectId: 'p-demo', token: 'demo-lostfound', enabled: true },
+  ];
+
   return {
     version: DB_VERSION,
     currentUserId: 'u-demo',
@@ -495,6 +518,8 @@ export async function buildSeed(): Promise<Db> {
     incidents,
     stageRundowns,
     stageSignups,
+    lostFoundItems,
+    lostFoundShares,
     dashboardPreferences,
     inviteCodes,
     invites: [],

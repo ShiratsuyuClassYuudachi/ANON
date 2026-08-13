@@ -12,6 +12,7 @@ import { dashboardRouter } from './routes/dashboard';
 import { filesRouter, projectFilesRouter } from './routes/files';
 import { financeRouter } from './routes/finance';
 import { invitesRouter } from './routes/invites';
+import { lostFoundRouter, publicLostFoundRouter } from './routes/lostFound';
 import { materialsRouter } from './routes/materials';
 import { meRouter } from './routes/me';
 import { milestonesRouter } from './routes/milestones';
@@ -65,7 +66,18 @@ app.use('/api/projects/:id/activities', activitiesRouter);
 app.use('/api/projects/:id/stages', stagesRouter);
 app.use('/api/projects/:id/stage-rundowns', stageRundownsRouter);
 app.use('/api/projects/:id/stage-signups', stageSignupsRouter);
+app.use('/api/projects/:id/lostfound', lostFoundRouter);
 app.use('/api/projects/:id/milestones', milestonesRouter);
+// 公开免登录端点限流：300 次/分钟/IP（观众同 NAT 出口 + 列表带图，过紧会误伤）
+const publicLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 300,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === 'test',
+  message: { error: { code: 'rate_limited', message: '请求过于频繁，请稍后再试' } },
+});
+app.use('/api/public/lostfound', publicLimiter, publicLostFoundRouter);
 app.use('/api/files', filesRouter);
 app.use('/api/cron', cronRouter);
 

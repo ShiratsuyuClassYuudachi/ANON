@@ -15,6 +15,7 @@ import Me from './pages/Me';
 import OnsitePage from './pages/OnsitePage';
 import ProjectHome from './pages/ProjectHome';
 import Projects from './pages/Projects';
+import PublicLostFound from './pages/PublicLostFound';
 import Register from './pages/Register';
 import WorkSheetPrint from './pages/WorkSheetPrint';
 
@@ -60,6 +61,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/lf/:token" element={<PublicLostFound />} />
         <Route
           path="/invite/:token"
           element={

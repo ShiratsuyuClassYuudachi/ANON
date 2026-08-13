@@ -35,6 +35,7 @@ const ALL_PERMISSIONS = [
   'accounts:manage',
   'work:manage',
   'announcement:manage',
+  'lostfound:manage',
 ];
 
 /** routes/stages.ts stagesJson：变更类端点统一返回 {stages, currentStageIndex} */

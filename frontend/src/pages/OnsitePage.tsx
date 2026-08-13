@@ -8,6 +8,7 @@ import {
   Clock,
   MapPin,
   Megaphone,
+  PackageSearch,
   Phone,
   Smartphone,
 } from 'lucide-react';
@@ -16,6 +17,7 @@ import { api } from '../api/client';
 import { enqueueOffline, isOfflineError } from '../lib/offlineQueue';
 import { fmtLocal } from '../lib/datetime';
 import type { IncidentCategory, OnsiteData, OnsiteModule } from '../types';
+import LostFoundItemDialog from '../components/project/tools/LostFoundItemDialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -62,6 +64,9 @@ export default function OnsitePage() {
   const [moduleId, setModuleId] = useState('');
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // 失物登记弹层
+  const [lfOpen, setLfOpen] = useState(false);
 
   const load = useCallback(async () => {
     const d = await api<OnsiteData>(`/api/projects/${id}/onsite`);
@@ -158,6 +163,8 @@ export default function OnsitePage() {
     );
 
   const my = currentModule?.myAssignee ?? null;
+  const canManageLF =
+    data.myPermissions.includes('project:manage') || data.myPermissions.includes('lostfound:manage');
 
   return (
     <div className="mx-auto max-w-2xl space-y-4 pb-8">
@@ -297,6 +304,23 @@ export default function OnsitePage() {
         </CardContent>
       </Card>
 
+      {/* 失物登记 */}
+      {canManageLF && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <PackageSearch className="size-5 text-primary" /> 失物招领
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-base text-muted-foreground">捡到物品？拍照登记，可在「工具 → 失物招领」跟踪认领</p>
+            <Button className="h-14 w-full text-lg font-bold" onClick={() => setLfOpen(true)}>
+              <PackageSearch className="size-5" /> 登记捡到的物品
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* 联系人 */}
       {data.contacts.length > 0 && (
         <Card>
@@ -359,6 +383,13 @@ export default function OnsitePage() {
           ))}
         </CardContent>
       </Card>
+
+      <LostFoundItemDialog
+        open={lfOpen}
+        onOpenChange={setLfOpen}
+        base={`/api/projects/${id}/lostfound`}
+        onSaved={() => {}}
+      />
     </div>
   );
 }
