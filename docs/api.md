@@ -496,16 +496,18 @@ interface ResourceVersionItem {
 
 - **POST /api/projects/:id/materials/:resourceId/versions**（materials:manage）
   multipart 上传新版本，字段：`file`（必填，≤20MB）、`note`（可选）。版本号自动递增并成为当前版。
-  mime 为 `image/*` 时自动生成 WebP 预览（宽 ≤800px，体积 ≤100KB，存 `uploads/previews/`）。
+  mime 命中位图白名单（png/jpeg/webp/gif）时自动生成 WebP 缩略预览（宽 ≤800px，体积 ≤100KB，存 `uploads/previews/`）。
   响应 201：`{ version: ResourceVersionItem }`
 - **GET /api/projects/:id/materials/:resourceId/versions**（成员 + 可见范围）
   按版本号倒序。响应 200：`{ versions: ResourceVersionItem[] }`
 - **GET /api/projects/:id/materials/:resourceId/versions/:version/download**（成员 + 可见范围）
   下载指定版本原文件。响应 200：文件流（`Content-Disposition: attachment`）
-- **GET /api/projects/:id/materials/:resourceId/preview**（成员 + 可见范围）
-  当前（最新）版本的预览图。响应 200：`image/webp`；无预览但当前版本是图片时回退原图；否则 404 `not_found`
+- **GET /api/projects/:id/materials/:resourceId/versions/:version/preview**（成员 + 可见范围）
+- **GET /api/projects/:id/materials/:resourceId/preview**（成员 + 可见范围，取最新版本）
+  指定/当前版本的预览。响应 200：有缩略预览回 `image/webp`；无预览但文件 mime 命中内联白名单（位图 / `application/pdf` / `text/markdown` / `video/mp4` / `video/webm` / `video/quicktime` / `audio/mpeg` / `audio/wav` / `audio/ogg`，另 `.md`/`.markdown` 扩展名兜底 `text/plain` 或空 mime）回原始文件流；否则 404 `not_found`。
+  `hasPreview`（ResourceItem/ResourceVersionItem）语义 = 预览接口将返回 200。
 
-前端说明：项目工作台新增「物料」Tab（`MaterialsTab.tsx`）：类型筛选、资源卡片、预览图、版本下拉与下载、上传新版本、可见范围编辑（成员多选 + 角色多选）。预览图与原图均需鉴权，前端使用 `AuthImg` 组件（fetch + Blob → objectURL）；点击预览图全屏加载原图。
+前端说明：项目工作台新增「物料」Tab（`MaterialsTab.tsx`）：类型筛选、资源卡片、预览图、版本下拉与下载、上传新版本、可见范围编辑（成员多选 + 角色多选）。预览图与原图均需鉴权，前端使用 `AuthImg` 组件（fetch + Blob → objectURL）；点击预览图全屏加载原图。非图片内联预览走 `AuthMedia`：PDF 用 iframe、音/视频用 `<video>`/`<audio>` 标签、Markdown 用 react-markdown 渲染（原始 HTML 按文本转义）；不可预览格式卡片显示文件名，仅可下载。
 
 ---
 

@@ -158,7 +158,7 @@ CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... npm run deploy
 - **登录限流**：`/api/auth/*`（注册/登录/试用登录/refresh/logout）每 IP 15 分钟最多 50 次，防撞库与试用环境资源消耗。
 - **安全响应头**：nginx 对静态页下发 CSP（无 unsafe-inline 脚本，主题初始化脚本已外置 `theme-init.js`）、`X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`、`Permissions-Policy`；`server_tokens off` 隐藏版本号。
 - **权限化审计日志**：实物清单数量变动/状态变更需 `materials:manage`，无权限成员看不到「变动记录」入口。
-- **文件预览收敛**：仅位图（png/jpeg/webp/gif）内联预览；SVG 等可携带脚本的格式不生成预览、下载走 `Content-Disposition: attachment`。
+- **文件预览收敛**：仅位图（png/jpeg/webp/gif）生成缩略预览；内联预览白名单仅放行位图 + PDF/Markdown/常见音视频（PDF 浏览器沙箱渲染、音视频标签解码、Markdown 原始 HTML 转义），SVG 等可携带脚本的格式不生成预览、下载走 `Content-Disposition: attachment`。
 - **非 root 容器**：backend（node 用户）与 frontend（`nginxinc/nginx-unprivileged`，监听 8080）均不以 root 运行。
 - **依赖面**：multer 2.x（修复 CVE-2025-47935/47944）、vite 6.4+（修复 CVE-2026-39365，dev-server 路径穿越）、nodemailer 9.x、react-router 7.18+。
 - **依赖扫描 CI**：`.github/workflows/dependency-scan.yml` 用 osv-scanner（v2.4.0 固定版本 + SHA256 校验）扫描 backend/frontend 锁文件，push 涉及依赖变更时触发 + 每周一全量兜底；豁免清单在根目录 `osv-scanner.toml`（每条附原因，当前仅 GHSA-qwww-vcr4-c8h2——react-router RSC 模式专属、本项目纯 SPA 不可达，修复需 React 19 待整体升级解除）

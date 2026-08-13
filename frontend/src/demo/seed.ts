@@ -2,7 +2,7 @@ import { encryptWithPassphrase } from '../crypto';
 import type { Db, DbProject, DbStage, DbUser } from './types';
 
 /** 种子结构版本：变更时递增，旧会话数据自动作废重种，防 schema 漂移 */
-export const DB_VERSION = 4;
+export const DB_VERSION = 5;
 
 // 种子数据：全部日期相对构建时刻（new Date()）计算，保证演示站任何时候打开都「正在进行中」。
 
@@ -140,6 +140,7 @@ export async function buildSeed(): Promise<Db> {
       dataUrl: 'data:text/markdown;base64,' + 'IyDlpI/ml6XlkIzkurrnpa0g5a6j5Lyg5paH5qGICgrlvIDnpajllabvvIHpooTllK7npaggNTAg5YWD77yM546w5Zy656WoIDYwIOWFg+OAggrkuKTlpKnmkYrkvY0gKyDoiJ7lj7DmtLvliqjvvIzkuIrmtbfkuJbljZrlsZXop4jppobop4HjgIIK',
     },
     'f-receipt-01': { filename: '场地押金凭证.svg', mime: 'image/svg+xml', size: 6120, asset: '/demo/poster-v1.svg' },
+    'f-guide-pdf': { filename: '参展指南.pdf', mime: 'application/pdf', size: 641, asset: '/demo/guide.pdf' },
   };
 
   const todos: Db['todos'] = [
@@ -274,6 +275,7 @@ export async function buildSeed(): Promise<Db> {
     { id: 'r-03', projectId: 'p-demo', typeId: 'rt-2', name: '摊位号表', description: '全部参展社团摊位分配', visibility: { userIds: [], roleNames: [] }, createdAt: rel(-4) },
     { id: 'r-04', projectId: 'p-demo', typeId: 'rt-3', name: '周边清单', description: '待阿桔整理打样数量后上传', visibility: { userIds: [], roleNames: [] }, createdAt: rel(-2) },
     { id: 'r-05', projectId: 'p-demo', typeId: 'rt-1', name: '宣传文案', description: '开票公告与日常宣发文案', visibility: { userIds: [], roleNames: [] }, createdAt: rel(-6) },
+    { id: 'r-06', projectId: 'p-demo', typeId: 'rt-2', name: '参展指南 PDF', description: '观众入场须知与摊位地图（PDF 在线预览示例）', visibility: { userIds: [], roleNames: [] }, createdAt: rel(-3) },
   ];
 
   const versions: Db['versions'] = [
@@ -281,7 +283,8 @@ export async function buildSeed(): Promise<Db> {
     { id: 'rv-012', resourceId: 'r-01', version: 2, note: '终稿 · 加深对比', fileId: 'f-poster-v2', hasPreview: true, createdBy: 'u-01', createdAt: rel(-3) },
     { id: 'rv-021', resourceId: 'r-02', version: 1, note: '', fileId: 'f-floorplan', hasPreview: true, createdBy: 'u-02', createdAt: rel(-5) },
     { id: 'rv-031', resourceId: 'r-03', version: 1, note: '', fileId: 'f-booth-csv', hasPreview: false, createdBy: 'u-01', createdAt: rel(-4) },
-    { id: 'rv-051', resourceId: 'r-05', version: 1, note: '', fileId: 'f-copy-md', hasPreview: false, createdBy: 'u-03', createdAt: rel(-6) },
+    { id: 'rv-051', resourceId: 'r-05', version: 1, note: '', fileId: 'f-copy-md', hasPreview: true, createdBy: 'u-03', createdAt: rel(-6) },
+    { id: 'rv-061', resourceId: 'r-06', version: 1, note: '', fileId: 'f-guide-pdf', hasPreview: true, createdBy: 'u-02', createdAt: rel(-3) },
   ];
 
   const weiboCipher = await encryptWithPassphrase('Weibo@Demo2026', 'demo');

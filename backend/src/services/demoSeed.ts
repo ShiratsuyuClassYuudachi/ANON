@@ -59,6 +59,11 @@ const DEMO_PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
   'base64',
 );
+/** 单页极简 PDF（程序生成带 xref 后 base64 内联，与 frontend/public/demo/guide.pdf 同源），演示 PDF 在线预览 */
+const DEMO_PDF = Buffer.from(
+  'JVBERi0xLjQKMSAwIG9iago8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFI+PgplbmRvYmoKMiAwIG9iago8PC9UeXBlL1BhZ2VzL0tpZHNbMyAwIFJdL0NvdW50IDE+PgplbmRvYmoKMyAwIG9iago8PC9UeXBlL1BhZ2UvUGFyZW50IDIgMCBSL01lZGlhQm94WzAgMCA1OTUgODQyXS9SZXNvdXJjZXM8PC9Gb250PDwvRjEgNCAwIFI+Pj4+L0NvbnRlbnRzIDUgMCBSPj4KZW5kb2JqCjQgMCBvYmoKPDwvVHlwZS9Gb250L1N1YnR5cGUvVHlwZTEvQmFzZUZvbnQvSGVsdmV0aWNhPj4KZW5kb2JqCjUgMCBvYmoKPDwvTGVuZ3RoIDEzND4+c3RyZWFtCkJUIC9GMSAyNCBUZiA3MiA3NzAgVGQgKEFOT04gRGVtbyAtIEV4aGliaXRvciBHdWlkZSkgVGogRVQKQlQgL0YxIDEyIFRmIDcyIDc0MCBUZCAoUERGIGlubGluZSBwcmV2aWV3IHNhbXBsZSBmb3IgbWF0ZXJpYWxzIHRhYi4pIFRqIEVUCmVuZHN0cmVhbQplbmRvYmoKeHJlZgowIDYKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAwMDAwNTQgMDAwMDAgbiAKMDAwMDAwMDEwNSAwMDAwMCBuIAowMDAwMDAwMjE3IDAwMDAwIG4gCjAwMDAwMDAyODAgMDAwMDAgbiAKdHJhaWxlcgo8PC9TaXplIDYvUm9vdCAxIDAgUj4+CnN0YXJ0eHJlZgo0NjIKJSVFT0Y=',
+  'base64',
+);
 
 export async function seedDemoData(opts: DemoSeedOptions): Promise<DemoSeedResult> {
   const db = mongoose.connection.db!;
@@ -195,14 +200,15 @@ export async function seedDemoData(opts: DemoSeedOptions): Promise<DemoSeedResul
     note: string,
     createdBy: Types.ObjectId,
     createdAt: Date,
+    { buf = DEMO_PNG, mime = 'image/png' }: { buf?: Buffer; mime?: string } = {},
   ) => {
-    const ref = await storeBuffer(DEMO_PNG, `demo/${projectId}/${filename}`, 'image/png');
+    const ref = await storeBuffer(buf, `demo/${projectId}/${filename}`, mime);
     const file = await File.create({
       projectId,
       filename,
       path: ref,
-      mime: 'image/png',
-      size: DEMO_PNG.length,
+      mime,
+      size: buf.length,
       uploadedBy: createdBy,
       createdAt,
       updatedAt: createdAt,
@@ -220,7 +226,7 @@ export async function seedDemoData(opts: DemoSeedOptions): Promise<DemoSeedResul
   };
   await createVersion(resPoster, 1, 'poster-v1.png', '初稿', artId, new Date(now.getTime() - 20 * 86400000));
   await createVersion(resPoster, 2, 'poster-v2.png', '修改配色后终版', artId, new Date(now.getTime() - 5 * 86400000));
-  await createVersion(resGuide, 1, 'guide-v1.png', 'v1', adminId, now);
+  await createVersion(resGuide, 1, 'guide-v1.pdf', 'v1', adminId, now, { buf: DEMO_PDF, mime: 'application/pdf' });
   await createVersion(resContract, 1, 'contract-v1.png', '扫描件', logId, now);
 
   // --- Platform Accounts ---

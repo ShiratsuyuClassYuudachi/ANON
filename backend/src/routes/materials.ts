@@ -13,8 +13,27 @@ import { canSee, type Viewer } from '../services/visibility';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
 
-// 仅位图格式允许内联预览；SVG 等 image/* 可携带脚本，避免同源存储型 XSS 面
-const PREVIEW_MIMES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
+// 仅位图格式生成 WebP 缩略预览；SVG 等 image/* 可携带脚本，避免同源存储型 XSS 面
+const BITMAP_MIMES: Record<string, true> = { 'image/png': true, 'image/jpeg': true, 'image/webp': true, 'image/gif': true };
+// 允许内联预览的原文件格式：位图 + PDF + Markdown + 常见音视频。PDF 由浏览器内置查看器沙箱渲染、
+// 音视频经 <video>/<audio> 解码、Markdown 由前端 react-markdown 渲染（转义原始 HTML），均无同源脚本执行面；
+// 其余格式一律仅附件下载。mov 为容器，能否播放取决于内部编码（iPhone H.264/AAC 可播）
+const INLINE_PREVIEW_MIMES: Record<string, true> = {
+  ...BITMAP_MIMES,
+  'application/pdf': true,
+  'text/markdown': true,
+  'video/mp4': true, 'video/webm': true, 'video/quicktime': true,
+  'audio/mpeg': true, 'audio/wav': true, 'audio/ogg': true,
+};
+// 部分浏览器对 .md 上报 text/plain / 空 mime，按扩展名兜底
+const MARKDOWN_EXT = /\.(md|markdown)$/i;
+/** 版本文件是否可内联预览（hasPreview 契约与 preview 端点共用判定） */
+function inlinePreviewable(mime: string | undefined, filename?: string): boolean {
+  // Object.hasOwn：客户端可控 mimetype 经原型链（'constructor' 等）取到真值的绕过面必须堵死
+  if (mime && Object.hasOwn(INLINE_PREVIEW_MIMES, mime)) return true;
+  if (filename && MARKDOWN_EXT.test(filename) && (!mime || mime === 'text/plain' || mime === 'text/markdown' || mime === 'application/octet-stream')) return true;
+  return false;
+}
 
 export const materialsRouter = Router({ mergeParams: true });
 materialsRouter.use(authRequired, loadMembership);
@@ -44,7 +63,7 @@ function typeJson(t: ResourceTypeDoc) {
   return { id: t._id.toString(), name: t.name, visibility: visibilityJson(t.visibility) };
 }
 
-function resourceJson(r: ResourceDoc, latest: ResourceVersionDoc | null) {
+function resourceJson(r: ResourceDoc, latest: ResourceVersionDoc | null, latestFile?: { mime: string; filename: string } | null) {
   return {
     id: r._id.toString(),
     typeId: r.typeId.toString(),
@@ -52,7 +71,7 @@ function resourceJson(r: ResourceDoc, latest: ResourceVersionDoc | null) {
     description: r.description,
     visibility: visibilityJson(r.visibility),
     latestVersion: latest?.version ?? 0,
-    hasPreview: !!latest?.previewPath,
+    hasPreview: !!latest?.previewPath || (latestFile != null && inlinePreviewable(latestFile.mime, latestFile.filename)),
     createdAt: (r as unknown as { createdAt: Date }).createdAt,
   };
 }
@@ -62,7 +81,7 @@ async function versionJson(v: ResourceVersionDoc) {
   return {
     version: v.version,
     note: v.note,
-    hasPreview: !!v.previewPath,
+    hasPreview: !!v.previewPath || (file ? inlinePreviewable(file.mime, file.filename) : false),
     createdBy: v.createdBy.toString(),
     createdAt: (v as unknown as { createdAt: Date }).createdAt,
     file: file
@@ -163,8 +182,16 @@ materialsRouter.get(
     const visible = resources.filter((r) =>
       canSee(viewer, r.visibility, typeMap.get(r.typeId.toString())?.visibility),
     );
+    // 无缩略预览的最新版本批量取一次文件信息，供 hasPreview 按内联白名单据实回报
+    const fileIds = [...latestMap.values()].filter((v) => !v.previewPath).map((v) => v.fileId);
+    const files = await File.find({ _id: { $in: fileIds } }).lean();
+    const fileMap = new Map(files.map((f) => [f._id.toString(), { mime: f.mime, filename: f.filename }]));
     res.json({
-      resources: visible.map((r) => resourceJson(r, latestMap.get(r._id.toString()) ?? null)),
+      resources: visible.map((r) => {
+        const latest = latestMap.get(r._id.toString()) ?? null;
+        const latestFile = latest ? fileMap.get(latest.fileId.toString()) ?? null : null;
+        return resourceJson(r, latest, latestFile);
+      }),
     });
   }),
 );
@@ -195,7 +222,7 @@ materialsRouter.post(
       let latest: ResourceVersionDoc | null = null;
       if (req.file) {
         // 预览生成需要读本地暂存文件，必须在 persistUploads（S3 模式会删除暂存）之前
-        previewRef = PREVIEW_MIMES.has(req.file.mimetype)
+        previewRef = Object.hasOwn(BITMAP_MIMES, req.file.mimetype)
           ? await generatePreview(req.file.path)
           : null;
         [fileDoc] = await persistUploads([req.file], req.project!._id, req.userId);
@@ -210,7 +237,7 @@ materialsRouter.post(
       }
 
       logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'material:create', message: `${req.user!.name}创建了资源「${r.name}」`, sourceType: 'material', sourceId: r._id });
-      res.status(201).json({ resource: resourceJson(r, latest) });
+      res.status(201).json({ resource: resourceJson(r, latest, fileDoc ?? null) });
     } catch (err) {
       if (previewRef) await deleteStored(previewRef);
       if (fileDoc) await deleteStored(fileDoc.path);
@@ -226,7 +253,9 @@ materialsRouter.get(
   '/:resourceId',
   ah(async (req, res) => {
     const { resource } = await loadVisibleResource(req);
-    res.json({ resource: resourceJson(resource, await latestVersionOf(resource._id)) });
+    const latest = await latestVersionOf(resource._id);
+    const latestFile = latest && !latest.previewPath ? await File.findById(latest.fileId).lean() : null;
+    res.json({ resource: resourceJson(resource, latest, latestFile) });
   }),
 );
 
@@ -250,7 +279,9 @@ materialsRouter.patch(
     const vis = parseVisibility(req.body?.visibility);
     if (vis) resource.visibility = vis as never;
     await resource.save();
-    res.json({ resource: resourceJson(resource, await latestVersionOf(resource._id)) });
+    const latest = await latestVersionOf(resource._id);
+    const latestFile = latest && !latest.previewPath ? await File.findById(latest.fileId).lean() : null;
+    res.json({ resource: resourceJson(resource, latest, latestFile) });
   }),
 );
 
@@ -295,7 +326,7 @@ materialsRouter.post(
       });
       if (!resource) throw new AppError(404, 'not_found', '资源不存在');
       if (!req.file) throw new AppError(400, 'bad_request', '缺少文件');
-      previewRef = PREVIEW_MIMES.has(req.file.mimetype)
+      previewRef = Object.hasOwn(BITMAP_MIMES, req.file.mimetype)
         ? await generatePreview(req.file.path)
         : null;
       [fileDoc] = await persistUploads([req.file], req.project!._id, req.userId);
@@ -358,7 +389,7 @@ materialsRouter.get(
       return;
     }
     const file = await File.findById(v.fileId);
-    if (file && PREVIEW_MIMES.has(file.mime)) {
+    if (file && inlinePreviewable(file.mime, file.filename)) {
       await sendStoredFile(res, file.path);
       return;
     }
@@ -377,7 +408,7 @@ materialsRouter.get(
       return;
     }
     const file = await File.findById(latest.fileId);
-    if (file && PREVIEW_MIMES.has(file.mime)) {
+    if (file && inlinePreviewable(file.mime, file.filename)) {
       await sendStoredFile(res, file.path);
       return;
     }

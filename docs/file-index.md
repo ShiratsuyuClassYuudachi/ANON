@@ -19,7 +19,7 @@
 | 项目/成员/角色/邀请 | routes/projects.ts、routes/invites.ts、models/{Project,Membership,ProjectInvite}.ts、services/permissions.ts | pages/{Projects,ProjectHome,InviteAccept}.tsx、project/{MembersTab,RolesTab,SettingsTab}.tsx | tests/{projects,invites}.test.ts |
 | 待办（含模板/进度） | routes/todos.ts、models/{Todo,ReminderLog}.ts、services/template.ts | project/{TodosTab,TodoFormDialog,TodoActionSheet}.tsx | tests/{todos,todo-complete,todo-updates,template}.test.ts |
 | 财务 | routes/finance.ts、models/Transaction.ts、services/finance.ts | project/FinanceTab.tsx | tests/finance.test.ts |
-| 物料/资料库/文件 | routes/{materials,files}.ts、models/{Resource,ResourceType,ResourceVersion,File}.ts、services/{preview,storage}.ts、middleware/upload.ts | project/MaterialsTab.tsx、components/AuthImg.tsx | tests/{materials,files}.test.ts |
+| 物料/资料库/文件 | routes/{materials,files}.ts、models/{Resource,ResourceType,ResourceVersion,File}.ts、services/{preview,storage}.ts、middleware/upload.ts | project/MaterialsTab.tsx、components/{AuthImg,AuthMedia}.tsx | tests/{materials,files}.test.ts |
 | 实物/物资台账 | routes/physical.ts、models/Physical{Category,Item,ItemLog}.ts | project/PhysicalTab.tsx | tests/physical.test.ts |
 | 平台账号（加密） | routes/accounts.ts、models/PlatformAccount.ts、services/platformCrypto.ts | project/AccountsTab.tsx、crypto.ts（浏览器端加密） | tests/accounts.test.ts |
 | 公告 | routes/announcements.ts、models/{Announcement,AnnouncementConfirmation}.ts | project/AnnouncementManager.tsx | tests/announcements.test.ts |
@@ -66,7 +66,7 @@
 - `invites.ts` — GET /:token 查询、POST /:token/accept
 - `todos.ts` — 待办 CRUD、模板 import/export、POST /:todoId/complete|updates
 - `finance.ts` — 账目 CRUD、PATCH /ticket、GET /export(CSV)
-- `materials.ts` — 资料类型/资源/版本 CRUD、preview/download
+- `materials.ts` — 资料类型/资源/版本 CRUD、preview/download、内联预览白名单（位图+PDF/Markdown/音视频）
 - `files.ts` — 双路由：项目内 POST 上传；/api/files GET /:id 下载
 - `physical.ts` — 实物分类/条目 CRUD、POST /items/:itemId/log、GET /summary
 - `accounts.ts` — 平台账号 CRUD、POST /:accountId/reveal 揭示凭证
@@ -166,7 +166,8 @@
 ### 通用组件 `src/components/`
 - `Layout.tsx` — 主布局：顶栏（项目切换/主题/用户菜单）+ 各横幅挂载点
 - `FormOverlay.tsx` — **弹层规范核心**：所有含输入框的弹层一律经此渲染浮动居中 Dialog（禁底部 Sheet 表单）
-- `AuthImg.tsx` — 鉴权图片（authorizedFetch + Blob objectURL）
+- `AuthImg.tsx` — 鉴权图片（useAuthorizedObjectUrl → objectURL）
+- `AuthMedia.tsx` — 鉴权 PDF/音视频/Markdown 预览（iframe/video/audio/react-markdown + useAuthorizedObjectUrl；previewKindOf 按 mime+扩展名归类）
 - `DemoBadge.tsx` / `DemoBanner.tsx` — 演示站角标 / 横幅（一键还原种子）
 - `TrialBanner.tsx` — 试用横幅（数据销毁倒计时）
 - `PushBanner.tsx` / `PushSettingsCard.tsx` — Push 提示条 / 订阅开关卡
@@ -197,7 +198,7 @@
 ### 演示站 `src/demo/`（`npm run build:demo`，浏览器内 mock 全部 /api）
 - `install.ts` — installDemo：包装 window.fetch 拦截 /api/*；sessionStorage 内存库
 - `router.ts` — def/route：`:param` 模板路由 + 80ms 延迟
-- `seed.ts` — buildSeed（DB_VERSION=4）：相对当前时刻生成演示数据
+- `seed.ts` — buildSeed（DB_VERSION=5）：相对当前时刻生成演示数据
 - `types.ts` / `helpers.ts` — Db/Ctx/Handler 类型 / 错误信封·权限·文件存取
 - `aggregate.ts` — R1–R7 聚合（注释标注移植自后端哪个服务）
 - `handlers/*.ts`（13 个）— 按域复刻后端路由：auth/projects/todos/finance/materials/physical/accounts/dashboard/work/stageRundowns/stageSignups/lostFound + index.ts 合并路由表
