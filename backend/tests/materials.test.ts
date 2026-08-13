@@ -172,6 +172,93 @@ describe('materials: 版本', () => {
     expect(preview.headers['content-type']).toContain('image/webp');
     expect(preview.body.length).toBeLessThanOrEqual(100 * 1024);
   });
+
+  it('PDF 与音视频版本可内联预览', async () => {
+    const t = await addType(owner.token);
+    const r = await addResource(owner.token, t.id);
+    const v1 = await uploadVersion(owner.token, r.id, Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF'), 'guide.pdf');
+    expect(v1.hasPreview).toBe(true);
+    const p1 = await request(app)
+      .get(`/api/projects/${projectId}/materials/${r.id}/versions/1/preview`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    expect(p1.status).toBe(200);
+    expect(p1.headers['content-type']).toContain('application/pdf');
+    const pl = await request(app)
+      .get(`/api/projects/${projectId}/materials/${r.id}/preview`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    expect(pl.status).toBe(200);
+    expect(pl.headers['content-type']).toContain('application/pdf');
+    const list = await request(app)
+      .get(`/api/projects/${projectId}/materials`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    const item = (list.body.resources as { id: string; hasPreview: boolean }[]).find((x) => x.id === r.id);
+    expect(item?.hasPreview).toBe(true);
+
+    const v2 = await uploadVersion(owner.token, r.id, Buffer.from('fake-mp4'), 'clip.mp4');
+    expect(v2.hasPreview).toBe(true);
+    const p2 = await request(app)
+      .get(`/api/projects/${projectId}/materials/${r.id}/versions/2/preview`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    expect(p2.status).toBe(200);
+    expect(p2.headers['content-type']).toContain('video/mp4');
+
+    const v3 = await uploadVersion(owner.token, r.id, Buffer.from('fake-mov'), 'clip.mov');
+    expect(v3.hasPreview).toBe(true);
+    const p3 = await request(app)
+      .get(`/api/projects/${projectId}/materials/${r.id}/versions/3/preview`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    expect(p3.status).toBe(200);
+    expect(p3.headers['content-type']).toContain('video/quicktime');
+  });
+
+  it('Markdown 可预览，扩展名兜底 text/plain', async () => {
+    const t = await addType(owner.token);
+    const r = await addResource(owner.token, t.id);
+    const v1 = await uploadVersion(owner.token, r.id, Buffer.from('# 标题\n正文'), 'notes.md');
+    expect(v1.hasPreview).toBe(true);
+    const p1 = await request(app)
+      .get(`/api/projects/${projectId}/materials/${r.id}/versions/1/preview`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    expect(p1.status).toBe(200);
+    expect(p1.headers['content-type']).toContain('text/markdown');
+
+    const res2 = await request(app)
+      .post(`/api/projects/${projectId}/materials/${r.id}/versions`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .attach('file', Buffer.from('# 误报为纯文本'), { filename: 'plain-md.md', contentType: 'text/plain' });
+    expect(res2.status).toBe(201);
+    expect(res2.body.version.hasPreview).toBe(true);
+    const p2 = await request(app)
+      .get(`/api/projects/${projectId}/materials/${r.id}/versions/2/preview`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    expect(p2.status).toBe(200);
+  });
+
+  it('SVG 不内联预览（防 XSS 白名单不放宽）', async () => {
+    const t = await addType(owner.token);
+    const r = await addResource(owner.token, t.id);
+    const v = await uploadVersion(owner.token, r.id, Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>'), 'icon.svg');
+    expect(v.hasPreview).toBe(false);
+    const p = await request(app)
+      .get(`/api/projects/${projectId}/materials/${r.id}/versions/1/preview`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    expect(p.status).toBe(404);
+  });
+
+  it('原型链属性名 mime（constructor）不可绕过白名单', async () => {
+    const t = await addType(owner.token);
+    const r = await addResource(owner.token, t.id);
+    const res = await request(app)
+      .post(`/api/projects/${projectId}/materials/${r.id}/versions`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .attach('file', Buffer.from('<script>alert(1)</script>'), { filename: 'evil.bin', contentType: 'constructor' });
+    expect(res.status).toBe(201);
+    expect(res.body.version.hasPreview).toBe(false);
+    const p = await request(app)
+      .get(`/api/projects/${projectId}/materials/${r.id}/versions/1/preview`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    expect(p.status).toBe(404);
+  });
 });
 
 describe('materials: 可见范围', () => {

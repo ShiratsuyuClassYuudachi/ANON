@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Download, MoreHorizontal, Trash2 } from 'lucide-react';
+import { Download, File, FileText, FileType2, MoreHorizontal, Music, Play, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, downloadUrl } from '../../api/client';
 import AuthImg from '../AuthImg';
+import AuthMedia, { previewKindOf } from '../AuthMedia';
 import type {
   Member,
   ProjectDetail,
@@ -130,6 +131,7 @@ function ResourceCard({
   };
 
   const selectedVersion = versions.find((v) => v.version === selected);
+  const kind = previewKindOf(selectedVersion?.file?.mime, selectedVersion?.file?.filename);
 
   return (
     <Card>
@@ -163,10 +165,26 @@ function ResourceCard({
           )}
         </div>
         {resource.description && <p className="text-sm text-muted-foreground">{resource.description}</p>}
-        {selectedVersion?.hasPreview && (
+        {selectedVersion?.hasPreview && kind === 'image' && (
           <button onClick={() => setZoom(true)} className="block w-full overflow-hidden rounded-lg border">
             <AuthImg src={`${base}/versions/${selected}/preview`} alt={resource.name} style={{ width: '100%', display: 'block' }} />
           </button>
+        )}
+        {selectedVersion?.hasPreview && kind && kind !== 'image' && (
+          <button onClick={() => setZoom(true)} className="flex w-full items-center gap-2 rounded-lg border p-3 text-sm">
+            {kind === 'pdf' && <FileText className="size-5 shrink-0 text-muted-foreground" />}
+            {kind === 'video' && <Play className="size-5 shrink-0 text-muted-foreground" />}
+            {kind === 'audio' && <Music className="size-5 shrink-0 text-muted-foreground" />}
+            {kind === 'markdown' && <FileType2 className="size-5 shrink-0 text-muted-foreground" />}
+            <span className="truncate">{selectedVersion.file?.filename}</span>
+            <span className="ml-auto shrink-0 text-muted-foreground">点击预览</span>
+          </button>
+        )}
+        {selectedVersion?.file && !(selectedVersion.hasPreview && kind) && (
+          <div className="flex w-full items-center gap-2 rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+            <File className="size-5 shrink-0" />
+            <span className="truncate">{selectedVersion.file.filename}</span>
+          </div>
         )}
         {versions.length > 0 && (
           <div className="flex items-center gap-2">
@@ -207,12 +225,18 @@ function ResourceCard({
       <Dialog open={zoom} onOpenChange={setZoom}>
         <DialogContent className="max-w-3xl p-2">
           <DialogTitle className="sr-only">{resource.name}</DialogTitle>
-          <AuthImg
-            src={`${base}/versions/${selected}/download`}
-            alt={resource.name}
-            style={{ width: '100%' }}
-            onClick={() => setZoom(false)}
-          />
+          {kind === 'pdf' && <AuthMedia kind="pdf" src={`${base}/versions/${selected}/preview`} alt={resource.name} className="h-[80vh] w-full" />}
+          {kind === 'video' && <AuthMedia kind="video" src={`${base}/versions/${selected}/preview`} className="max-h-[80vh] w-full" />}
+          {kind === 'audio' && <AuthMedia kind="audio" src={`${base}/versions/${selected}/preview`} className="w-full" />}
+          {kind === 'markdown' && <AuthMedia kind="markdown" src={`${base}/versions/${selected}/preview`} className="max-h-[80vh] w-full overflow-auto p-4 text-sm" />}
+          {(!kind || kind === 'image') && (
+            <AuthImg
+              src={`${base}/versions/${selected}/download`}
+              alt={resource.name}
+              style={{ width: '100%' }}
+              onClick={() => setZoom(false)}
+            />
+          )}
         </DialogContent>
       </Dialog>
 

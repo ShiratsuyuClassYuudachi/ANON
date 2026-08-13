@@ -271,6 +271,14 @@ export const HELP_CHAPTERS: HelpChapter[] = [
         image: { src: '/help/materials-version-switch.png', alt: '版本切换', caption: '切换版本后预览图随之变化（此例 v1 为红色，v2 为绿色）' },
       },
       {
+        heading: 'PDF、Markdown 与音视频预览',
+        paragraphs: [
+          '除图片外，PDF、Markdown 与常见音视频（mp4/webm/mov 视频，mp3/wav/ogg 音频）也支持在线预览：资源卡片显示文件条目，点击后在弹层中翻阅、阅读或播放。mov 能否播放取决于视频内部编码（iPhone 拍摄的 H.264 通常可以）。',
+          'SVG、Office 文档、压缩包等其余格式不生成预览，卡片会显示文件名，请下载后查看。内联预览仅放行上述安全格式，Markdown 中的原始 HTML 按纯文本显示，防止脚本注入。',
+        ],
+        image: { src: '/help/materials-pdf-preview.png', alt: 'PDF 预览', caption: 'PDF 资源卡片文件条目，点击在弹层中预览' },
+      },
+      {
         heading: '可见范围',
         paragraphs: [
           '类型或资源卡片上点「可见范围」，勾选成员和/或角色后保存；留空 = 全体成员可见。',

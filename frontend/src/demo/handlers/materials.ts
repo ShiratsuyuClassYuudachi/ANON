@@ -55,6 +55,12 @@ async function previewOf(ctx: Ctx, v: DbResourceVersion): Promise<Response> {
 
 const VIS_EMPTY = { userIds: [], roleNames: [] };
 
+/** 对齐后端内联白名单语义；演示资产可信，image/* 放宽保留（SVG 种子资产照常可预览） */
+const previewable = (mime: string, filename?: string) =>
+  mime.startsWith('image/') || mime === 'application/pdf' || mime === 'text/markdown' ||
+  mime.startsWith('video/') || mime.startsWith('audio/') ||
+  (filename != null && /\.(md|markdown)$/i.test(filename) && (!mime || mime.startsWith('text/')));
+
 export const materialRoutes: Route[] = [
   // ---------- 类型（须先于 /materials/:rid 注册） ----------
   def('GET', '/api/projects/:pid/materials/types', async (ctx) => {
@@ -137,7 +143,7 @@ export const materialRoutes: Route[] = [
         version: 1,
         note: String(fields.note ?? ''),
         fileId,
-        hasPreview: (file.type || '').startsWith('image/'),
+        hasPreview: previewable(file.type || '', file.name),
         createdBy: db.currentUserId,
         createdAt: nowIso(),
       });
@@ -200,7 +206,7 @@ export const materialRoutes: Route[] = [
       version: (latestVersionOf(db, resource.id)?.version ?? 0) + 1,
       note: formStr(fd, 'note'),
       fileId,
-      hasPreview: (file.type || '').startsWith('image/'),
+      hasPreview: previewable(file.type || '', file.name),
       createdBy: db.currentUserId,
       createdAt: nowIso(),
     };
