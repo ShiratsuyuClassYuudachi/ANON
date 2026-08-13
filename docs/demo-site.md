@@ -1,10 +1,10 @@
 # 纯前端演示站（Cloudflare Pages）
 
-不依赖任何后端、可公开访问的功能预览站：运行真实前端，浏览器内 mock 全部 `/api` 请求，预置一套中文示例数据。用于向访客展示项目全部功能（9 个 Tab、看板聚合、物料预览、账号解密、现场模式、打印任务单等）。
+不依赖任何后端、可公开访问的功能预览站：运行真实前端，浏览器内 mock 全部 `/api` 请求，预置一套中文示例数据。用于向访客展示项目全部功能（10 个 Tab、看板聚合、物料预览、账号解密、现场模式、打印任务单等）。
 
 - **构建**：`cd frontend && npm run build:demo`（= `tsc --noEmit && vite build --mode demo`），产物 `frontend/dist/`。
 - **与生产构建的关系**：demo 是 vite `--mode demo` 的同仓库构建变体；生产构建（`npm run build` + Docker 部署）完全不受影响——demo 代码经动态 import + `import.meta.env.VITE_DEMO` 静态替换被 tree-shake（生产产物中零 demo 字符串/chunk，已验证），且 demo 模式摘除 VitePWA（不生成 sw.js，避免 Service Worker 缓存 mock 响应）。
-- **演示数据**：种子含 2 个项目（「示例·夏日同人祭」+「示例·秋季 Live」）、6 成员、15 待办、9 账目 + 双票种、5 物料资源（含可预览 SVG 海报/平面图）、3 平台账号、4 现场模块、实物清单、公告/风险/动态/里程碑/邀请码。微博账号密码可输入口令 `demo` 在前端解密（真 PBKDF2 + AES-GCM，与生产同一代码路径）。
+- **演示数据**：种子含 2 个项目（「示例·夏日同人祭」+「示例·秋季 Live」）、6 成员、15 待办、9 账目 + 双票种、6 物料资源（含可预览 SVG 海报/平面图、PDF 参展指南、可下载 CSV 摊位号表）、3 平台账号、4 现场模块、实物清单、公告/风险/动态/里程碑/邀请码、舞台 Rundown、报名审核批次、失物招领物品（含公开分享）。微博账号密码可输入口令 `demo` 在前端解密（真 PBKDF2 + AES-GCM，与生产同一代码路径）。
 
 ## 部署（Cloudflare Pages，二选一）
 
@@ -42,7 +42,7 @@ SPA 深链回退由 `frontend/public/_redirects`（`/* /index.html 200`）提供
 
 **种子（`seed.ts`）**：日期全部相对 `new Date()` 计算（活动 +21d 开展），任意时刻打开都是「筹备中」的鲜活状态。`DB_VERSION`：种子结构变更时递增，旧会话数据自动作废重种，防 schema 漂移。
 
-**文件策略**：种子附件指向 `frontend/public/demo/*.svg`（手写占位图，透传 `origFetch`）；会话内上传的文件转 base64 data URL 存入 store（小图，sessionStorage 可容）。预览/下载统一经 `GET /api/files/:id` 与 materials versions 端点返回 blob。
+**文件策略**：种子附件大部分指向 `frontend/public/demo/` 下的手写占位文件（`poster-v1/v2.svg`、`floorplan.svg`、`guide.pdf`，透传 `origFetch`），CSV/Markdown 等小文件直接以内联 base64 data URL 入种子；会话内上传的文件转 base64 data URL 存入 store（小图，sessionStorage 可容）。预览/下载统一经 `GET /api/files/:id` 与 materials versions 端点返回 blob。
 
 **Push / 注册等只读面**：`/api/push/config` 返回 `{ publicKey: null }`（PushBanner 自然隐藏）；`POST /api/auth/register` 固定 403 `demo_readonly`；公告发布/删除等前端未调用的端点不 mock。
 
