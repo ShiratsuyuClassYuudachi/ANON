@@ -196,6 +196,7 @@ export interface OnsiteData {
   emergency: OnsiteAnnouncement[];
   contacts: OnsiteContact[];
   incidents: OnsiteIncident[];
+  myPermissions: string[];
 }
 
 export interface DashboardData {

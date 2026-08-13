@@ -27,7 +27,7 @@
 | 风险预警 | routes/risks.ts、models/RiskInstance.ts、services/risk.ts | DashboardTab.tsx（内嵌展示） | tests/dashboard.test.ts |
 | 现场模式/工作模块/任务单 | routes/{onsite,workModules,workSheet}.ts、models/{WorkModule,Incident}.ts、services/workModules.ts | pages/{OnsitePage,WorkSheetPrint}.tsx、project/WorkTab.tsx、lib/offlineQueue.ts | tests/{onsite,workModules}.test.ts |
 | 舞台工具（编排/报名/阶段） | routes/{stageRundowns,stageSignups,stages}.ts、models/{StageRundown,StageSignup}.ts | project/tools/*.tsx、project/{ToolsTab,StageManager,StageStepper}.tsx | tests/{stageRundowns,stageSignups}.test.ts |
-| 失物招领/公开查找页 | routes/lostFound.ts、models/{LostFoundItem,LostFoundShare}.ts、services/permissions.ts（迁移） | project/tools/LostFound*.tsx、pages/PublicLostFound.tsx | tests/lostFound.test.ts |
+| 失物招领/公开查找页 | routes/lostFound.ts、models/{LostFoundItem,LostFoundShare}.ts、services/permissions.ts（迁移） | project/tools/LostFound*.tsx、pages/PublicLostFound.tsx、pages/OnsitePage.tsx（现场录入入口） | tests/lostFound.test.ts |
 | 里程碑 | routes/milestones.ts、models/Milestone.ts | project/MilestoneSection.tsx | — |
 | 通知（邮件+WebPush）/ cron | services/{notifications,mailer,webpush}.ts、routes/{push,cron}.ts、models/{PushSubscription,ReminderLog,WeeklyReportLog}.ts | lib/push.ts、components/{PushBanner,PushSettingsCard}.tsx、scripts/patch-sw.mjs | tests/{notifications,push,cron}.test.ts |
 | 试用模式 | services/trial.ts、models/TrialSession.ts、services/demoSeed.ts | components/TrialBanner.tsx | tests/trial.test.ts |
@@ -155,7 +155,7 @@
 - `Login.tsx` / `Register.tsx` — 登录 / 邀请码注册（演示模式一键进入）
 - `Projects.tsx` — 项目列表：健康度/阶段/倒计时卡片 + 新建
 - `ProjectHome.tsx` — 项目主页：10 个按权限过滤的 Tab + 现场模式入口
-- `OnsitePage.tsx` — 现场模式：签到/完成/异常上报（离线入队）、30s 轮询
+- `OnsitePage.tsx` — 现场模式：签到/完成/异常上报（离线入队）、失物登记入口（复用 LostFoundItemDialog，按 myPermissions 显隐）、30s 轮询
 - `WorkSheetPrint.tsx` — 任务单打印页（按人/全员）
 - `Me.tsx` — 个人资料/联系方式/推送设置/界面偏好
 - `Admin.tsx` — 超管邀请码管理

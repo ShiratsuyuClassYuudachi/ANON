@@ -428,7 +428,7 @@ export function buildFinanceSummary(db: Db, p: DbProject) {
 }
 
 /** R7 现场模式（routes/onsite.ts GET /） */
-export function buildOnsite(db: Db, p: DbProject, membershipRole: string | null): OnsiteData {
+export function buildOnsite(db: Db, p: DbProject, membershipRole: string | null, permissions: Set<string>): OnsiteData {
   const me = db.currentUserId;
   const now = new Date();
   const nowMs = now.getTime();
@@ -494,5 +494,5 @@ export function buildOnsite(db: Db, p: DbProject, membershipRole: string | null)
       createdAt: x.createdAt,
     }));
 
-  return { now: now.toISOString(), myModules, emergency, contacts, incidents };
+  return { now: now.toISOString(), myModules, emergency, contacts, incidents, myPermissions: [...permissions] };
 }

@@ -686,6 +686,10 @@ interface WorkSheetData {
 
 前端说明：项目工作台新增「现场」Tab（`WorkTab.tsx`）：模块列表/新建/编辑/删除、成员确认与代确认、打印入口。打印版式页 `/p/:id/work-sheet/print?user=me|<userId>|all`（`WorkSheetPrint.tsx`）：A4 表格（模块/时间/地点/工作内容/确认状态）+ 签字日期栏，`user=all` 时每人一页分页连排，浏览器打印或另存为 PDF。
 
+### GET /api/projects/:id/onsite（成员）
+
+现场模式聚合接口（`onsite.ts`，同挂载另含 `POST /incidents` 异常上报、`GET /incidents`、`POST /incidents/:iid/resolve`（work:manage））。响应 200：`{ now, myModules, emergency, contacts, incidents, myPermissions }`——`myModules` 为指派给本人的模块（state: current/upcoming/done）；`emergency` 为可见的紧急/重要公告（≤5 条）；`contacts` 为填写了联系方式的成员；`incidents` 按权限可见（work:manage 见全部，普通成员仅自己上报的）；`myPermissions` 为本人权限点数组（前端据此显隐现场页「失物登记」等权限入口）。
+
 ## 舞台 Rundown（实用工具）
 
 挂载于 `/api/projects/:id/stage-rundowns`，需登录且为项目成员。查看类操作成员即可；Rundown 与节目的增删改、排序均需 `tools:manage`（`project:manage` 等价放行，超管不受限）。每项目可建多份 Rundown（如 Day1/Day2、主/副舞台）。
