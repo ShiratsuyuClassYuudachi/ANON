@@ -4,6 +4,7 @@
  * schema 的漂移：角色权限对齐 permissions.ts、resourceversions 走 File/存储、invitecodes
  * 不写 used 字段、riskinstances 对齐 risk.ts 探测器、activities 类型串对齐 logActivity 约定。
  */
+import crypto from 'crypto';
 import mongoose, { Types, type Model } from 'mongoose';
 import { Activity } from '../models/Activity';
 import { Announcement } from '../models/Announcement';
@@ -11,6 +12,8 @@ import { AnnouncementConfirmation } from '../models/AnnouncementConfirmation';
 import { DashboardPreference } from '../models/DashboardPreference';
 import { File } from '../models/File';
 import { Incident } from '../models/Incident';
+import { LostFoundItem } from '../models/LostFoundItem';
+import { LostFoundShare } from '../models/LostFoundShare';
 import { Membership } from '../models/Membership';
 import { Milestone } from '../models/Milestone';
 import { PhysicalCategory } from '../models/PhysicalCategory';
@@ -381,6 +384,41 @@ export async function seedDemoData(opts: DemoSeedOptions): Promise<DemoSeedResul
     updatedAt: now,
   });
 
+  // --- Lost & Found（实用工具 · 失物招领；一条带真实照片，公开分享已开启，token 随机防试用多环境撞唯一索引） ---
+  const lfPhotoRef = await storeBuffer(DEMO_PNG, `demo/${projectId}/lost-found-umbrella.png`, 'image/png');
+  const lfPhoto = await File.create({
+    projectId,
+    filename: 'lost-found-umbrella.png',
+    path: lfPhotoRef,
+    mime: 'image/png',
+    size: DEMO_PNG.length,
+    uploadedBy: adminId,
+    createdAt: new Date(now.getTime() - 3 * 3600000),
+    updatedAt: new Date(now.getTime() - 3 * 3600000),
+  });
+  await db.collection('lostfounditems').insertMany([
+    { _id: oid(), projectId, name: '黑色折叠伞', note: '伞柄挂有橙色挂件', photoId: lfPhoto._id, photoPreviewPath: null,
+      foundAt: new Date(now.getTime() - 3 * 3600000), foundLocation: 'A 馆入口服务台',
+      status: 'pending', claimedAt: null, claimNote: '', createdBy: adminId,
+      createdAt: new Date(now.getTime() - 3 * 3600000), updatedAt: new Date(now.getTime() - 3 * 3600000) },
+    { _id: oid(), projectId, name: '学生证', note: '蓝色卡套，贴有吧唧', photoId: null, photoPreviewPath: null,
+      foundAt: new Date(now.getTime() - 5 * 3600000), foundLocation: '同人摊位区 B-12',
+      status: 'pending', claimedAt: null, claimNote: '', createdBy: artId,
+      createdAt: new Date(now.getTime() - 5 * 3600000), updatedAt: new Date(now.getTime() - 5 * 3600000) },
+    { _id: oid(), projectId, name: '充电宝（20000mAh）', note: '白色小米，带 Type-C 线', photoId: null, photoPreviewPath: null,
+      foundAt: new Date(now.getTime() - 26 * 3600000), foundLocation: '主舞台观众席',
+      status: 'claimed', claimedAt: new Date(now.getTime() - 20 * 3600000), claimNote: '失主 CN 阿凪，已现场归还', createdBy: adminId,
+      createdAt: new Date(now.getTime() - 26 * 3600000), updatedAt: new Date(now.getTime() - 20 * 3600000) },
+  ]);
+  await db.collection('lostfoundshares').insertOne({
+    _id: oid(),
+    projectId,
+    token: crypto.randomBytes(24).toString('base64url'),
+    enabled: true,
+    createdAt: now,
+    updatedAt: now,
+  });
+
   // --- Invite Code（仅 CLI 演示创建；不写 used/usedBy/usedAt，注册逻辑按 usedBy 不存在判定未用） ---
   if (opts.inviteCode) {
     await db.collection('invitecodes').insertOne({
@@ -412,6 +450,9 @@ export async function deleteDemoData(ref: {
   }).lean();
   for (const f of files) await deleteStored(f.path).catch(() => {});
   for (const v of versions) if (v.previewPath) await deleteStored(v.previewPath).catch(() => {});
+  // 失物招领预览引用不在 ResourceVersion 体系内，需显式清（照片 File 已被上方 projectId 级联覆盖）
+  const lfPreviews = await LostFoundItem.distinct('photoPreviewPath', { projectId, photoPreviewPath: { $ne: null } });
+  for (const ref of lfPreviews) if (ref) await deleteStored(ref).catch(() => {});
   await File.deleteMany({ _id: { $in: files.map((f) => f._id) } });
   await ResourceVersion.deleteMany({ resourceId: { $in: resourceIds } });
   await Resource.deleteMany({ projectId });
@@ -425,7 +466,7 @@ export async function deleteDemoData(ref: {
     ResourceType, Todo, Transaction, PlatformAccount, WorkModule, Announcement,
     AnnouncementConfirmation, Activity, Milestone, RiskInstance, DashboardPreference,
     Incident, PhysicalCategory, PhysicalItem, PhysicalItemLog, ProjectInvite, WeeklyReportLog,
-    StageRundown, StageSignup,
+    StageRundown, StageSignup, LostFoundItem, LostFoundShare,
   ];
   for (const m of projectScoped) await m.deleteMany({ projectId });
   await Project.deleteMany({ _id: projectId });

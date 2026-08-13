@@ -350,6 +350,29 @@ export interface DbProjectInvite {
   expiresAt: string;
 }
 
+export interface DbLostFoundItem {
+  id: string;
+  projectId: string;
+  name: string;
+  note: string;
+  /** demo 不持久化照片，恒为 false */
+  hasPhoto: boolean;
+  foundAt: string;
+  foundLocation: string;
+  status: 'pending' | 'claimed';
+  claimedAt: string | null;
+  claimNote: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DbLostFoundShare {
+  projectId: string;
+  token: string;
+  enabled: boolean;
+}
+
 export interface Db {
   version: number;
   currentUserId: string;
@@ -373,6 +396,8 @@ export interface Db {
   incidents: DbIncident[];
   stageRundowns: DbStageRundown[];
   stageSignups: DbStageSignup[];
+  lostFoundItems: DbLostFoundItem[];
+  lostFoundShares: DbLostFoundShare[];
   dashboardPreferences: DbDashboardPreference[];
   inviteCodes: DbInviteCode[];
   invites: DbProjectInvite[];

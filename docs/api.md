@@ -35,10 +35,10 @@ interface TodoItem {
 interface FileMeta { id: string; filename: string; mime: string; size: number }
 ```
 
-权限点全集：`project:manage`、`member:manage`、`role:manage`、`todo:create`、`todo:manage`、`todo:complete`、`file:upload`、`finance:manage`、`finance:add`、`materials:manage`、`accounts:manage`、`work:manage`、`announcement:manage`、`tools:manage`（`finance:manage` 起为第二阶段新增，`finance:add` 为财务权限拆分新增，`work:manage` 为现场任务单新增，`todo:create` 为待办流程优化新增，`announcement:manage` 为公告管理新增，`tools:manage` 为实用工具新增）。
+权限点全集：`project:manage`、`member:manage`、`role:manage`、`todo:create`、`todo:manage`、`todo:complete`、`file:upload`、`finance:manage`、`finance:add`、`materials:manage`、`accounts:manage`、`work:manage`、`announcement:manage`、`tools:manage`、`lostfound:manage`（`finance:manage` 起为第二阶段新增，`finance:add` 为财务权限拆分新增，`work:manage` 为现场任务单新增，`todo:create` 为待办流程优化新增，`announcement:manage` 为公告管理新增，`tools:manage` 为实用工具新增，`lostfound:manage` 为失物招领新增）。
 `project:manage` 等价于拥有全部权限；超级管理员在所有项目中视为拥有全部权限。
 
-预置角色：主办=全部权限；美工/宣发=`file:upload, todo:create, todo:complete, finance:add`；一般staff=`todo:create, todo:complete, finance:add`。既有项目的角色是创建时快照，不含新权限点；可经 `project:manage` 放行或在角色 Tab 勾选补全。
+预置角色：主办=全部权限；美工/宣发=`file:upload, todo:create, todo:complete, finance:add, lostfound:manage`；一般staff=`todo:create, todo:complete, finance:add, lostfound:manage`。既有项目的角色是创建时快照，通常不含新权限点；可经 `project:manage` 放行或在角色 Tab 勾选补全。例外：`lostfound:manage` 设计为默认授予所有角色，后端启动时自动为既有项目全部角色幂等补授。
 
 ---
 
@@ -867,3 +867,84 @@ interface StageSignupSummary {
 请求：`{ rundownId: string }`：目标 Rundown 必须属于本项目，否则 404「Rundown 不存在」。把全部 `approved` 节目按 `{ name, durationMin, participants, note, attachmentIds: [] }` 追加到该 Rundown 条目末尾；追加语义不去重，重复导入会重复追加。无 `approved` 节目 → 400「没有已通过的节目可导入」。
 响应 200：`{ rundown: StageRundown }`（与舞台 Rundown 详情同形，附件已解析）
 错误：400 `bad_request`；403 `forbidden`；404 `not_found`
+
+---
+
+## 失物招领（实用工具）
+
+项目域挂载于 `/api/projects/:id/lostfound`，需登录且为项目成员。查看类操作成员即可；登记、编辑、删除、认领状态流转与公开分享管理均需 `lostfound:manage`（`project:manage` 等价放行，超管不受限；该权限点默认授予所有角色，见权限点节）。公开域挂载于 `/api/public/lostfound`，**免登录**，按分享 token 只读暴露，限流 300 次/分钟/IP。
+
+### 数据类型
+
+```ts
+interface LostFoundItem {
+  id: string
+  name: string
+  note: string                    // 特征描述
+  foundAt: string                 // ISO，捡到时间
+  foundLocation: string
+  status: 'pending' | 'claimed'   // 待认领 | 已认领
+  claimedAt: string | null
+  claimNote: string               // 认领备注/联系方式，仅项目内可见
+  hasPhoto: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+interface LostFoundShareInfo { enabled: boolean; token: string }
+```
+
+### GET /api/projects/:id/lostfound
+
+查询参数：`q`（大小写不敏感匹配 name/note/foundLocation）、`status`（仅 `pending|claimed` 生效，非法值忽略）。按 foundAt 倒序，上限 200 条。
+响应 200：`{ items: LostFoundItem[] }`
+
+### POST /api/projects/:id/lostfound（lostfound:manage）
+
+multipart/form-data。字段：`name`（必填，trim 后非空，否则 400「名称不能为空」）、`note`、`foundAt`（可选，非法 400「无效的时间」，缺省为当前时间）、`foundLocation`；文件 `photo`（可选，单张，仅图片否则 400「仅支持图片文件」，≤20MB）。照片自动生成 WebP 预览（≤800px、≤100KB）供列表与公开页展示。
+响应 201：`{ item: LostFoundItem }`
+
+### GET /api/projects/:id/lostfound/:itemId
+
+响应 200：`{ item: LostFoundItem }`
+错误：404 `not_found`（跨项目同理）
+
+### PATCH /api/projects/:id/lostfound/:itemId（lostfound:manage）
+
+multipart/form-data，字段同 POST（均可选）；另支持 `removePhoto=1`（移除照片并级联删除存储对象与 File 文档）。换新照片时先持久化新照片再删旧照片。
+响应 200：`{ item: LostFoundItem }`
+
+### DELETE /api/projects/:id/lostfound/:itemId（lostfound:manage）
+
+级联删除照片原图/预览图存储对象与 File 文档。
+响应 200：`{ ok: true }`
+
+### PATCH /api/projects/:id/lostfound/:itemId/status（lostfound:manage）
+
+请求：`{ status: 'pending' | 'claimed', claimNote?: string }`，其余值 400「无效的状态」。`claimed` → 记录 `claimedAt` 并保存 `claimNote`（未提供则保留原值）；`pending` → 清空 `claimedAt` 与 `claimNote`。
+响应 200：`{ item: LostFoundItem }`
+
+### GET /api/projects/:id/lostfound/:itemId/photo
+
+成员可读。返回照片二进制（有 WebP 预览时优先预览，否则原图）；无照片 404。
+
+### GET /api/projects/:id/lostfound/share（lostfound:manage）
+
+惰性创建分享文档（默认 `enabled: false` + 随机 token，重复 GET token 不变）。
+响应 200：`{ share: LostFoundShareInfo }`
+
+### PUT /api/projects/:id/lostfound/share（lostfound:manage）
+
+请求：`{ enabled?: boolean, regenerate?: boolean }`。`regenerate: true` 换新 token，旧链接立即失效。
+响应 200：`{ share: LostFoundShareInfo }`
+
+公开页地址：`{站点源}/lf/<token>`（前端免登录路由）。
+
+### GET /api/public/lostfound/:token（免登录）
+
+分享不存在或未开启 → 404 `not_found`「链接不存在或已关闭」。查询参数同项目域列表（`q`/`status`）。
+响应 200：`{ projectName: string, items: PublicLostFoundItem[] }`；`PublicLostFoundItem` 为白名单字段 `{ id, name, note, foundAt, foundLocation, status, claimedAt, hasPhoto }`——**不含** `claimNote`/`createdBy` 等内部字段。
+
+### GET /api/public/lostfound/:token/items/:itemId/photo（免登录）
+
+返回照片二进制；item 必须属于该分享的项目（跨项目 404）。

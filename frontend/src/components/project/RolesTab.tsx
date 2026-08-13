@@ -32,6 +32,7 @@ const PERMISSIONS = [
   { key: 'accounts:manage', label: '账号管理' },
   { key: 'work:manage', label: '现场分工管理' },
   { key: 'tools:manage', label: '工具管理' },
+  { key: 'lostfound:manage', label: '失物招领管理' },
 ];
 
 interface Props {

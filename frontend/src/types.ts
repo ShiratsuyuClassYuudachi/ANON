@@ -268,3 +268,39 @@ export interface StageSignupSummary {
   itemCount: number; approvedCount: number; totalDurationMin: number; availableMin: number;
   createdAt: string; updatedAt: string;
 }
+
+export interface LostFoundItem {
+  id: string;
+  name: string;
+  note: string;
+  foundAt: string;
+  foundLocation: string;
+  status: 'pending' | 'claimed';
+  claimedAt: string | null;
+  claimNote: string;
+  hasPhoto: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LostFoundShareInfo {
+  enabled: boolean;
+  token: string;
+}
+
+/** 公开查找页物品（后端白名单字段，无 claimNote） */
+export interface PublicLostFoundItem {
+  id: string;
+  name: string;
+  note: string;
+  foundAt: string;
+  foundLocation: string;
+  status: 'pending' | 'claimed';
+  claimedAt: string | null;
+  hasPhoto: boolean;
+}
+
+export interface PublicLostFoundResponse {
+  projectName: string;
+  items: PublicLostFoundItem[];
+}

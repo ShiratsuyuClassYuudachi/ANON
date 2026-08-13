@@ -18,7 +18,7 @@ const PUBLIC_PATHS = ['/login', '/register'];
 function handleUnauthorized() {
   setTokens(null, null);
   const p = location.pathname;
-  if (!p.startsWith('/login') && !PUBLIC_PATHS.includes(p) && !p.startsWith('/invite/')) location.href = '/login';
+  if (!p.startsWith('/login') && !PUBLIC_PATHS.includes(p) && !p.startsWith('/invite/') && !p.startsWith('/lf/')) location.href = '/login';
 }
 
 let refreshPromise: Promise<boolean> | null = null; // 单飞：并发 401 共享一次刷新
