@@ -2,23 +2,114 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
+import { daysBeforeLocal } from '../../lib/datetime';
 import type { Member, TodoItem } from '../../types';
 import { FormOverlay } from '@/components/FormOverlay';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId: string;
+  /** 项目开展日期 ISO；为 null 时日期字段不显示「开展倒排」开关 */
+  startDate: string | null;
   members: Member[];
   knownCategories: string[];
   /** 完整 TodoItem = 编辑模式；{ title } = 创建模式（可预填标题） */
   initial?: TodoItem | { title: string };
   onSaved: () => Promise<void>;
+}
+
+interface TodoDateFieldProps {
+  id: string;
+  label: string;
+  /** datetime-local 值，仍由外层 useState 持有；倒排模式下换算结果直接写回同一 value */
+  value: string;
+  onChange: (v: string) => void;
+  startDate: string | null;
+}
+
+/** 日期字段：默认绝对时间录入；startDate 非空时可切「开展倒排」（开展前 N 天 + 时刻），换算结果实时写回 value，
+ *  保存后与普通绝对日期走同一提交链路。子状态随 Dialog 关闭卸载，无需显式 reset。 */
+function TodoDateField({ id, label, value, onChange, startDate }: TodoDateFieldProps) {
+  const [rel, setRel] = useState(false);
+  const [days, setDays] = useState('1');
+  const [time, setTime] = useState('12:00');
+
+  /** days 允许输入中暂为空串，换算时按 0 处理 */
+  const applyRel = (d: string, t: string) => {
+    if (!startDate) return;
+    onChange(daysBeforeLocal(startDate, parseInt(d) || 0, t));
+  };
+
+  const onToggle = (on: boolean) => {
+    setRel(on);
+    if (on) {
+      const t = value ? value.slice(11, 16) : '12:00';
+      setDays('1');
+      setTime(t);
+      if (startDate) onChange(daysBeforeLocal(startDate, 1, t));
+    }
+    // 关闭倒排：当前换算值保留在 datetime-local 中可继续手改
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <Label htmlFor={id}>{label}</Label>
+        {startDate && (
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            开展倒排
+            <Switch checked={rel} onCheckedChange={onToggle} />
+          </label>
+        )}
+      </div>
+      {!rel ? (
+        <Input
+          id={id}
+          type="datetime-local"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      ) : (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            开展前
+            <Input
+              id={id}
+              type="number"
+              min={0}
+              max={3650}
+              step={1}
+              className="w-20"
+              value={days}
+              onChange={(e) => {
+                setDays(e.target.value);
+                applyRel(e.target.value, time);
+              }}
+            />
+            天
+            <Input
+              type="time"
+              className="w-28"
+              aria-label="时刻"
+              value={time}
+              onChange={(e) => {
+                setTime(e.target.value);
+                applyRel(days, e.target.value);
+              }}
+            />
+          </div>
+          {value && <p className="text-xs text-muted-foreground">= {value.replace('T', ' ')}</p>}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function toIso(v: string): string | undefined {
@@ -37,7 +128,7 @@ function isEdit(initial?: TodoItem | { title: string }): initial is TodoItem {
   return !!initial && 'id' in initial;
 }
 
-export function TodoFormDialog({ open, onOpenChange, projectId, members, knownCategories, initial, onSaved }: Props) {
+export function TodoFormDialog({ open, onOpenChange, projectId, startDate, members, knownCategories, initial, onSaved }: Props) {
   const editTarget = isEdit(initial) ? initial : null;
   const [title, setTitle] = useState('');
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
@@ -134,15 +225,7 @@ export function TodoFormDialog({ open, onOpenChange, projectId, members, knownCa
             ))}
           </div>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="todo-form-due">到期时间</Label>
-          <Input
-            id="todo-form-due"
-            type="datetime-local"
-            value={dueAt}
-            onChange={(e) => setDueAt(e.target.value)}
-          />
-        </div>
+        <TodoDateField id="todo-form-due" label="到期时间" value={dueAt} onChange={setDueAt} startDate={startDate} />
 
         <button
           type="button"
@@ -167,24 +250,8 @@ export function TodoFormDialog({ open, onOpenChange, projectId, members, knownCa
                 {knownCategories.map((c) => <option key={c} value={c} />)}
               </datalist>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="todo-form-node">节点时间</Label>
-              <Input
-                id="todo-form-node"
-                type="datetime-local"
-                value={nodeAt}
-                onChange={(e) => setNodeAt(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="todo-form-remind">提醒时间</Label>
-              <Input
-                id="todo-form-remind"
-                type="datetime-local"
-                value={remindAt}
-                onChange={(e) => setRemindAt(e.target.value)}
-              />
-            </div>
+            <TodoDateField id="todo-form-node" label="节点时间" value={nodeAt} onChange={setNodeAt} startDate={startDate} />
+            <TodoDateField id="todo-form-remind" label="提醒时间" value={remindAt} onChange={setRemindAt} startDate={startDate} />
             <div className="space-y-1.5">
               <Label htmlFor="todo-form-note">备注</Label>
               <Textarea

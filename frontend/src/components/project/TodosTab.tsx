@@ -426,6 +426,7 @@ export default function TodosTab({ project, members, myPermissions }: Props) {
         open={formInitial !== null}
         onOpenChange={(o) => !o && setFormInitial(null)}
         projectId={project.id}
+        startDate={project.startDate}
         members={members}
         knownCategories={knownCategories}
         initial={formInitial ?? undefined}

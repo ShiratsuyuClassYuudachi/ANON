@@ -143,7 +143,7 @@
 - `src/types.ts` — 全部 API 共享类型
 - `src/index.css` — Tailwind v4 主题变量与全局样式
 - `src/vite-env.d.ts` — Vite / vite-plugin-pwa 客户端类型引用
-- `src/lib/datetime.ts` — 本地时间格式化 + 活动倒计时
+- `src/lib/datetime.ts` — 本地时间格式化 + 活动倒计时 + 开展倒排换算（daysBeforeLocal）
 - `src/lib/offlineQueue.ts` — 离线 POST 队列（现场模式用）
 - `src/lib/push.ts` — Web Push 订阅管理
 - `src/lib/utils.ts` — cn() 类名合并
@@ -173,7 +173,7 @@
 
 ### 项目 Tab `src/components/project/`（挂在 ProjectHome，直调对应后端域）
 - `DashboardTab.tsx` — 仪表盘聚合（内嵌公告/里程碑/阶段卡）
-- `TodosTab.tsx` + `TodoFormDialog.tsx` + `TodoActionSheet.tsx` — 待办列表/表单/完成与进度弹层
+- `TodosTab.tsx` + `TodoFormDialog.tsx` + `TodoActionSheet.tsx` — 待办列表/表单（日期字段支持开展倒排录入）/完成与进度弹层
 - `FinanceTab.tsx` — 记账/门票/CSV 导出
 - `MaterialsTab.tsx` — 资料分类/版本/实物入口
 - `PhysicalTab.tsx` — 实物分类/台账/状态/日志

@@ -81,3 +81,13 @@ export function eventCountdown(startDate: string | null, endDate: string | null)
     cls: 'text-muted-foreground',
   };
 }
+
+/** 开展倒排换算：startIso 的本地日历日往前推 days 天，时刻设为 time（"HH:mm"）；返回 datetime-local 输入值。
+ *  输入非法返回空串。月份/年份回绕由 Date 构造函数自动处理。 */
+export function daysBeforeLocal(startIso: string, days: number, time: string): string {
+  const s = new Date(startIso);
+  if (Number.isNaN(s.getTime())) return '';
+  const [hh, mm] = time.split(':').map(Number);
+  const d = new Date(s.getFullYear(), s.getMonth(), s.getDate() - Math.max(0, Math.trunc(days)), hh || 0, mm || 0, 0, 0);
+  return toLocalInput(d.toISOString());
+}
