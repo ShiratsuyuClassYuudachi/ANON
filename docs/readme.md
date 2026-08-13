@@ -69,9 +69,16 @@ cd frontend && npm install && npm run dev
 curl -X POST -H "Authorization: Bearer $CRON_SECRET" \
   http://localhost:4000/api/cron/reminders
 # → {"sent": <本次发送条数>}
+
+curl -X POST -H "Authorization: Bearer $CRON_SECRET" \
+  http://localhost:4000/api/cron/weekly-report
+# → {"sent": <本次发送条数>}
 ```
 
-扫描所有 `status=open` 且 `remindAt <= now`（节点提醒）或 `dueAt <= now`（到期提醒）的待办，经通知管线向指派人发信；每条待办每类提醒只发一次（`ReminderLog` 去重，投递失败不落标记、下次重试）。可挂系统 crontab 每分钟执行。
+两个接口共用同一 Bearer 密钥（未配置 `CRON_SECRET` 均返回 503）：
+
+- **`/api/cron/reminders`**（可挂系统 crontab 每分钟执行）：扫描所有 `status=open` 且 `remindAt <= now`（节点提醒）或 `dueAt <= now`（到期提醒）的待办，经通知管线向指派人发信；另扫描 3 天内到期且未完成的里程碑，向项目管理者发「里程碑临近」通知。每个目标每类提醒只发一次（`ReminderLog` 去重，投递失败不落标记、下次重试）。
+- **`/api/cron/weekly-report`**（建议每周一执行一次）：对 `preparing`/`active`/`settling` 状态的项目生成周报（本周完成待办数、新增风险数、当前阶段进度、下周里程碑），经通知管线发给项目管理者；按项目 + 周一日期经 `WeeklyReportLog` 去重，当周重复调用不重发。
 
 ## 测试与构建
 
@@ -79,7 +86,7 @@ curl -X POST -H "Authorization: Bearer $CRON_SECRET" \
 cd backend  && npm test          # vitest + mongodb-memory-server（无需 Docker/真实 Mongo）
 cd backend  && npm run typecheck # tsc --noEmit
 cd backend  && npm run build     # tsc 输出到 dist/
-cd frontend && npm run build     # vite build（含 tsc --noEmit）
+cd frontend && npm run build     # tsc --noEmit && vite build && node scripts/patch-sw.mjs（PWA：workbox 生成 sw.js 后追加 Web Push 事件处理）
 ```
 
 生产部署：`npm run build` 后，后端 `node dist/index.js`，前端 `dist/` 为静态文件（任意静态托管或 `npx vite preview`）。
@@ -189,7 +196,7 @@ docker compose -f docker-compose.prod.yml up -d --build backend frontend
 # 1. 首超管注册（无邀请码）
 curl -X POST localhost:4000/api/auth/register -H 'Content-Type: application/json' \
   -d '{"email":"admin@test.com","name":"Admin","password":"password123"}'
-# → 201 {"token":"...","user":{"email":"admin@test.com","isSuperAdmin":true,...}}
+# → 201 {"token":"...","refreshToken":"...","user":{"email":"admin@test.com","isSuperAdmin":true,...}}
 
 # 2. 建邀请码
 curl -X POST localhost:4000/api/admin/invite-codes \

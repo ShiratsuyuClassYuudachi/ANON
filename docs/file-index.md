@@ -7,8 +7,8 @@
 ## 架构速览
 
 - 请求链：浏览器 → Cloudflare Worker（`worker/src/index.js`，`/api/*` 反代源站、静态走 ASSETS）→ 源站 nginx（`frontend/nginx.conf`，`/api/` → backend:4000）→ Express（`backend/src/app.ts`）→ FerretDB(MongoDB 协议) / S3(MinIO)。
-- 前端：React 19 + Vite PWA，入口 `frontend/src/main.tsx` → `App.tsx` 路由表；全部请求经 `api/client.ts`（Bearer + 401 单飞刷新重放）；共享类型集中在 `types.ts`。
-- 后端：Express + Mongoose；路由统一挂 `/api/projects/:id/*`（项目域）与 `/api/{auth,admin,me,push,invites,files,cron}`（顶级域）；权限经 `middleware/projectAccess.ts` 的 `loadMembership` + `requirePermission`。
+- 前端：React 18 + Vite 6 PWA，入口 `frontend/src/main.tsx` → `App.tsx` 路由表；全部请求经 `api/client.ts`（Bearer + 401 单飞刷新重放）；共享类型集中在 `types.ts`。
+- 后端：Express + Mongoose；路由统一挂 `/api/projects/:id/*`（项目域）与 `/api/{auth,admin,me,push,invites,files,cron}` + `/api/public/lostfound`（顶级域，后者免登录）；权限经 `middleware/projectAccess.ts` 的 `loadMembership` + `requirePermission`。
 - 纯前端演示站：`frontend/src/demo/` 构建期拦截 `fetch('/api/*')`，内存库 mock 全部后端契约。
 
 ## 功能域速查表（改哪个功能 → 看哪些文件）
@@ -43,7 +43,7 @@
 ### 装配与基建
 - `src/app.ts` — Express 装配：helmet + json(2mb) + `/api/health` + errorHandler；路由挂载表（见下文「路由挂载」）
 - `src/config.ts` — 环境配置聚合：port/mongoUri/jwtSecret/S3/SMTP/VAPID/trialEmail
-- `src/index.ts` — 启动入口：连 Mongo → initStorage → startTrialSweeper → listen
+- `src/index.ts` — 启动入口：连 Mongo → initStorage → grantPermissionToAllRoles（新权限点迁移）→ startTrialSweeper → listen
 - `src/middleware/auth.ts` — authRequired 校验 Bearer JWT；requireSuperAdmin 超管闸
 - `src/middleware/projectAccess.ts` — loadMembership 载入 project/membership/myPermissions；requirePermission(perm)
 - `src/middleware/errorHandler.ts` — 统一 AppError/Mongoose 错误为 `{error:{code,message}}`
@@ -58,8 +58,8 @@
 - 顶级：`/api/auth`(限流 50/15min)、`/api/admin`、`/api/me`、`/api/push`、`/api/invites`、`/api/files`、`/api/cron`、`/api/projects`、`/api/public/lostfound`(免登录,限流 300/min)
 - 项目域 `/api/projects/:id/`：`files` `todos` `work-modules` `work-sheet` `finance` `materials` `physical` `accounts` `dashboard` `onsite` `risks` `announcements` `activities` `stages` `stage-rundowns` `stage-signups` `lostfound` `milestones`
 
-### 路由 `src/routes/`（24 个，一文件一业务域）
-- `auth.ts` — POST register/login/refresh/logout，JWT+refresh 轮换
+### 路由 `src/routes/`（25 个，一文件一业务域）
+- `auth.ts` — POST register/login/refresh/logout，JWT+refresh 轮换；/login 内嵌试用入口（trialLogin）
 - `admin.ts` — 超管邀请码 POST/GET /invite-codes
 - `me.ts` — 个人资料 GET/PATCH /、POST /onboarded
 - `projects.ts` — 项目 CRUD + roles/members/invites 子资源
@@ -70,10 +70,10 @@
 - `files.ts` — 双路由：项目内 POST 上传；/api/files GET /:id 下载
 - `physical.ts` — 实物分类/条目 CRUD、POST /items/:itemId/log、GET /summary
 - `accounts.ts` — 平台账号 CRUD、POST /:accountId/reveal 揭示凭证
-- `announcements.ts` — 公告 CRUD、POST /:announcementId/confirm
-- `dashboard.ts` — GET / /summary /my-actions /schedule、PATCH /preferences
+- `announcements.ts` — 公告 CRUD、POST /:announcementId/confirm、GET /:announcementId/confirmations 确认名单
+- `dashboard.ts` — GET / /preferences /summary /my-actions /schedule、PATCH /preferences
 - `risks.ts` — GET /、POST /evaluate、POST /:riskId/ignore|restore
-- `onsite.ts` — GET / 现场聚合、POST /incidents(/:iid/resolve)
+- `onsite.ts` — GET / 现场聚合、GET/POST /incidents、POST /incidents/:iid/resolve
 - `workModules.ts` — 工作模块 CRUD、POST /:mid/confirm|unconfirm|checkin|finish
 - `workSheet.ts` — GET / 本人任务单、GET /:userId（work:manage）
 - `stages.ts` — 阶段 CRUD、PATCH /reorder

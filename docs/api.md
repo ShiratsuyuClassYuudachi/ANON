@@ -5,14 +5,15 @@
 
 ## 通用约定
 
-- 请求/响应均为 JSON（文件上传/下载除外），`Content-Type: application/json`
+- 请求/响应均为 JSON（文件上传/下载除外），`Content-Type: application/json`；JSON 请求体上限 2MB
+- 健康检查：`GET /api/health`（公开）→ `{ ok: true }`
 - 错误响应统一格式，HTTP 状态码 +  body：
 
 ```json
 { "error": { "code": "bad_request", "message": "人类可读信息" } }
 ```
 
-- 常见 code：`bad_request`(400)、`unauthorized`(401)、`forbidden`(403)、`not_found`(404)、`email_taken`/`role_exists`/`role_in_use`/`already_done`(409)、`invite_gone`(410)、`internal`(500)
+- 常见 code：`bad_request`/`invalid_invite`(400)、`unauthorized`/`bad_credentials`/`invalid_refresh`(401)、`forbidden`(403)、`not_found`(404)、`email_taken`/`email_reserved`/`role_exists`/`role_in_use`/`already_done`/`conflict`(409)、`invite_gone`(410)、`rate_limited`/`trial_limit`(429)、`internal`(500)、`cron_disabled`(503)
 - 时间字段均为 ISO 8601 字符串（如 `2026-08-01T10:00:00.000Z`），可空字段返回 `null`
 
 ## 数据类型
@@ -21,8 +22,20 @@
 interface User { id: string; email: string; name: string; isSuperAdmin: boolean; contacts: { platform: string; value: string }[]; onboardedAt: string|null }
 interface Role { name: string; permissions: string[] }  // 权限点见下
 interface Member { userId: string; name: string; email: string; roleName: string }
-interface ProjectSummary { id: string; name: string; description: string; startDate: string|null; endDate: string|null; myRole: string|null }
-interface ProjectDetail { id: string; name: string; description: string; startDate: string|null; endDate: string|null; roles: Role[]; createdBy: string }
+type ProjectStatus = 'draft'|'preparing'|'active'|'settling'|'completed'|'archived'|'cancelled'
+type HealthStatus = 'normal'|'attention'|'at_risk'|'critical'  // 计算口径见「风险预警」
+interface ProjectSummary {
+  id: string; name: string; description: string; status: ProjectStatus;
+  startDate: string|null; endDate: string|null; myRole: string|null;
+  currentStage: string;                       // 第一个未完成阶段名；全部完成/无阶段为 ''
+  stageProgress: { completed: number; total: number };
+  health: HealthStatus; todoCompletionRate: number; activeRiskCount: number;
+}
+interface ProjectDetail {
+  id: string; name: string; description: string; status: ProjectStatus;
+  startDate: string|null; endDate: string|null; location: string; timezone: string;
+  currentStage: string; stages: StageItem[]; roles: Role[]; createdBy: string;
+}
 interface TodoItem {
   id: string; title: string; category: string;
   assignees: { userId: string; name: string }[];
@@ -125,12 +138,12 @@ interface FileMeta { id: string; filename: string; mime: string; size: number }
 ### GET /api/projects/:id
 
 成员或超管可访问。
-响应 200：`{ project: ProjectDetail, members: Member[], myRole: string, myPermissions: string[] }`
+响应 200：`{ project: ProjectDetail, members: Member[], myRole: string, myPermissions: string[] }`（超管的 `myRole` 固定为「超级管理员」）
 
 ### PATCH /api/projects/:id
 
 需 `project:manage`。
-请求（均可选）：`{ name?, description?, startDate?, endDate? }`
+请求（均可选）：`{ name?, description?, startDate?, endDate?, status?: ProjectStatus, location?, timezone?, currentStage? }`（`startDate`/`endDate` 传空值清除）
 响应 200：`{ project: ProjectDetail }`
 
 ### 角色
@@ -175,6 +188,36 @@ interface StageItem { id: string; name: string; order: number; completedAt: stri
   请求 `{ completedAt?: string|null, note?: string }`（`completedAt: null` 取消完成）。404 阶段不存在
 - **DELETE /api/projects/:id/stages/:stageId**（需 `project:manage`）
   删除后关联里程碑自动改为不关联阶段。409 `conflict`（至少需要保留一个阶段）；404 阶段不存在
+
+---
+
+## 里程碑
+
+挂载于 `/api/projects/:id/milestones`，需项目成员身份；增删改与标记完成均需 `project:manage`。
+
+```ts
+interface MilestoneItem {
+  id: string; title: string; date: string; description: string;
+  stageId: string|null; stageName: string|null;   // 关联的项目阶段（可空）
+  completedAt: string|null;
+  createdBy: { userId: string; name: string };
+}
+```
+
+- **GET /api/projects/:id/milestones**（成员）
+  Query（均可选）：`from`、`to`（ISO 时间，按 `date` 闭区间过滤）。按 date 升序。
+  响应 200：`{ milestones: MilestoneItem[] }`
+- **POST /api/projects/:id/milestones**（需 `project:manage`）
+  请求 `{ title: string, date: string, description?: string, stageId?: string }`。400 标题/日期为空或日期格式无效。
+  响应 201：`{ milestone: MilestoneItem }`
+- **PATCH /api/projects/:id/milestones/:milestoneId**（需 `project:manage`）
+  请求字段同 POST（均可选），另可加 `completedAt: string|null`（`null` 取消完成）。404 里程碑不存在（含跨项目）。
+  响应 200：`{ milestone: MilestoneItem }`
+- **DELETE /api/projects/:id/milestones/:milestoneId**（需 `project:manage`）
+  响应 200：`{ ok: true }`；404 不存在
+- **POST /api/projects/:id/milestones/:milestoneId/complete**（需 `project:manage`）
+  标记完成（`completedAt` = 当前时间；重复调用会刷新完成时间）。404 里程碑不存在。
+  响应 200：`{ milestone: MilestoneItem }`
 
 ---
 
@@ -311,6 +354,120 @@ interface AnnouncementItem {
 
 ---
 
+## 工作台仪表盘
+
+挂载于 `/api/projects/:id/dashboard`，需项目成员身份。汇总按权限裁剪：无财务权限点（`finance:manage`/`finance:add`）时 `summary.modules.finance` 为 `null`。
+
+```ts
+interface DashboardSummary {
+  metrics: {
+    todoCompletionRate: number; overdueCount: number; budgetUsageRate: number|null;
+    pendingMaterialCount: number; workConfirmationRate: number; memberCount: number; activeRiskCount: number;
+  };
+  modules: {
+    todos: { total: number; done: number; open: number; overdue: number; dueThisWeek: number; completionRate: number };
+    finance: { ticketIncomeCents: number; incomeCents: number; expenseCents: number; profitCents: number } | null;
+    materials: { totalResources: number; noVersionCount: number; recentCount: number } | null;
+    work: { totalModules: number; totalRequired: number; totalAssigned: number; confirmedCount: number; shortageCount: number } | null;
+  };
+}
+interface DashboardActionItem {
+  id: string; sourceType: 'todo'|'work'; title: string; detail: string;
+  dueAt: string|null; isOverdue: boolean; action: 'complete'|'confirm';
+}
+interface ScheduleGroup {
+  date: string;   // YYYY-MM-DD
+  label: string;  // 今天 / 明天 / MM-DD
+  items: { id: string; sourceType: 'todo'|'work'|'project'|'milestone'; title: string; time: string; allDay: boolean }[];
+}
+interface DashboardPreferences {
+  defaultView: 'personal'|'project';
+  collapsedCards: string[]; hiddenCards: string[];
+  scheduleRange: 7|30; cardOrder: string[];
+}
+```
+
+- **GET /api/projects/:id/dashboard**（成员）
+  聚合首屏数据。Query：`scheduleDays`（可选，日程天数；缺省用偏好的 `scheduleRange`，上限 30）。
+  响应 200：
+
+```json
+{
+  "summary": "DashboardSummary",
+  "myActions": { "items": ["DashboardActionItem"] },
+  "risks": { "risks": ["RiskItem（精简：不含 resolvedAt 与忽略字段）"], "health": "HealthStatus" },
+  "schedule": { "groups": ["ScheduleGroup"] },
+  "announcements": { "items": ["AnnouncementItem（当前用户可见，≤5 条）"] },
+  "activities": { "items": ["ActivityItem（≤10 条）"] },
+  "preferences": "DashboardPreferences"
+}
+```
+
+- **GET /api/projects/:id/dashboard/summary**（成员）
+  响应 200：`DashboardSummary`
+- **GET /api/projects/:id/dashboard/my-actions**（成员）
+  本人待办：指派给本人的未完成待办 + 未确认的现场任务；逾期优先，再按 dueAt 升序，无日期排最后。
+  响应 200：`{ items: DashboardActionItem[] }`
+- **GET /api/projects/:id/dashboard/schedule**（成员）
+  Query：`days`（默认 7，上限 30）。
+  响应 200：`{ groups: ScheduleGroup[] }`
+- **GET /api/projects/:id/dashboard/preferences**（成员）
+  无记录时返回默认值（`defaultView` 依权限默认为 `project`/`personal`）。
+  响应 200：`DashboardPreferences`
+- **PATCH /api/projects/:id/dashboard/preferences**（成员）
+  请求（均可选）：`{ defaultView?: 'personal'|'project', collapsedCards?: string[], hiddenCards?: string[], scheduleRange?: 7|30, cardOrder?: string[] }`（卡片数组各截断至 20 条），幂等 upsert。400 值非法。
+  响应 200：`DashboardPreferences`
+
+---
+
+## 项目动态
+
+### GET /api/projects/:id/activities（成员）
+
+项目动态时间线，按创建时间倒序。Query（均可选）：`limit`（默认 30，上限 50）、`before`（ISO 时间，取更早的翻页）、`sourceType`（按来源类型过滤）。
+带权限门（`permissionGate`）的动态仅对拥有该权限点（或 `project:manage`）的成员可见。
+响应 200：`{ activities: ActivityItem[], hasMore: boolean }`
+
+```ts
+interface ActivityItem {
+  id: string; actor: { userId: string; name: string };
+  type: string; message: string;
+  sourceType: string; sourceId: string|null; createdAt: string;
+}
+```
+
+---
+
+## 风险预警
+
+挂载于 `/api/projects/:id/risks`，需项目成员身份。风险由后端规则探测（`computeRisks`，相关数据变更后自动重算），按指纹去重；不再命中的风险自动转为 `resolved` 不再返回。接口只返回 `active` 与 `ignored` 状态的风险。
+
+```ts
+interface RiskItem {
+  id: string; ruleCode: string; level: 'info'|'warning'|'critical';
+  sourceType: 'todo'|'finance'|'material'|'work'; sourceId: string|null;
+  title: string; description: string; status: 'active'|'ignored';
+  firstDetectedAt: string; lastDetectedAt: string; resolvedAt: string|null;
+  ignoredBy: string|null; ignoredUntil: string|null; ignoreReason: string|null;
+}
+```
+
+`HealthStatus` 计算口径（仅按 `active` 风险）：有 critical → `critical`；≥2 个 warning → `at_risk`；有 warning 或 info → `attention`；否则 `normal`。
+
+- **GET /api/projects/:id/risks**（成员）
+  排序：级别 critical→warning→info，同级按最近检测时间倒序。
+  响应 200：`{ risks: RiskItem[], health: HealthStatus }`
+- **POST /api/projects/:id/risks/evaluate**（成员）
+  立即重算全部风险规则后返回，响应同 GET。
+- **POST /api/projects/:id/risks/:riskId/ignore**（需 `project:manage`）
+  请求 `{ reason: string（必填）, ignoredUntil?: string }`。400 原因为空或风险非 `active`；404 不存在。
+  响应 200：`{ risk: RiskItem }`
+- **POST /api/projects/:id/risks/:riskId/restore**（需 `project:manage`）
+  恢复已忽略的风险为 `active`（清除忽略人/期限/原因）。400 风险非 `ignored`；404 不存在。
+  响应 200：`{ risk: RiskItem }`
+
+---
+
 ## 定时提醒（运维）
 
 提醒统一走通知管线（`services/notifications.ts`）：向收件人投递邮件 + Web Push 两个渠道，单渠道失败仅记日志；仅在投递成功后写去重标记，失败下次扫描自动重试。
@@ -373,8 +530,9 @@ interface TransactionItem {
   attachments: { id: string; filename: string }[];
 }
 interface FinanceSummary {
-  ticketPriceCents: number; ticketCount: number;
-  ticketIncomeCents: number;     // = ticketPriceCents × ticketCount
+  ticketPriceCents: number; ticketCount: number;   // 旧单票字段（多票种保存时清零）
+  ticketTypes: { name: string; priceCents: number; count: number }[];
+  ticketIncomeCents: number;     // = Σ(票种 priceCents × count) + ticketPriceCents × ticketCount
   incomeCents: number;           // 记账收入（不含门票）
   expenseCents: number;          // 全部记账支出
   profitCents: number;           // = ticketIncomeCents + incomeCents − expenseCents
@@ -423,9 +581,13 @@ interface FinanceSummary {
 
 ### PATCH /api/projects/:id/finance/ticket（finance:manage）
 
-设置门票价与售票数（存于 Project，实时计入汇总）。
-请求：`{ ticketPrice: number|string（元，≥0，最多两位小数）, ticketCount: number（整数，≥0） }`
-响应 200：`{ ticketPriceCents: number, ticketCount: number }`
+设置门票（存于 Project，实时计入汇总）。支持两种请求体：
+
+- 多票种：`{ ticketTypes: [{ name: string（≤20 字）, price: number（元，≥0，最多两位小数）, count: number（整数，≥0） }] }`（0~20 个；保存时清零旧单票字段，防止重复计收入）
+  响应 200：`{ ticketTypes: { name: string, priceCents: number, count: number }[], ticketIncomeCents: number }`
+- 旧单票格式（兼容）：`{ ticketPrice: number|string（元，≥0，最多两位小数）, ticketCount: number（整数，≥0） }`
+  响应 200：`{ ticketPriceCents: number, ticketCount: number }`
+
 错误：400 `bad_request`；403 `forbidden`
 
 ### GET /api/projects/:id/finance/export?userId=（需 `finance:manage`）
@@ -484,7 +646,8 @@ interface ResourceVersionItem {
 - **GET /api/projects/:id/materials**（成员）
   列出可见资源。查询参数：`typeId`（可选，按类型筛选）。响应 200：`{ resources: ResourceItem[] }`
 - **POST /api/projects/:id/materials**（materials:manage）
-  请求 `{ typeId: string, name: string, description?: string, visibility?: Visibility }` → 201 `{ resource: ResourceItem }`
+  请求 `{ typeId: string, name: string, description?: string, visibility?: Visibility }`；也可用 multipart/form-data 附带 `file`（可选，≤20MB，上传即创建版本 1）与 `note`（首版本备注）；位图文件自动生成 WebP 缩略预览。400 名称为空/类型不存在。
+  响应 201：`{ resource: ResourceItem }`
 - **GET /api/projects/:id/materials/:resourceId**
   响应 200：`{ resource: ResourceItem }`；不可见返回 403
 - **PATCH /api/projects/:id/materials/:resourceId**（materials:manage）
@@ -630,7 +793,11 @@ interface PhysicalSummary {
 ### 数据类型
 
 ```ts
-interface WorkAssignee { userId: string; name: string; confirmedAt: string|null; confirmedBy: string|null }
+interface WorkAssignee {
+  userId: string; name: string;
+  confirmedAt: string|null; confirmedBy: string|null;
+  checkedInAt: string|null; completedAt: string|null;   // 签到 / 完成时间
+}
 interface WorkModuleItem {
   id: string; name: string; description: string; location: string;
   startAt: string|null; endAt: string|null; requiredCount: number;
@@ -677,6 +844,18 @@ interface WorkSheetData {
 取消确认（清除 confirmedAt/confirmedBy）。请求体与权限同 confirm。
 响应 200：`{ module: WorkModuleItem }`
 
+### POST /api/projects/:id/work-modules/:mid/checkin
+
+签到（记录 `checkedInAt`）。请求体与权限同 confirm（不传 `userId` = 本人签到，项目成员即可）；重复签到幂等，不刷新时间戳。
+响应 200：`{ module: WorkModuleItem }`
+错误：400 目标未被分配到该模块；403 无权代他人签到；404 模块不存在
+
+### POST /api/projects/:id/work-modules/:mid/finish
+
+标记完成（记录 `completedAt`；未签到的成员同时补签到）。请求体与权限同 confirm；重复完成幂等，不刷新时间戳。
+响应 200：`{ module: WorkModuleItem }`
+错误：同 checkin
+
 ### GET /api/projects/:id/work-sheet
 
 本人的现场任务单（项目成员）。响应 200：`WorkSheetData`（items 按 startAt、createdAt 升序；无分配时为空数组）
@@ -690,7 +869,29 @@ interface WorkSheetData {
 
 ### GET /api/projects/:id/onsite（成员）
 
-现场模式聚合接口（`onsite.ts`，同挂载另含 `POST /incidents` 异常上报、`GET /incidents`、`POST /incidents/:iid/resolve`（work:manage））。响应 200：`{ now, myModules, emergency, contacts, incidents, myPermissions }`——`myModules` 为指派给本人的模块（state: current/upcoming/done）；`emergency` 为可见的紧急/重要公告（≤5 条）；`contacts` 为填写了联系方式的成员；`incidents` 按权限可见（work:manage 见全部，普通成员仅自己上报的）；`myPermissions` 为本人权限点数组（前端据此显隐现场页「失物登记」等权限入口）。
+现场模式聚合接口。响应 200：`{ now, myModules, emergency, contacts, incidents, myPermissions }`——`myModules` 为指派给本人的模块（含 `myAssignee: { confirmedAt, checkedInAt, completedAt }`，state: current/upcoming/done）；`emergency` 为可见的紧急/重要公告（≤5 条）；`contacts` 为填写了联系方式的成员；`incidents` 按权限可见（work:manage 见全部，普通成员仅自己上报的）；`myPermissions` 为本人权限点数组（前端据此显隐现场页「失物登记」等权限入口）。
+
+### 现场异常（incidents）
+
+```ts
+interface OnsiteIncident {
+  id: string;
+  category: 'equipment'|'staff'|'material'|'venue'|'safety'|'other';
+  note: string; moduleId: string|null; moduleName: string|null;
+  reporter: { userId: string; name: string };
+  status: 'open'|'resolved'; createdAt: string;
+}
+```
+
+- **POST /api/projects/:id/onsite/incidents**（成员）
+  上报异常并通知项目管理者。请求 `{ category: <六类之一>, note: string（必填，≤500 字）, moduleId?: string }`（`moduleId` 须为本项目任务模块）。
+  响应 201：`{ incident: OnsiteIncident }`；400 category 非法/备注为空/模块不存在
+- **GET /api/projects/:id/onsite/incidents**（成员）
+  `work:manage`/`project:manage` 见全部，普通成员仅见自己上报的；按时间倒序，最多 50 条。
+  响应 200：`{ incidents: OnsiteIncident[] }`
+- **POST /api/projects/:id/onsite/incidents/:iid/resolve**（需 `work:manage`）
+  标记已处理（记录处理人与时间；已处理时幂等不刷新）。
+  响应 200：`{ incident: OnsiteIncident }`；404 不存在
 
 ## 舞台 Rundown（实用工具）
 

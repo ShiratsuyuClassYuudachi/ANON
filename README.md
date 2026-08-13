@@ -93,7 +93,7 @@ cd frontend && npm install && npm run dev             # 前端 :5173（/api 代�
 
 ## Docker 部署（推荐）
 
-无需 Node 环境，一条命令拉起 mongo + backend + frontend 整栈：
+无需 Node 环境，一条命令拉起整栈（内嵌数据库 FerretDB+PostgreSQL、内嵌对象存储 MinIO、backend、frontend）：
 
 ```bash
 echo "JWT_SECRET=$(openssl rand -hex 32)" > .env   # 必填，可选 SMTP 等见 docs/readme.md
@@ -101,7 +101,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 # 访问 http://localhost:8080（WEB_PORT 可改对外端口）
 ```
 
-前端 nginx 托管静态文件并代理 `/api`（唯一对外端口）；默认使用内嵌 FerretDB（MongoDB 协议 + PostgreSQL/DocumentDB 存储，零外部依赖），在 `.env` 设 `MONGO_URI` 可切换为外接 MongoDB；数据存于 named volumes（`pg-data` / `uploads-data`）。更多说明（数据库两级配置、日志、停止、单独构建镜像、cron 提醒）见 [docs/readme.md](docs/readme.md) 的「Docker 部署」节。
+前端 nginx 托管静态文件并代理 `/api`（唯一对外端口）；默认使用内嵌 FerretDB（MongoDB 协议 + PostgreSQL/DocumentDB 存储，零外部依赖），在 `.env` 设 `MONGO_URI` 可切换为外接 MongoDB；数据存于 named volumes（`pg-data` / `uploads-data` / `minio-data`）。更多说明（数据库两级配置、日志、停止、单独构建镜像、cron 提醒）见 [docs/readme.md](docs/readme.md) 的「Docker 部署」节。
 
 ## 文档
 
