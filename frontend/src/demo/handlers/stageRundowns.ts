@@ -211,7 +211,6 @@ export const stageRundownRoutes: Route[] = [
   def('PATCH', '/api/projects/:pid/stage-rundowns/:rid/items/reorder', async (ctx) => {
     requireProject(ctx);
     const r = findRundown(ctx);
-    assertNotRunning(r);
     const order = bodyObj(ctx).order;
     const current = r.items.map((it) => it.id);
     const bad = badRequest('order 必须与现有节目一一对应');
@@ -219,6 +218,16 @@ export const stageRundownRoutes: Route[] = [
     if (order.length !== current.length) throw bad;
     const set = new Set(order as string[]);
     if (set.size !== current.length || !current.every((id) => set.has(id))) throw bad;
+    // 执行中仅允许在未执行节目槽位内重排：有实际记录或为当前节目的位置必须原样
+    const e = r.execution;
+    if (e.status === 'running') {
+      const locked = (id: string) => e.currentItemId === id || e.actuals.some((a) => a.itemId === id);
+      for (let i = 0; i < current.length; i++) {
+        if (locked(current[i]!) && (order as string[])[i] !== current[i]) {
+          throw err(409, 'EXECUTION_RUNNING', '执行中仅可调整未执行节目的顺序');
+        }
+      }
+    }
     const byId = new Map(r.items.map((it) => [it.id, it]));
     r.items = (order as string[]).map((id) => byId.get(id)!);
     r.updatedAt = nowIso();

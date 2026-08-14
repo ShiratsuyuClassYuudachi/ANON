@@ -231,14 +231,13 @@ describe('stage rundown execution', () => {
     expect(e.shiftMin).toBe(0);
   });
 
-  it('执行中锁定编排：增/删/改/排序/删 Rundown/改 startAt 全 409，name 可改', async () => {
+  it('执行中锁定编排：增/删/改/删 Rundown/改 startAt 全 409，name 可改', async () => {
     const { rid, ids } = await rundownWith3();
     await post(EXEC(rid, 'start'));
 
     const auth = (r: request.Test) => r.set('Authorization', `Bearer ${owner.token}`);
     const cases: { req: request.Test }[] = [
       { req: request(app).post(`${BASE()}/${rid}/items`).field('name', 'X').field('durationMin', '10') },
-      { req: request(app).patch(`${BASE()}/${rid}/items/reorder`).send({ order: [...ids].reverse() }) },
       { req: request(app).patch(`${BASE()}/${rid}/items/${ids[0]}`).field('name', 'X') },
       { req: request(app).delete(`${BASE()}/${rid}/items/${ids[0]}`) },
       { req: request(app).delete(`${BASE()}/${rid}`) },
@@ -265,6 +264,32 @@ describe('stage rundown execution', () => {
       .field('name', '返场')
       .field('durationMin', '5');
     expect(add.status).toBe(201);
+  });
+
+  it('执行中排序：未执行节目槽位内可重排，动当前/已演位置 409', async () => {
+    const { rid, ids } = await rundownWith3();
+    await post(EXEC(rid, 'start')); // current = ids[0]
+
+    const auth = (r: request.Test) => r.set('Authorization', `Bearer ${owner.token}`);
+    // 交换两个未执行节目 → 200 且顺序落库
+    const ok = await auth(
+      request(app).patch(`${BASE()}/${rid}/items/reorder`).send({ order: [ids[0], ids[2], ids[1]] }),
+    );
+    expect(ok.status).toBe(200);
+    expect(ok.body.rundown.items.map((it: { id: string }) => it.id)).toEqual([ids[0], ids[2], ids[1]]);
+    // 当前节目被挤位 → 409
+    const moveCurrent = await auth(
+      request(app).patch(`${BASE()}/${rid}/items/reorder`).send({ order: [ids[2], ids[0], ids[1]] }),
+    );
+    expect(moveCurrent.status).toBe(409);
+    expect(moveCurrent.body.error.code).toBe('EXECUTION_RUNNING');
+    // 推进后已演节目位置同样锁定
+    await post(EXEC(rid, 'advance'), owner.token); // ids[0] done，current = ids[2]
+    const moveDone = await auth(
+      request(app).patch(`${BASE()}/${rid}/items/reorder`).send({ order: [ids[2], ids[0], ids[1]] }),
+    );
+    expect(moveDone.status).toBe(409);
+    expect(moveDone.body.error.code).toBe('EXECUTION_RUNNING');
   });
 
   it('序列化：详情 execution 全键；列表 executionStatus', async () => {

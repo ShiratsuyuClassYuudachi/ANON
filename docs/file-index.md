@@ -77,7 +77,7 @@
 - `workModules.ts` — 工作模块 CRUD、POST /:mid/confirm|unconfirm|checkin|finish
 - `workSheet.ts` — GET / 本人任务单、GET /:userId（work:manage）
 - `stages.ts` — 阶段 CRUD、PATCH /reorder
-- `stageRundowns.ts` — 流程单 CRUD、节目 items、reorder（执行中编排锁定 409）、execution 执行控制（start/advance/jump/shift/finish/reset）、screen-share 开关、publicRundownScreenRouter 公开大屏（token + 白名单）
+- `stageRundowns.ts` — 流程单 CRUD、节目 items、reorder（执行中仅未执行节目槽位可重排，动已演/在演位置 409）、execution 执行控制（start/advance/jump/shift/finish/reset）、screen-share 开关、publicRundownScreenRouter 公开大屏（token + 白名单）
 - `stageSignups.ts` — 报名批次/节目、PUT|DELETE review 投票、POST /:sid/import
 - `lostFound.ts` — 双路由：项目域物品 CRUD/status/photo/share（lostfound:manage）；公开域免登录只读（token + 字段白名单）
 - `milestones.ts` — 里程碑 CRUD、POST /:milestoneId/complete
@@ -193,7 +193,7 @@
 - `ToolsTab.tsx` — 实用工具容器（舞台编排/报名审核/失物招领卡片入口）
 - `tools/StageRundownTool.tsx` + `ProgramFormDialog.tsx` + `ExecutionPanel.tsx` + `ScreenShareDialog.tsx` — 流程单编排/节目表单/导出/执行控制台（开始/推进/跳节目/顺延/结束重置）/大屏分享管理
 - `tools/StageSignupTool.tsx` + `SignupItemDialog.tsx` + `SignupReviewDialog.tsx` — 报名审核/投票/拍板/导入
-- `tools/SwipeRow.tsx` — 触屏侧滑操作行；`tools/rundownExport.ts` — 时间推算/文本/PNG 导出（纯前端）；`tools/rundownExecution.ts` — 执行态推算纯函数（延误/超时/预计时间）
+- `tools/SwipeRow.tsx` — 触屏侧滑操作行；`tools/rundownExport.ts` — 时间推算/文本/PNG 导出（纯前端）；`tools/rundownExecution.ts` — 执行态推算纯函数（延误/超时/预计时间/实时级联推算开始与结束）
 - `tools/LostFoundTool.tsx` + `LostFoundItemDialog.tsx` + `LostFoundClaimDialog.tsx` — 失物列表/登记表单(multipart 单照片)/认领备注弹层 + 公开分享开关卡
 
 ### 演示站 `src/demo/`（`npm run build:demo`，浏览器内 mock 全部 /api）

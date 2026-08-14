@@ -47,7 +47,7 @@ export default function ExecutionPanel({ projectId, rundown, canManage, onChange
     return () => clearInterval(t);
   }, []);
 
-  const execList = computeExecution(rundown.startAt, rundown.items, e);
+  const execList = computeExecution(rundown.startAt, rundown.items, e, now);
   const current = execList.find((c) => c.state === 'current') ?? null;
   const currentIndex = current ? execList.indexOf(current) : -1;
 
@@ -138,6 +138,9 @@ export default function ExecutionPanel({ projectId, rundown, canManage, onChange
                 <p className="text-sm">
                   已进行 {elapsed} 分钟 / 计划 {current.item.durationMin} 分钟
                   {overrun > 0 && <span className="ml-2 font-medium text-destructive">已超时 +{overrun} 分钟</span>}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  预计全场结束 {hhmm(execList[execList.length - 1].projectedEnd)}（随进度实时推算）
                 </p>
               </div>
             ) : (

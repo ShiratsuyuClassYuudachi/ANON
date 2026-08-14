@@ -150,6 +150,7 @@ function SortableProgramRow({
   scheduled,
   canManage,
   locked,
+  sortable,
   exec,
   onEdit,
   onDelete,
@@ -157,13 +158,18 @@ function SortableProgramRow({
   index: number;
   scheduled: StageRundownItem & { start: Date; end: Date };
   canManage: boolean;
-  /** 执行中锁定编排：不渲染拖手与操作菜单 */
+  /** 执行中锁定编排：不渲染编辑/删除菜单 */
   locked: boolean;
+  /** 可拖拽排序：执行中仅未执行节目可拖（已演/在演位置锁定） */
+  sortable: boolean;
   exec?: ExecComputed<StageRundownItem>;
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: scheduled.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: scheduled.id,
+    disabled: !sortable,
+  });
   const contacts = scheduled.participants.filter((p) => p.contact);
   return (
     <Card
@@ -172,7 +178,7 @@ function SortableProgramRow({
       className={isDragging ? 'relative z-10 opacity-80' : ''}
     >
       <CardContent className="flex items-start gap-2 p-3">
-        {canManage && !locked && (
+        {canManage && sortable && (
           <button
             className="mt-1 shrink-0 cursor-grab touch-none text-muted-foreground hover:text-foreground"
             aria-label={`拖动排序 ${scheduled.name}`}
@@ -329,12 +335,28 @@ export default function StageRundownTool({ project, myPermissions }: Props) {
     const { active, over } = event;
     if (!detail || !over || active.id === over.id) return;
     const ids = detail.items.map((it) => it.id);
-    const from = ids.indexOf(String(active.id));
-    const to = ids.indexOf(String(over.id));
-    if (from < 0 || to < 0) return;
-    const order = arrayMove(ids, from, to);
+    let order: string[];
+    if (detail.execution.status === 'running') {
+      // 执行中：仅在未执行节目槽位内重排，已演/在演位置原样保留
+      const states = new Map(
+        computeExecution(detail.startAt, detail.items, detail.execution).map((c) => [c.item.id, c.state]),
+      );
+      const ups = ids.filter((id) => states.get(id) === 'upcoming');
+      const from = ups.indexOf(String(active.id));
+      const to = ups.indexOf(String(over.id));
+      if (from < 0 || to < 0) return;
+      const newUps = arrayMove(ups, from, to);
+      let k = 0;
+      order = ids.map((id) => (states.get(id) === 'upcoming' ? newUps[k++]! : id));
+    } else {
+      const from = ids.indexOf(String(active.id));
+      const to = ids.indexOf(String(over.id));
+      if (from < 0 || to < 0) return;
+      order = arrayMove(ids, from, to);
+    }
     // 乐观更新，失败回滚
-    setDetail({ ...detail, items: arrayMove(detail.items, from, to) });
+    const byId = new Map(detail.items.map((it) => [it.id, it]));
+    setDetail({ ...detail, items: order.map((id) => byId.get(id)!) });
     try {
       const res = await api<{ rundown: StageRundown }>(`${base}/${detail.id}/items/reorder`, {
         method: 'PATCH',
@@ -363,6 +385,7 @@ export default function StageRundownTool({ project, myPermissions }: Props) {
             scheduled={it}
             canManage={canManage}
             locked={running}
+            sortable={!running || execList[i].state === 'upcoming'}
             exec={execList[i]}
             onEdit={() => {
               setEditingItem(detail.items.find((x) => x.id === it.id) ?? null);
@@ -504,9 +527,16 @@ export default function StageRundownTool({ project, myPermissions }: Props) {
               暂无节目{canManage ? '，点击「添加节目」开始编排' : ''}
             </CardContent>
           </Card>
-        ) : canManage && !running ? (
+        ) : canManage ? (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-            <SortableContext items={detail.items.map((it) => it.id)} strategy={verticalListSortingStrategy}>
+            <SortableContext
+              items={
+                running
+                  ? execList.filter((c) => c.state === 'upcoming').map((c) => c.item.id)
+                  : detail.items.map((it) => it.id)
+              }
+              strategy={verticalListSortingStrategy}
+            >
               {rows}
             </SortableContext>
           </DndContext>

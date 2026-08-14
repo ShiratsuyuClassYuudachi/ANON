@@ -62,7 +62,7 @@ export default function RundownScreenPage() {
 
   const rundown = data.rundown;
   const e = data.rundown.execution;
-  const execList = computeExecution(rundown.startAt, rundown.items, e);
+  const execList = computeExecution(rundown.startAt, rundown.items, e, now);
   const currentIndex = execList.findIndex((c) => c.state === 'current');
   const current = currentIndex >= 0 ? execList[currentIndex] : null;
   const delay = current ? delayMin(current) : null;
@@ -179,7 +179,13 @@ export default function RundownScreenPage() {
                 <span className="w-8 shrink-0 text-right text-xl text-neutral-500">
                   {execList.indexOf(c) + 1}
                 </span>
-                <span className="font-mono text-2xl tabular-nums">{hhmm(c.expectedStart)}</span>
+                <span
+                  className={`font-mono text-2xl tabular-nums ${
+                    c.projectedStart.getTime() > c.expectedStart.getTime() ? 'text-amber-400' : ''
+                  }`}
+                >
+                  {hhmm(c.projectedStart)}
+                </span>
                 <span className="min-w-0 flex-1 truncate text-2xl">{c.item.name}</span>
                 <span className="shrink-0 text-lg text-neutral-500">{c.item.durationMin} 分钟</span>
               </div>
@@ -191,7 +197,7 @@ export default function RundownScreenPage() {
         <div className="border-t border-neutral-800 pt-4 text-lg text-neutral-400">
           {e.status === 'finished'
             ? e.finishedAt && `实际结束 ${hhmm(new Date(e.finishedAt))}`
-            : execList.length > 0 && `预计结束 ${hhmm(execList[execList.length - 1].expectedEnd)}`}
+            : execList.length > 0 && `预计结束 ${hhmm(execList[execList.length - 1].projectedEnd)}`}
         </div>
       </div>
     </div>

@@ -897,7 +897,7 @@ interface OnsiteIncident {
 
 挂载于 `/api/projects/:id/stage-rundowns`，需登录且为项目成员。查看类操作成员即可；Rundown 与节目的增删改、排序、执行控制、大屏分享管理均需 `tools:manage`（`project:manage` 等价放行，超管不受限）。每项目可建多份 Rundown（如 Day1/Day2、主/副舞台）。
 
-**执行模式**：执行状态存于 Rundown 内嵌 `execution` 子文档，计划数据（`startAt`/`durationMin`）执行期不被改写。执行中（`execution.status === 'running'`）锁定编排：节目增/删/改、reorder、修改 `startAt`、删除 Rundown 全部 409 `EXECUTION_RUNNING`（`name`/`note` 仍可改）。
+**执行模式**：执行状态存于 Rundown 内嵌 `execution` 子文档，计划数据（`startAt`/`durationMin`）执行期不被改写。执行中（`execution.status === 'running'`）锁定编排：节目增/删/改、修改 `startAt`、删除 Rundown 全部 409 `EXECUTION_RUNNING`（`name`/`note` 仍可改）；reorder 例外——仅允许在未执行节目槽位内重排（有实际记录或为当前节目的位置必须原样，否则 409「执行中仅可调整未执行节目的顺序」）。
 
 ### 数据类型
 
@@ -986,7 +986,7 @@ multipart/form-data，字段同 POST（均可选），另支持 `removeAttachmen
 
 ### PATCH /api/projects/:id/stage-rundowns/:rid/items/reorder（tools:manage）
 
-请求：`{ order: string[] }`：必须与现有节目一一对应（长度相等、id 集合完全相同），否则 400「order 必须与现有节目一一对应」。按 order 重排 items 数组。
+请求：`{ order: string[] }`：必须与现有节目一一对应（长度相等、id 集合完全相同），否则 400「order 必须与现有节目一一对应」。按 order 重排 items 数组。执行中仅可在未执行节目槽位内重排：当前/已演节目所在位置被移动时 409 `EXECUTION_RUNNING`「执行中仅可调整未执行节目的顺序」。
 响应 200：`{ rundown: StageRundown }`
 错误：400 `bad_request`；403 `forbidden`；404 `not_found`；409 `EXECUTION_RUNNING`
 

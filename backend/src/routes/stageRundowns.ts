@@ -271,7 +271,6 @@ stageRundownsRouter.patch(
   ...requirePermission('tools:manage'),
   ah(async (req, res) => {
     const doc = await loadRundown(req.params.rid, req.project!._id);
-    assertNotRunning(doc);
     const order = req.body?.order;
     const current = doc.items.map((it) => it._id.toString());
     const bad = new AppError(400, 'bad_request', 'order 必须与现有节目一一对应');
@@ -279,6 +278,18 @@ stageRundownsRouter.patch(
     if (order.length !== current.length) throw bad;
     const set = new Set(order as string[]);
     if (set.size !== current.length || !current.every((id) => set.has(id))) throw bad;
+    // 执行中仅允许在未执行节目槽位内重排：有实际记录或为当前节目的位置必须原样
+    const e = execOf(doc);
+    if (e.status === 'running') {
+      const locked = (id: string) =>
+        (e.currentItemId !== null && String(e.currentItemId) === id) ||
+        e.actuals.some((a) => String(a.itemId) === id);
+      for (let i = 0; i < current.length; i++) {
+        if (locked(current[i]) && (order as string[])[i] !== current[i]) {
+          throw new AppError(409, 'EXECUTION_RUNNING', '执行中仅可调整未执行节目的顺序');
+        }
+      }
+    }
     const byId = new Map(doc.items.map((it) => [it._id.toString(), it]));
     doc.items = (order as string[]).map((id) => byId.get(id)!) as unknown as typeof doc.items;
     await doc.save();

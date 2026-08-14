@@ -8,20 +8,28 @@ export interface ExecComputed<T> {
   plannedEnd: Date;
   expectedStart: Date;
   expectedEnd: Date;
+  /** 实时推算开始：done=实际；current=实际；upcoming=max(计划+顺延, 前项推算结束) */
+  projectedStart: Date;
+  /** 实时推算结束：current=max(实际开始+时长, now)，超时时随 now 逐分钟推移 */
+  projectedEnd: Date;
   actualStart: Date | null;
   actualEnd: Date | null;
 }
 
 /**
- * 执行态推算：计划时间逐项累加（与 computeSchedule 同算法，同序配对），
- * 未开始节目「预计时间」= 计划 + shiftMin；当前节目超时 = now > expectedEnd。
+ * 执行态推算：计划时间逐项累加（与 computeSchedule 同算法，同序配对）。
+ * 未开始节目「预计时间」= 计划 + shiftMin（已公布基准，永不错前）；
+ * 执行中「推算时间」随当前节目实际进度实时级联：当前节目推算结束 = max(实际开始+时长, now)，
+ * 后续节目推算开始 = max(预计, 前项推算结束)。
  */
 export function computeExecution<T extends { id: string; durationMin: number }>(
   startAt: string,
   items: T[],
   execution: StageExecution,
+  now: Date = new Date(),
 ): ExecComputed<T>[] {
   let cursor = new Date(startAt).getTime();
+  let chainEnd = -Infinity;
   return items.map((item) => {
     const plannedStart = new Date(cursor);
     const plannedEnd = new Date(cursor + item.durationMin * 60_000);
@@ -33,17 +41,29 @@ export function computeExecution<T extends { id: string; durationMin: number }>(
     const actualEnd = actual?.endedAt ? new Date(actual.endedAt) : null;
     let expectedStart: Date;
     let expectedEnd: Date;
+    let projectedStart: Date;
+    let projectedEnd: Date;
     if (state === 'current') {
       expectedStart = actualStart ?? new Date(plannedStart.getTime() + execution.shiftMin * 60_000);
-      expectedEnd = new Date(expectedStart.getTime() + item.durationMin * 60_000 + execution.shiftMin * 60_000);
+      // 超时基准 = 实际开始 + 时长（顺延只挪后续节目的公布时间，不延长当前节目档期）
+      expectedEnd = new Date(expectedStart.getTime() + item.durationMin * 60_000);
+      projectedStart = expectedStart;
+      projectedEnd = actualStart
+        ? new Date(Math.max(actualStart.getTime() + item.durationMin * 60_000, now.getTime()))
+        : expectedEnd;
     } else if (state === 'done') {
       expectedStart = actualStart ?? plannedStart;
       expectedEnd = actualEnd ?? plannedEnd;
+      projectedStart = expectedStart;
+      projectedEnd = expectedEnd;
     } else {
       expectedStart = new Date(plannedStart.getTime() + execution.shiftMin * 60_000);
       expectedEnd = new Date(expectedStart.getTime() + item.durationMin * 60_000);
+      projectedStart = new Date(Math.max(expectedStart.getTime(), chainEnd));
+      projectedEnd = new Date(projectedStart.getTime() + item.durationMin * 60_000);
     }
-    return { item, state, plannedStart, plannedEnd, expectedStart, expectedEnd, actualStart, actualEnd };
+    chainEnd = Math.max(chainEnd, projectedEnd.getTime());
+    return { item, state, plannedStart, plannedEnd, expectedStart, expectedEnd, projectedStart, projectedEnd, actualStart, actualEnd };
   });
 }
 
