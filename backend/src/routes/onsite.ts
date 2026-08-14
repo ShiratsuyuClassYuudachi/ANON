@@ -5,6 +5,7 @@ import { loadMembership, requirePermission } from '../middleware/projectAccess';
 import { Announcement } from '../models/Announcement';
 import { Incident, INCIDENT_CATEGORIES, type IncidentCategory } from '../models/Incident';
 import { Membership } from '../models/Membership';
+import { StageRundown, type IStageExecution, type StageRundownDoc } from '../models/StageRundown';
 import { User } from '../models/User';
 import { WorkModule } from '../models/WorkModule';
 import { logActivity } from '../services/activity';
@@ -70,6 +71,16 @@ async function buildIncidents(projectId: Types.ObjectId, userId: string, permiss
 type ModuleState = 'current' | 'upcoming' | 'done';
 const STATE_ORDER: Record<ModuleState, number> = { current: 0, upcoming: 1, done: 2 };
 
+/** 逐项累加 durationMin 得目标节目计划开始时刻（与前端 computeSchedule 同算法） */
+function plannedStartOf(doc: StageRundownDoc, itemId: Types.ObjectId): Date | null {
+  let t = doc.startAt.getTime();
+  for (const it of doc.items) {
+    if (it._id.equals(itemId)) return new Date(t);
+    t += it.durationMin * 60000;
+  }
+  return null;
+}
+
 onsiteRouter.get(
   '/',
   ah(async (req, res) => {
@@ -79,7 +90,10 @@ onsiteRouter.get(
     const now = new Date();
     const viewer: Viewer = { userId, roleName: req.membership?.roleName ?? null, isSuperAdmin: req.user?.isSuperAdmin ?? false };
 
-    const [moduleDocs, announcementDocs, memberships, incidents] = await Promise.all([
+    const dayAgo = new Date(now.getTime() - 24 * 3600_000);
+    const dayAhead = new Date(now.getTime() + 24 * 3600_000);
+
+    const [moduleDocs, announcementDocs, memberships, incidents, rundownDocs] = await Promise.all([
       WorkModule.find({ projectId, 'assignees.userId': userId }).lean(),
       Announcement.find({
         projectId,
@@ -93,6 +107,17 @@ onsiteRouter.get(
         userId: { _id: Types.ObjectId; name: string; contacts: { platform: string; value: string }[] };
       }>('userId', 'name contacts'),
       buildIncidents(projectId, userId, permissions),
+      // 执行中的 rundown 恒在列；未开始的仅取 ±24h 窗口内（旧文档无 execution 字段按 idle 对待）
+      StageRundown.find({
+        projectId,
+        $or: [
+          { 'execution.status': 'running' },
+          {
+            startAt: { $gte: dayAgo, $lte: dayAhead },
+            $or: [{ 'execution.status': 'idle' }, { execution: { $exists: false } }],
+          },
+        ],
+      }).sort({ startAt: 1 }),
     ]);
 
     const myModules = moduleDocs
@@ -144,7 +169,36 @@ onsiteRouter.get(
         contacts: m.userId.contacts.map((c) => ({ platform: c.platform, value: c.value })),
       }));
 
-    res.json({ now: now.toISOString(), myModules, emergency, contacts, incidents, myPermissions: [...permissions] });
+    const rundowns = rundownDocs.slice(0, 5).map((d) => {
+      // 旧文档无 execution 字段按 idle 对待（不落库）
+      const e: IStageExecution = d.execution ?? {
+        status: 'idle',
+        currentItemId: null,
+        startedAt: null,
+        finishedAt: null,
+        shiftMin: 0,
+        actuals: [],
+      };
+      const running = e.status === 'running';
+      const idx = running && e.currentItemId ? d.items.findIndex((it) => it._id.equals(e.currentItemId!)) : -1;
+      const cur = idx >= 0 ? d.items[idx] : null;
+      const actual = cur ? e.actuals.find((a) => a.itemId.equals(cur._id)) : null;
+      return {
+        id: String(d._id),
+        name: d.name,
+        status: running ? ('running' as const) : ('idle' as const),
+        startAt: d.startAt.toISOString(),
+        itemCount: d.items.length,
+        currentIndex: cur ? idx : null,
+        currentItemId: cur ? String(cur._id) : null,
+        currentItemName: cur ? cur.name : null,
+        currentPlannedStart: cur ? plannedStartOf(d, cur._id)?.toISOString() : null,
+        currentActualStart: actual ? actual.startedAt.toISOString() : null,
+        shiftMin: running ? e.shiftMin : 0,
+      };
+    });
+
+    res.json({ now: now.toISOString(), myModules, emergency, contacts, incidents, rundowns, myPermissions: [...permissions] });
   }),
 );
 

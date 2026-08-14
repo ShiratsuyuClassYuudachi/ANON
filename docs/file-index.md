@@ -1,7 +1,7 @@
 # 文件功能索引（供 Agent 定位代码用）
 
 > 修改代码前先用本文档定位相关文件，**禁止全库遍历找代码**。
-> 维护规则（强制）：**每次有任何文件变更（修改/新增/删除/改名）必须同步更新本索引**——同提交内更新对应条目（功能描述、功能域速查表、路由挂载表），新增补条目、删除/改名同步移除或修正；索引与代码始终保持同版本（与 docs/features.md 等文档同步同级要求）。
+> 维护规则（强制）：功能开发过程中可先不更新；**用户确认合并时必须同步更新本索引**——合并前更新对应条目（功能描述、功能域速查表、路由挂载表），新增补条目、删除/改名同步移除或修正（与 docs/features.md 等文档同批补齐，缺一不得合并）。
 > 仅列功能定位所需的要点；接口细节见 `docs/api.md`，功能行为见 `docs/features.md`。
 
 ## 架构速览
@@ -26,7 +26,7 @@
 | 仪表盘/聚合 | routes/dashboard.ts、services/dashboard.ts、models/DashboardPreference.ts | project/DashboardTab.tsx | tests/dashboard.test.ts |
 | 风险预警 | routes/risks.ts、models/RiskInstance.ts、services/risk.ts | DashboardTab.tsx（内嵌展示） | tests/dashboard.test.ts |
 | 现场模式/工作模块/任务单 | routes/{onsite,workModules,workSheet}.ts、models/{WorkModule,Incident}.ts、services/workModules.ts | pages/{OnsitePage,WorkSheetPrint}.tsx、project/WorkTab.tsx、lib/offlineQueue.ts | tests/{onsite,workModules}.test.ts |
-| 舞台工具（编排/报名/阶段） | routes/{stageRundowns,stageSignups,stages}.ts、models/{StageRundown,StageSignup}.ts | project/tools/*.tsx、project/{ToolsTab,StageManager,StageStepper}.tsx | tests/{stageRundowns,stageSignups}.test.ts |
+| 舞台工具（编排/报名/阶段/执行/大屏） | routes/{stageRundowns,stageSignups,stages}.ts、models/{StageRundown,StageScreenShare,StageSignup}.ts | project/tools/*.tsx、project/{ToolsTab,StageManager,StageStepper}.tsx、pages/RundownScreenPage.tsx（大屏公开页）、pages/OnsitePage.tsx（舞台执行卡） | tests/{stageRundowns,stageExecution,stageSignups}.test.ts |
 | 失物招领/公开查找页 | routes/lostFound.ts、models/{LostFoundItem,LostFoundShare}.ts、services/permissions.ts（迁移） | project/tools/LostFound*.tsx、pages/PublicLostFound.tsx、pages/OnsitePage.tsx（现场录入入口） | tests/lostFound.test.ts |
 | 里程碑 | routes/milestones.ts、models/Milestone.ts | project/MilestoneSection.tsx | — |
 | 通知（邮件+WebPush）/ cron | services/{notifications,mailer,webpush}.ts、routes/{push,cron}.ts、models/{PushSubscription,ReminderLog,WeeklyReportLog}.ts | lib/push.ts、components/{PushBanner,PushSettingsCard}.tsx、scripts/patch-sw.mjs | tests/{notifications,push,cron}.test.ts |
@@ -55,7 +55,7 @@
 - `scripts/seed-demo.ts` — CLI 种子：5 用户 + 示例项目 + 邀请码 DEMO-2026
 
 ### 路由挂载（app.ts）
-- 顶级：`/api/auth`(限流 50/15min)、`/api/admin`、`/api/me`、`/api/push`、`/api/invites`、`/api/files`、`/api/cron`、`/api/projects`、`/api/public/lostfound`(免登录,限流 300/min)
+- 顶级：`/api/auth`(限流 50/15min)、`/api/admin`、`/api/me`、`/api/push`、`/api/invites`、`/api/files`、`/api/cron`、`/api/projects`、`/api/public/lostfound` 与 `/api/public/rundown-screen`(免登录,限流 300/min)
 - 项目域 `/api/projects/:id/`：`files` `todos` `work-modules` `work-sheet` `finance` `materials` `physical` `accounts` `dashboard` `onsite` `risks` `announcements` `activities` `stages` `stage-rundowns` `stage-signups` `lostfound` `milestones`
 
 ### 路由 `src/routes/`（25 个，一文件一业务域）
@@ -73,11 +73,11 @@
 - `announcements.ts` — 公告 CRUD、POST /:announcementId/confirm、GET /:announcementId/confirmations 确认名单
 - `dashboard.ts` — GET / /preferences /summary /my-actions /schedule、PATCH /preferences
 - `risks.ts` — GET /、POST /evaluate、POST /:riskId/ignore|restore
-- `onsite.ts` — GET / 现场聚合、GET/POST /incidents、POST /incidents/:iid/resolve
+- `onsite.ts` — GET / 现场聚合（含 rundowns 舞台执行：running 恒在列 + ±24h 窗口 idle）、GET/POST /incidents、POST /incidents/:iid/resolve
 - `workModules.ts` — 工作模块 CRUD、POST /:mid/confirm|unconfirm|checkin|finish
 - `workSheet.ts` — GET / 本人任务单、GET /:userId（work:manage）
 - `stages.ts` — 阶段 CRUD、PATCH /reorder
-- `stageRundowns.ts` — 流程单 CRUD、节目 items、reorder
+- `stageRundowns.ts` — 流程单 CRUD、节目 items、reorder（执行中仅未执行节目槽位可重排，动已演/在演位置 409）、execution 执行控制（start/advance/jump/shift/finish/reset）、screen-share 开关、publicRundownScreenRouter 公开大屏（token + 白名单）
 - `stageSignups.ts` — 报名批次/节目、PUT|DELETE review 投票、POST /:sid/import
 - `lostFound.ts` — 双路由：项目域物品 CRUD/status/photo/share（lostfound:manage）；公开域免登录只读（token + 字段白名单）
 - `milestones.ts` — 里程碑 CRUD、POST /:milestoneId/complete
@@ -85,7 +85,7 @@
 - `push.ts` — GET /config(VAPID)、POST/DELETE /subscription
 - `cron.ts` — CRON_SECRET 鉴权：POST /reminders、POST /weekly-report
 
-### 模型 `src/models/`（32 个，Mongoose，`models.X ?? model(...)` 幂等注册）
+### 模型 `src/models/`（33 个，Mongoose，`models.X ?? model(...)` 幂等注册）
 - `User.ts` — 用户：email/name/passwordHash/isSuperAdmin/contacts；导出 publicUser() 脱敏
 - `RefreshToken.ts` — 会话：tokenHash(sha256 唯一)、expiresAt
 - `InviteCode.ts` — 注册邀请码：code/createdBy/usedBy/usedAt
@@ -104,7 +104,7 @@
 - `Incident.ts` — 现场异常：category/note/status；导出 INCIDENT_CATEGORIES
 - `WorkModule.ts` — 现场工作模块：requiredCount/assignees(确认/签到)
 - `Milestone.ts` — 里程碑：title/date/completedAt
-- `StageRundown.ts` / `StageSignup.ts` — 舞台流程单 / 报名（items 内嵌，报名含 reviews）
+- `StageRundown.ts` / `StageScreenShare.ts` / `StageSignup.ts` — 舞台流程单（items 内嵌 + execution 执行子文档）/ 大屏对外分享（rundownId+token 唯一、开关）/ 报名（items 内嵌含 reviews）
 - `LostFoundItem.ts` / `LostFoundShare.ts` — 失物（单照片+预览引用、认领状态）/ 对外分享（token 唯一、开关）
 - `Activity.ts` — 操作日志：type/message/sourceId（90 天 TTL）
 - `PushSubscription.ts` — WebPush 订阅：endpoint/p256dh/auth（端点唯一）
@@ -132,13 +132,13 @@
 
 ### 测试 `tests/`（vitest + supertest + mongodb-memory-server，打真实路由）
 - `setup.ts` / `helpers.ts` — 内存 Mongo 基建 / 造号工具（createSuperAdmin/registerUser）
-- 每域一个 `*.test.ts`：auth/admin/me/projects/invites/todos/todo-complete/todo-updates/template/finance/materials/files/physical/accounts/announcements/dashboard/onsite/workModules/stageRundowns/stageSignups/lostFound/notifications/push/cron/trial/onboarding/health
+- 每域一个 `*.test.ts`：auth/admin/me/projects/invites/todos/todo-complete/todo-updates/template/finance/materials/files/physical/accounts/announcements/dashboard/onsite/workModules/stageRundowns/stageExecution/stageSignups/lostFound/notifications/push/cron/trial/onboarding/health
 
 ## 前端 `frontend/`
 
 ### 入口与基座
 - `src/main.tsx` — Provider 挂载、PWA 注册、离线队列同步、demo 动态安装
-- `src/App.tsx` — 路由表：公开 /login /register /lf/:token（失物招领公开页）；RequireAuth：/projects、/p/:id（ProjectHome）、/p/:id/onsite、/me、/help、/admin、/invite/:token、/p/:id/work-sheet/print
+- `src/App.tsx` — 路由表：公开 /login /register /lf/:token（失物招领公开页）、/screen/:token（现场大屏公开页）；RequireAuth：/projects、/p/:id（ProjectHome）、/p/:id/onsite、/me、/help、/admin、/invite/:token、/p/:id/work-sheet/print
 - `src/api/client.ts` — api/authorizedFetch/downloadFile：Bearer 注入、401 单飞刷新重放；401 跳登录白名单 /invite/ 与 /lf/（公开页）
 - `src/auth.tsx` — AuthProvider/useAuth：login/logout/refresh、trialExpiresAt
 - `src/theme.tsx` — ThemeProvider/ModeToggle：日夜 × 简洁/明快
@@ -155,12 +155,13 @@
 - `Login.tsx` / `Register.tsx` — 登录 / 邀请码注册（演示模式一键进入）
 - `Projects.tsx` — 项目列表：健康度/阶段/倒计时卡片 + 新建
 - `ProjectHome.tsx` — 项目主页：10 个按权限过滤的 Tab + 现场模式入口
-- `OnsitePage.tsx` — 现场模式：签到/完成/异常上报（离线入队）、失物登记入口（复用 LostFoundItemDialog，按 myPermissions 显隐）、30s 轮询
+- `OnsitePage.tsx` — 现场模式：签到/完成/异常上报（离线入队）、舞台执行卡（Rundown 开始/推进/顺延，按 tools:manage 显隐）、失物登记入口（复用 LostFoundItemDialog，按 myPermissions 显隐）、30s 轮询
 - `WorkSheetPrint.tsx` — 任务单打印页（按人/全员）
 - `Me.tsx` — 个人资料/联系方式/推送设置/界面偏好
 - `Admin.tsx` — 超管邀请码管理
 - `InviteAccept.tsx` — 接受项目邀请
 - `PublicLostFound.tsx` — 失物招领免登录公开查找页（/lf/:token，搜索+状态筛选+照片）
+- `RundownScreenPage.tsx` — 现场大屏免登录公开页（/screen/:token，强制深色投屏：当前节目/时钟/紧急公告位，10s 轮询）
 - `DocsPage.tsx` — 帮助中心：章节切换/全文搜索/截图缩放
 
 ### 通用组件 `src/components/`
@@ -190,15 +191,15 @@
 - `MilestoneSection.tsx` / `StageStepper.tsx` / `StageManager.tsx` — 里程碑卡 / 阶段进度条 / 阶段增删排序
 - `VisibilityPicker.tsx` — 可见范围选择器（成员+角色勾选，多 Tab 复用）
 - `ToolsTab.tsx` — 实用工具容器（舞台编排/报名审核/失物招领卡片入口）
-- `tools/StageRundownTool.tsx` + `ProgramFormDialog.tsx` — 流程单编排/节目表单/导出
+- `tools/StageRundownTool.tsx` + `ProgramFormDialog.tsx` + `ExecutionPanel.tsx` + `ScreenShareDialog.tsx` — 流程单编排/节目表单/导出/执行控制台（开始/推进/跳节目/顺延/结束重置）/大屏分享管理
 - `tools/StageSignupTool.tsx` + `SignupItemDialog.tsx` + `SignupReviewDialog.tsx` — 报名审核/投票/拍板/导入
-- `tools/SwipeRow.tsx` — 触屏侧滑操作行；`tools/rundownExport.ts` — 时间推算/文本/PNG 导出（纯前端）
+- `tools/SwipeRow.tsx` — 触屏侧滑操作行；`tools/rundownExport.ts` — 时间推算/文本/PNG 导出（纯前端）；`tools/rundownExecution.ts` — 执行态推算纯函数（延误/超时/预计时间/实时级联推算开始与结束）
 - `tools/LostFoundTool.tsx` + `LostFoundItemDialog.tsx` + `LostFoundClaimDialog.tsx` — 失物列表/登记表单(multipart 单照片)/认领备注弹层 + 公开分享开关卡
 
 ### 演示站 `src/demo/`（`npm run build:demo`，浏览器内 mock 全部 /api）
 - `install.ts` — installDemo：包装 window.fetch 拦截 /api/*；sessionStorage 内存库
 - `router.ts` — def/route：`:param` 模板路由 + 80ms 延迟
-- `seed.ts` — buildSeed（DB_VERSION=5）：相对当前时刻生成演示数据
+- `seed.ts` — buildSeed（DB_VERSION=6）：相对当前时刻生成演示数据
 - `types.ts` / `helpers.ts` — Db/Ctx/Handler 类型 / 错误信封·权限·文件存取
 - `aggregate.ts` — R1–R7 聚合（注释标注移植自后端哪个服务）
 - `handlers/*.ts`（13 个）— 按域复刻后端路由：auth/projects/todos/finance/materials/physical/accounts/dashboard/work/stageRundowns/stageSignups/lostFound + index.ts 合并路由表
@@ -223,6 +224,6 @@
 
 ## 走查脚本 `.walkthrough/`（不入库的 Playwright 工具集）
 - 截图生成：`help-screenshot*.mjs`（帮助中心 tab-*.png）、`stage-signup-shots.mjs` 等
-- 功能走查：`stage-signup.mjs`、`stage-rundown.mjs`、`onsite-walkthrough.mjs`、`nav-layout-verify.mjs`、`security-verify.mjs` 等约 30 个，输出 PASS/FAIL
+- 功能走查：`stage-signup.mjs`、`stage-rundown.mjs`、`stage-execution.mjs`（执行模式+现场大屏）、`onsite-walkthrough.mjs`、`nav-layout-verify.mjs`、`security-verify.mjs` 等约 30 个，输出 PASS/FAIL
 - 冒烟：`smoke/prod-smoke.mjs`、`pwa-smoke.mjs`
 - 调试：`debug-*.mjs` 约 20 个临时复现脚本；`shots/` 为截图产物

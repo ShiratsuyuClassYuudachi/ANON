@@ -190,12 +190,18 @@ export interface OnsiteIncident {
   reporter: { userId: string; name: string };
   status: 'open' | 'resolved'; createdAt: string;
 }
+export interface OnsiteRundown {
+  id: string; name: string; status: 'idle' | 'running'; startAt: string; itemCount: number;
+  currentIndex: number | null; currentItemId: string | null; currentItemName: string | null;
+  currentPlannedStart: string | null; currentActualStart: string | null; shiftMin: number;
+}
 export interface OnsiteData {
   now: string;
   myModules: OnsiteModule[];
   emergency: OnsiteAnnouncement[];
   contacts: OnsiteContact[];
   incidents: OnsiteIncident[];
+  rundowns: OnsiteRundown[];
   myPermissions: string[];
 }
 
@@ -241,13 +247,33 @@ export interface StageRundownItem {
   id: string; name: string; durationMin: number;
   participants: StageParticipant[]; attachments: StageRundownAttachment[]; note: string;
 }
+export type StageExecutionStatus = 'idle' | 'running' | 'finished';
+export interface StageActual { itemId: string; startedAt: string; endedAt: string | null }
+export interface StageExecution {
+  status: StageExecutionStatus; currentItemId: string | null;
+  startedAt: string | null; finishedAt: string | null;
+  shiftMin: number; actuals: StageActual[];
+}
 export interface StageRundown {
   id: string; name: string; startAt: string; note: string;
-  items: StageRundownItem[]; createdBy: string; createdAt: string; updatedAt: string;
+  items: StageRundownItem[]; execution: StageExecution;
+  createdBy: string; createdAt: string; updatedAt: string;
 }
 export interface StageRundownSummary {
   id: string; name: string; startAt: string; note: string;
-  itemCount: number; totalDurationMin: number; createdAt: string; updatedAt: string;
+  itemCount: number; totalDurationMin: number; executionStatus: StageExecutionStatus;
+  createdAt: string; updatedAt: string;
+}
+export interface StageScreenShareInfo { enabled: boolean; token: string }
+
+// 现场大屏公开端点（白名单：无 contact/note/attachments）
+export interface PublicScreenParticipant { cn: string }
+export interface PublicScreenItem { id: string; name: string; durationMin: number; participants: PublicScreenParticipant[] }
+export interface PublicScreenRundown { name: string; startAt: string; items: PublicScreenItem[]; execution: StageExecution }
+export interface PublicScreenAnnouncement { id: string; title: string; content: string; publishedAt: string }
+export interface PublicRundownScreenResponse {
+  projectName: string; now: string;
+  rundown: PublicScreenRundown; announcements: PublicScreenAnnouncement[];
 }
 
 // --- Tools (实用工具) · 舞台报名审核 ---

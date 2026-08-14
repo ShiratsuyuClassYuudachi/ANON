@@ -29,6 +29,7 @@ import { ResourceType } from '../models/ResourceType';
 import { ResourceVersion } from '../models/ResourceVersion';
 import { RiskInstance } from '../models/RiskInstance';
 import { StageRundown } from '../models/StageRundown';
+import { StageScreenShare } from '../models/StageScreenShare';
 import { StageSignup } from '../models/StageSignup';
 import { Todo } from '../models/Todo';
 import { Transaction } from '../models/Transaction';
@@ -358,6 +359,7 @@ export async function seedDemoData(opts: DemoSeedOptions): Promise<DemoSeedResul
       { _id: oid(), name: '随机宅舞', durationMin: 30, participants: [{ cn: '全场自由上台', contact: '' }], attachmentIds: [], note: '歌单 B 盘，主持人口播规则' },
       { _id: oid(), name: '闭幕合唱《给明天的信》', durationMin: 10, participants: [{ cn: '全体成员', contact: '' }], attachmentIds: [], note: '' },
     ],
+    execution: { status: 'idle', currentItemId: null, startedAt: null, finishedAt: null, shiftMin: 0, actuals: [] },
     createdBy: adminId,
     createdAt: now,
     updatedAt: now,
@@ -472,7 +474,7 @@ export async function deleteDemoData(ref: {
     ResourceType, Todo, Transaction, PlatformAccount, WorkModule, Announcement,
     AnnouncementConfirmation, Activity, Milestone, RiskInstance, DashboardPreference,
     Incident, PhysicalCategory, PhysicalItem, PhysicalItemLog, ProjectInvite, WeeklyReportLog,
-    StageRundown, StageSignup, LostFoundItem, LostFoundShare,
+    StageRundown, StageScreenShare, StageSignup, LostFoundItem, LostFoundShare,
   ];
   for (const m of projectScoped) await m.deleteMany({ projectId });
   await Project.deleteMany({ _id: projectId });

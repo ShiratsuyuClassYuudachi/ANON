@@ -869,7 +869,7 @@ interface WorkSheetData {
 
 ### GET /api/projects/:id/onsite（成员）
 
-现场模式聚合接口。响应 200：`{ now, myModules, emergency, contacts, incidents, myPermissions }`——`myModules` 为指派给本人的模块（含 `myAssignee: { confirmedAt, checkedInAt, completedAt }`，state: current/upcoming/done）；`emergency` 为可见的紧急/重要公告（≤5 条）；`contacts` 为填写了联系方式的成员；`incidents` 按权限可见（work:manage 见全部，普通成员仅自己上报的）；`myPermissions` 为本人权限点数组（前端据此显隐现场页「失物登记」等权限入口）。
+现场模式聚合接口。响应 200：`{ now, myModules, emergency, contacts, incidents, rundowns, myPermissions }`——`myModules` 为指派给本人的模块（含 `myAssignee: { confirmedAt, checkedInAt, completedAt }`，state: current/upcoming/done）；`emergency` 为可见的紧急/重要公告（≤5 条）；`contacts` 为填写了联系方式的成员；`incidents` 按权限可见（work:manage 见全部，普通成员仅自己上报的）；`rundowns` 为舞台执行聚合（≤5 条：执行中的 Rundown 恒在列，未开始的仅取开始时间 ±24h 窗口内；元素 `{ id, name, status: 'idle'|'running', startAt, itemCount, currentIndex, currentItemId, currentItemName, currentPlannedStart, currentActualStart, shiftMin }`，idle 时 current* 全 null、shiftMin=0）；`myPermissions` 为本人权限点数组（前端据此显隐现场页「失物登记」等权限入口）。
 
 ### 现场异常（incidents）
 
@@ -895,7 +895,9 @@ interface OnsiteIncident {
 
 ## 舞台 Rundown（实用工具）
 
-挂载于 `/api/projects/:id/stage-rundowns`，需登录且为项目成员。查看类操作成员即可；Rundown 与节目的增删改、排序均需 `tools:manage`（`project:manage` 等价放行，超管不受限）。每项目可建多份 Rundown（如 Day1/Day2、主/副舞台）。
+挂载于 `/api/projects/:id/stage-rundowns`，需登录且为项目成员。查看类操作成员即可；Rundown 与节目的增删改、排序、执行控制、大屏分享管理均需 `tools:manage`（`project:manage` 等价放行，超管不受限）。每项目可建多份 Rundown（如 Day1/Day2、主/副舞台）。
+
+**执行模式**：执行状态存于 Rundown 内嵌 `execution` 子文档，计划数据（`startAt`/`durationMin`）执行期不被改写。执行中（`execution.status === 'running'`）锁定编排：节目增/删/改、修改 `startAt`、删除 Rundown 全部 409 `EXECUTION_RUNNING`（`name`/`note` 仍可改）；reorder 例外——仅允许在未执行节目槽位内重排（有实际记录或为当前节目的位置必须原样，否则 409「执行中仅可调整未执行节目的顺序」）。
 
 ### 数据类型
 
@@ -906,14 +908,26 @@ interface StageRundownItem {
   id: string; name: string; durationMin: number;
   participants: StageParticipant[]; attachments: StageRundownAttachment[]; note: string;
 }
+interface StageActual { itemId: string; startedAt: string; endedAt: string | null }
+interface StageExecution {
+  status: 'idle' | 'running' | 'finished';
+  currentItemId: string | null;      // 当前节目（finished 时为 null）
+  startedAt: string | null;          // 首个节目实际上场时刻
+  finishedAt: string | null;
+  shiftMin: number;                  // 顺延累积（分钟，可负=提前）；未开始节目预计时间 = 计划 + shiftMin
+  actuals: StageActual[];            // 每节目至多一条（最近一次执行）
+}
 interface StageRundown {
   id: string; name: string; startAt: string; note: string;
-  items: StageRundownItem[]; createdBy: string; createdAt: string; updatedAt: string;
+  items: StageRundownItem[]; execution: StageExecution;
+  createdBy: string; createdAt: string; updatedAt: string;
 }
 interface StageRundownSummary {
   id: string; name: string; startAt: string; note: string;
-  itemCount: number; totalDurationMin: number; createdAt: string; updatedAt: string;
+  itemCount: number; totalDurationMin: number; executionStatus: 'idle' | 'running' | 'finished';
+  createdAt: string; updatedAt: string;
 }
+interface StageScreenShareInfo { enabled: boolean; token: string }
 ```
 
 节目顺序即 `items` 数组下标（无独立 order 字段）；每个节目的起止时间由前端自 `startAt` 逐项累加 `durationMin` 推算。素材文件复用 File 模型与 `GET /api/files/:id` 下载。
@@ -936,15 +950,15 @@ interface StageRundownSummary {
 
 ### PATCH /api/projects/:id/stage-rundowns/:rid（tools:manage）
 
-请求字段同 POST（均可选）；`name` 提供但 trim 后为空、`startAt` 提供但不可解析 → 400。
+请求字段同 POST（均可选）；`name` 提供但 trim 后为空、`startAt` 提供但不可解析 → 400。执行中仅 `name`/`note` 可改。
 响应 200：`{ rundown: StageRundown }`
-错误：400 `bad_request`；403 `forbidden`；404 `not_found`
+错误：400 `bad_request`；403 `forbidden`；404 `not_found`；409 `EXECUTION_RUNNING`（执行中修改 `startAt`）
 
 ### DELETE /api/projects/:id/stage-rundowns/:rid（tools:manage）
 
-级联删除全部节目的素材文件（存储对象 + File 文档）。
+级联删除全部节目的素材文件（存储对象 + File 文档）与现场大屏分享文档。
 响应 200：`{ ok: true }`
-错误：403 `forbidden`；404 `not_found`
+错误：403 `forbidden`；404 `not_found`；409 `EXECUTION_RUNNING`（执行中禁止删除）
 
 ### POST /api/projects/:id/stage-rundowns/:rid/items（tools:manage）
 
@@ -956,25 +970,61 @@ multipart/form-data（`files` 最多 10 个，单个 ≤ 20MB）。字段：
 
 上传文件按顺序落库为 File 文档并记为节目附件。
 响应 201：`{ item: StageRundownItem }`
-错误：400 `bad_request`；403 `forbidden`；404 `not_found`
+错误：400 `bad_request`；403 `forbidden`；404 `not_found`；409 `EXECUTION_RUNNING`（执行中禁止编排变更）
 
 ### PATCH /api/projects/:id/stage-rundowns/:rid/items/:itemId（tools:manage）
 
 multipart/form-data，字段同 POST（均可选），另支持 `removeAttachmentIds`（JSON 字符串数组）：命中的附件从节目移除并级联删除存储对象与 File 文档；新上传文件追加在附件列表末尾。
 响应 200：`{ item: StageRundownItem }`
-错误：400 `bad_request`；403 `forbidden`；404 `not_found`
+错误：400 `bad_request`；403 `forbidden`；404 `not_found`；409 `EXECUTION_RUNNING`
 
 ### DELETE /api/projects/:id/stage-rundowns/:rid/items/:itemId（tools:manage）
 
 删除节目并级联清理其附件文件。
 响应 200：`{ ok: true }`
-错误：403 `forbidden`；404 `not_found`
+错误：403 `forbidden`；404 `not_found`；409 `EXECUTION_RUNNING`
 
 ### PATCH /api/projects/:id/stage-rundowns/:rid/items/reorder（tools:manage）
 
-请求：`{ order: string[] }`：必须与现有节目一一对应（长度相等、id 集合完全相同），否则 400「order 必须与现有节目一一对应」。按 order 重排 items 数组。
+请求：`{ order: string[] }`：必须与现有节目一一对应（长度相等、id 集合完全相同），否则 400「order 必须与现有节目一一对应」。按 order 重排 items 数组。执行中仅可在未执行节目槽位内重排：当前/已演节目所在位置被移动时 409 `EXECUTION_RUNNING`「执行中仅可调整未执行节目的顺序」。
 响应 200：`{ rundown: StageRundown }`
-错误：400 `bad_request`；403 `forbidden`；404 `not_found`
+错误：400 `bad_request`；403 `forbidden`；404 `not_found`；409 `EXECUTION_RUNNING`
+
+### 执行控制（tools:manage）
+
+全部为 POST，统一响应 200：`{ rundown: StageRundown }`；公共错误：403 `forbidden`；404 `not_found`。
+
+- **POST …/:rid/execution/start**：开始执行。请求 `{ itemId?: string }`（缺省从首节目开始；提供但不存在 → 400「节目不存在」；空节目单 → 400「请先添加节目」）。重置执行记录后从目标节目起计：`status=running`、`startedAt=now`、`shiftMin=0`、`actuals=[目标]`。finished 状态调用 = 重新执行（清旧记录）。错误：409 `ALREADY_RUNNING`（已在执行中）
+- **POST …/:rid/execution/advance**：当前节目记 `endedAt=now` 并推进到下一节目；已是末节目则 `status=finished`、`finishedAt=now`、`currentItemId=null`。错误：409 `NOT_RUNNING`
+- **POST …/:rid/execution/jump**：跳到指定节目（当前节目记 `endedAt`，目标节目旧 actual 移除后重新起计；跳当前项幂等不写库）。请求 `{ itemId: string }`（缺失 400「缺少节目」；不存在 400）。错误：409 `NOT_RUNNING`
+- **POST …/:rid/execution/shift**：顺延累加。请求 `{ minutes: number }`：须为 ±240 内整数（否则 400）；累加后 `|shiftMin| > 1440` → 400。「清零顺延」由前端发 `{ minutes: -shiftMin }`。错误：409 `NOT_RUNNING`
+- **POST …/:rid/execution/finish**：当前节目未结束的 actual 记 `endedAt=now`，`status=finished`。错误：409 `NOT_RUNNING`
+- **POST …/:rid/execution/reset**：任何状态回 idle 初始态（清空 actuals 与 shiftMin）；idle 时幂等。
+
+### 现场大屏分享（tools:manage）
+
+- **GET …/:rid/screen-share**：惰性创建分享文档后返回。响应 200：`{ share: StageScreenShareInfo }`（初始 `enabled=false`）
+- **PUT …/:rid/screen-share**：请求 `{ enabled?: boolean, regenerate?: boolean }`；`regenerate=true` 换新 token（旧链接立即失效）。响应 200：`{ share: StageScreenShareInfo }`
+
+### GET /api/public/rundown-screen/:token（免登录）
+
+现场大屏公开端点（限流 300 次/分钟/IP）。分享不存在、未开启或 Rundown 已删除 → 404 `not_found`「链接不存在或已关闭」。
+响应 200：
+
+```ts
+{
+  projectName: string;
+  now: string;                       // 服务器当前时刻（ISO）
+  rundown: {
+    name: string; startAt: string;
+    items: { id: string; name: string; durationMin: number; participants: { cn: string }[] }[];
+    execution: StageExecution;
+  };
+  announcements: { id: string; title: string; content: string; publishedAt: string }[];
+}
+```
+
+白名单：items **不含** `note`/`attachments`，participants **仅 `cn`**（联系方式不外泄）；`announcements` 仅 `type=emergency` + 未过期 + 全员可见（visibility 双空）的前 5 条（isPinned、publishedAt 倒序）。
 
 ---
 

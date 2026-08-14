@@ -17,6 +17,7 @@ import ProjectHome from './pages/ProjectHome';
 import Projects from './pages/Projects';
 import PublicLostFound from './pages/PublicLostFound';
 import Register from './pages/Register';
+import RundownScreenPage from './pages/RundownScreenPage';
 import WorkSheetPrint from './pages/WorkSheetPrint';
 
 function RequireAuth({ children }: { children: ReactElement }) {
@@ -62,6 +63,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/lf/:token" element={<PublicLostFound />} />
+        <Route path="/screen/:token" element={<RundownScreenPage />} />
         <Route
           path="/invite/:token"
           element={

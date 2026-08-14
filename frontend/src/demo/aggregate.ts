@@ -494,5 +494,49 @@ export function buildOnsite(db: Db, p: DbProject, membershipRole: string | null,
       createdAt: x.createdAt,
     }));
 
-  return { now: now.toISOString(), myModules, emergency, contacts, incidents, myPermissions: [...permissions] };
+  // 执行中的 rundown 恒在列；未开始的仅取 ±24h 窗口内（与后端 onsite.ts 一致）
+  const rundowns = db.stageRundowns
+    .filter((r) => r.projectId === p.id)
+    .filter((r) => {
+      if (r.execution.status === 'running') return true;
+      if (r.execution.status !== 'idle') return false;
+      const t = new Date(r.startAt).getTime();
+      return t >= nowMs - 24 * 3600_000 && t <= nowMs + 24 * 3600_000;
+    })
+    .sort((a, b) => a.startAt.localeCompare(b.startAt))
+    .slice(0, 5)
+    .map((r) => {
+      const e = r.execution;
+      const running = e.status === 'running';
+      const idx = running ? r.items.findIndex((it) => it.id === e.currentItemId) : -1;
+      const cur = idx >= 0 ? r.items[idx] : null;
+      const actual = cur ? (e.actuals.find((a) => a.itemId === cur.id) ?? null) : null;
+      // 逐项累加 durationMin 得当前节目计划开始时刻（与 computeSchedule 同算法）
+      let currentPlannedStart: string | null = null;
+      if (cur) {
+        let t = new Date(r.startAt).getTime();
+        for (const it of r.items) {
+          if (it.id === cur.id) {
+            currentPlannedStart = new Date(t).toISOString();
+            break;
+          }
+          t += it.durationMin * 60_000;
+        }
+      }
+      return {
+        id: r.id,
+        name: r.name,
+        status: running ? ('running' as const) : ('idle' as const),
+        startAt: r.startAt,
+        itemCount: r.items.length,
+        currentIndex: cur ? idx : null,
+        currentItemId: cur ? cur.id : null,
+        currentItemName: cur ? cur.name : null,
+        currentPlannedStart,
+        currentActualStart: actual ? actual.startedAt : null,
+        shiftMin: running ? e.shiftMin : 0,
+      };
+    });
+
+  return { now: now.toISOString(), myModules, emergency, contacts, incidents, rundowns, myPermissions: [...permissions] };
 }
