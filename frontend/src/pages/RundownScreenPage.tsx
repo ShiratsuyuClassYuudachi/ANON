@@ -181,7 +181,11 @@ export default function RundownScreenPage() {
                 </span>
                 <span
                   className={`font-mono text-2xl tabular-nums ${
-                    c.projectedStart.getTime() > c.expectedStart.getTime() ? 'text-amber-400' : ''
+                    c.projectedStart.getTime() > c.expectedStart.getTime()
+                      ? 'text-amber-400'
+                      : c.projectedStart.getTime() < c.expectedStart.getTime()
+                        ? 'text-emerald-400'
+                        : ''
                   }`}
                 >
                   {hhmm(c.projectedStart)}

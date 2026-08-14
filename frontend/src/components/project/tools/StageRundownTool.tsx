@@ -171,11 +171,14 @@ function SortableProgramRow({
     disabled: !sortable,
   });
   const contacts = scheduled.participants.filter((p) => p.contact);
-  // 未执行节目行时间实时级联：徽章显示推算区间（推晚琥珀描边），原计划降为下行小字基准
+  // 未执行节目行时间实时级联：徽章显示推算区间（推晚琥珀描边/提前绿色描边），原计划降为下行小字基准
   const upcomingExec = exec && exec.state === 'upcoming' ? exec : null;
   const rangeStart = upcomingExec ? upcomingExec.projectedStart : scheduled.start;
   const rangeEnd = upcomingExec ? upcomingExec.projectedEnd : scheduled.end;
-  const livePushed = upcomingExec !== null && upcomingExec.projectedStart.getTime() > upcomingExec.expectedStart.getTime();
+  const livePushed =
+    upcomingExec !== null && upcomingExec.projectedStart.getTime() > upcomingExec.expectedStart.getTime();
+  const liveEarlier =
+    upcomingExec !== null && upcomingExec.projectedStart.getTime() < upcomingExec.expectedStart.getTime();
   return (
     <Card
       ref={setNodeRef}
@@ -198,7 +201,13 @@ function SortableProgramRow({
           <div className="flex flex-wrap items-center gap-2">
             <Badge
               variant="secondary"
-              className={`font-mono ${livePushed ? 'border-amber-500 text-amber-600 dark:text-amber-400' : ''}`}
+              className={`font-mono ${
+                livePushed
+                  ? 'border-amber-500 text-amber-600 dark:text-amber-400'
+                  : liveEarlier
+                    ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
+                    : ''
+              }`}
             >
               {hhmm(rangeStart)}–{hhmm(rangeEnd)}
             </Badge>

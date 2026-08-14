@@ -8,7 +8,7 @@ export interface ExecComputed<T> {
   plannedEnd: Date;
   expectedStart: Date;
   expectedEnd: Date;
-  /** 实时推算开始：done=实际；current=实际；upcoming=max(计划+顺延, 前项推算结束) */
+  /** 实时推算开始：done=实际；current=实际；当前项之后 upcoming=前项推算结束（双向级联），之前=计划+顺延 */
   projectedStart: Date;
   /** 实时推算结束：current=max(实际开始+时长, now)，超时时随 now 逐分钟推移 */
   projectedEnd: Date;
@@ -18,9 +18,10 @@ export interface ExecComputed<T> {
 
 /**
  * 执行态推算：计划时间逐项累加（与 computeSchedule 同算法，同序配对）。
- * 未开始节目「预计时间」= 计划 + shiftMin（已公布基准，永不错前）；
- * 执行中「推算时间」随当前节目实际进度实时级联：当前节目推算结束 = max(实际开始+时长, now)，
- * 后续节目推算开始 = max(预计, 前项推算结束)。
+ * 未开始节目「预计时间」= 计划 + shiftMin（已公布基准）。
+ * 执行中「推算时间」随当前节目实际进度双向级联：当前节目推算结束 = max(实际开始+时长, now)，
+ * 其后未执行节目推算开始 = 前项推算结束（拖晚则后推，提前也同步提前）；
+ * 当前项之前的未执行项（跳节目越过）保持计划+顺延，不进级联链。
  */
 export function computeExecution<T extends { id: string; durationMin: number }>(
   startAt: string,
@@ -30,6 +31,7 @@ export function computeExecution<T extends { id: string; durationMin: number }>(
 ): ExecComputed<T>[] {
   let cursor = new Date(startAt).getTime();
   let chainEnd = -Infinity;
+  let cascading = false; // 经过当前节目后，后续未执行项进入纯级联
   return items.map((item) => {
     const plannedStart = new Date(cursor);
     const plannedEnd = new Date(cursor + item.durationMin * 60_000);
@@ -51,6 +53,7 @@ export function computeExecution<T extends { id: string; durationMin: number }>(
       projectedEnd = actualStart
         ? new Date(Math.max(actualStart.getTime() + item.durationMin * 60_000, now.getTime()))
         : expectedEnd;
+      cascading = true;
     } else if (state === 'done') {
       expectedStart = actualStart ?? plannedStart;
       expectedEnd = actualEnd ?? plannedEnd;
@@ -59,10 +62,12 @@ export function computeExecution<T extends { id: string; durationMin: number }>(
     } else {
       expectedStart = new Date(plannedStart.getTime() + execution.shiftMin * 60_000);
       expectedEnd = new Date(expectedStart.getTime() + item.durationMin * 60_000);
-      projectedStart = new Date(Math.max(expectedStart.getTime(), chainEnd));
+      projectedStart = cascading ? new Date(chainEnd) : expectedStart;
       projectedEnd = new Date(projectedStart.getTime() + item.durationMin * 60_000);
     }
-    chainEnd = Math.max(chainEnd, projectedEnd.getTime());
+    // 级联链只由「当前项及其后」推进；当前项之前的未执行项（跳节目越过）不进链，
+    // 否则其公布时间会污染后续级联（提前+jump 时后续行错误锚回计划时间）
+    if (cascading) chainEnd = Math.max(chainEnd, projectedEnd.getTime());
     return { item, state, plannedStart, plannedEnd, expectedStart, expectedEnd, projectedStart, projectedEnd, actualStart, actualEnd };
   });
 }
