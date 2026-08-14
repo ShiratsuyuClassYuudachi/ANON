@@ -292,6 +292,21 @@ export interface DbStageRundownItem {
   note: string;
 }
 
+export interface DbStageActual {
+  itemId: string;
+  startedAt: string;
+  endedAt: string | null;
+}
+
+export interface DbStageExecution {
+  status: 'idle' | 'running' | 'finished';
+  currentItemId: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  shiftMin: number;
+  actuals: DbStageActual[];
+}
+
 export interface DbStageRundown {
   id: string;
   projectId: string;
@@ -299,9 +314,19 @@ export interface DbStageRundown {
   startAt: string;
   note: string;
   items: DbStageRundownItem[];
+  execution: DbStageExecution;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+}
+
+/** 现场大屏公开分享：每 Rundown 一份，token 即免登录大屏链接标识 */
+export interface DbScreenShare {
+  id: string;
+  projectId: string;
+  rundownId: string;
+  token: string;
+  enabled: boolean;
 }
 
 export interface DbStageSignupReview {
@@ -398,6 +423,7 @@ export interface Db {
   stageSignups: DbStageSignup[];
   lostFoundItems: DbLostFoundItem[];
   lostFoundShares: DbLostFoundShare[];
+  screenShares: DbScreenShare[];
   dashboardPreferences: DbDashboardPreference[];
   inviteCodes: DbInviteCode[];
   invites: DbProjectInvite[];

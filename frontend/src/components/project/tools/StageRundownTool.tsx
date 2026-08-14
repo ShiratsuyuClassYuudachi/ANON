@@ -22,6 +22,7 @@ import {
   Download,
   GripVertical,
   Image,
+  MonitorPlay,
   MoreHorizontal,
   Paperclip,
   Plus,
@@ -58,6 +59,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import ProgramFormDialog from './ProgramFormDialog';
+import ExecutionPanel from './ExecutionPanel';
+import ScreenShareDialog from './ScreenShareDialog';
+import { computeExecution, type ExecComputed } from './rundownExecution';
 import { computeSchedule, copyRundownText, exportRundownImage, exportRundownText, hhmm, RUNDOWN_COLUMNS, scheduleEndLabel } from './rundownExport';
 
 interface Props {
@@ -71,12 +75,15 @@ function RundownFormDialog({
   onOpenChange,
   base,
   rundown,
+  lockStartAt = false,
   onSaved,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   base: string;
   rundown?: StageRundownSummary | null;
+  /** 执行中锁定开始时间（提交时省略 startAt，后端对 startAt 修改 409） */
+  lockStartAt?: boolean;
   onSaved: (id: string) => void;
 }) {
   const [name, setName] = useState('');
@@ -96,7 +103,8 @@ function RundownFormDialog({
     if (submitting) return;
     setSubmitting(true);
     try {
-      const body = { name: name.trim(), startAt: new Date(startAt).toISOString(), note: note.trim() };
+      const body: { name: string; startAt?: string; note: string } = { name: name.trim(), note: note.trim() };
+      if (!lockStartAt) body.startAt = new Date(startAt).toISOString();
       const res = rundown
         ? await api<{ rundown: StageRundown }>(`${base}/${rundown.id}`, { method: 'PATCH', body })
         : await api<{ rundown: StageRundown }>(base, { body });
@@ -119,7 +127,10 @@ function RundownFormDialog({
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="rundown-start">开始时间</Label>
-          <Input id="rundown-start" type="datetime-local" required value={startAt} onChange={(e) => setStartAt(e.target.value)} />
+          <Input id="rundown-start" type="datetime-local" required value={startAt} onChange={(e) => setStartAt(e.target.value)} disabled={lockStartAt} />
+          {lockStartAt && (
+            <p className="text-xs text-muted-foreground">执行中不可修改开始时间，请先结束或重置执行</p>
+          )}
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="rundown-note">备注</Label>
@@ -138,12 +149,17 @@ function SortableProgramRow({
   index,
   scheduled,
   canManage,
+  locked,
+  exec,
   onEdit,
   onDelete,
 }: {
   index: number;
   scheduled: StageRundownItem & { start: Date; end: Date };
   canManage: boolean;
+  /** 执行中锁定编排：不渲染拖手与操作菜单 */
+  locked: boolean;
+  exec?: ExecComputed<StageRundownItem>;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -156,7 +172,7 @@ function SortableProgramRow({
       className={isDragging ? 'relative z-10 opacity-80' : ''}
     >
       <CardContent className="flex items-start gap-2 p-3">
-        {canManage && (
+        {canManage && !locked && (
           <button
             className="mt-1 shrink-0 cursor-grab touch-none text-muted-foreground hover:text-foreground"
             aria-label={`拖动排序 ${scheduled.name}`}
@@ -174,7 +190,19 @@ function SortableProgramRow({
             </Badge>
             <span className="font-medium">{scheduled.name}</span>
             <span className="text-sm text-muted-foreground">{scheduled.durationMin} 分钟</span>
+            {exec?.state === 'current' && <Badge>进行中</Badge>}
+            {exec?.state === 'done' && (
+              <Badge className="bg-green-600 text-white hover:bg-green-600">已完成</Badge>
+            )}
           </div>
+          {exec?.state === 'done' && exec.actualStart && (
+            <p className="text-xs text-muted-foreground">
+              实际 {hhmm(exec.actualStart)}–{exec.actualEnd ? hhmm(exec.actualEnd) : '—'}
+            </p>
+          )}
+          {exec?.state === 'upcoming' && exec.expectedStart.getTime() !== exec.plannedStart.getTime() && (
+            <p className="text-xs text-muted-foreground">预计 {hhmm(exec.expectedStart)}</p>
+          )}
           {scheduled.participants.length > 0 && (
             <p className="text-sm text-muted-foreground">
               CN：{scheduled.participants.map((p) => p.cn).join('、')}
@@ -192,7 +220,7 @@ function SortableProgramRow({
             </div>
           )}
         </div>
-        {canManage && (
+        {canManage && !locked && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" aria-label={`节目操作 ${scheduled.name}`}>
@@ -226,6 +254,7 @@ export default function StageRundownTool({ project, myPermissions }: Props) {
   const [editingItem, setEditingItem] = useState<StageRundownItem | null>(null);
   const [deleteItem, setDeleteItem] = useState<StageRundownItem | null>(null);
   const [exportCols, setExportCols] = useState<string[]>(RUNDOWN_COLUMNS.map((c) => c.key));
+  const [screenOpen, setScreenOpen] = useState(false);
 
   const toggleExportCol = (key: string) => {
     setExportCols((prev) => {
@@ -321,6 +350,9 @@ export default function StageRundownTool({ project, myPermissions }: Props) {
   // ---------- 详情视图 ----------
   if (selected && detail) {
     const scheduled = computeSchedule(detail.startAt, detail.items);
+    // 与 scheduled 同算法同序，按下标配对执行态
+    const execList = computeExecution(detail.startAt, detail.items, detail.execution);
+    const running = detail.execution.status === 'running';
     const total = detail.items.reduce((sum, it) => sum + it.durationMin, 0);
     const rows = (
       <div className="space-y-2">
@@ -330,6 +362,8 @@ export default function StageRundownTool({ project, myPermissions }: Props) {
             index={i}
             scheduled={it}
             canManage={canManage}
+            locked={running}
+            exec={execList[i]}
             onEdit={() => {
               setEditingItem(detail.items.find((x) => x.id === it.id) ?? null);
               setProgramFormOpen(true);
@@ -375,6 +409,7 @@ export default function StageRundownTool({ project, myPermissions }: Props) {
                           note: detail.note,
                           itemCount: detail.items.length,
                           totalDurationMin: total,
+                          executionStatus: detail.execution.status,
                           createdAt: detail.createdAt,
                           updatedAt: detail.updatedAt,
                         });
@@ -383,23 +418,26 @@ export default function StageRundownTool({ project, myPermissions }: Props) {
                     >
                       编辑信息
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="text-destructive"
-                      onClick={() =>
-                        setDeleteRundown({
-                          id: detail.id,
-                          name: detail.name,
-                          startAt: detail.startAt,
-                          note: detail.note,
-                          itemCount: detail.items.length,
-                          totalDurationMin: total,
-                          createdAt: detail.createdAt,
-                          updatedAt: detail.updatedAt,
-                        })
-                      }
-                    >
-                      删除
-                    </DropdownMenuItem>
+                    {!running && (
+                      <DropdownMenuItem
+                        className="text-destructive"
+                        onClick={() =>
+                          setDeleteRundown({
+                            id: detail.id,
+                            name: detail.name,
+                            startAt: detail.startAt,
+                            note: detail.note,
+                            itemCount: detail.items.length,
+                            totalDurationMin: total,
+                            executionStatus: detail.execution.status,
+                            createdAt: detail.createdAt,
+                            updatedAt: detail.updatedAt,
+                          })
+                        }
+                      >
+                        删除
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
@@ -439,6 +477,11 @@ export default function StageRundownTool({ project, myPermissions }: Props) {
                 <ClipboardCopy className="size-4" /> 复制文本
               </Button>
               {canManage && (
+                <Button variant="outline" size="sm" onClick={() => setScreenOpen(true)}>
+                  <MonitorPlay className="size-4" /> 现场大屏
+                </Button>
+              )}
+              {canManage && !running && (
                 <Button
                   size="sm"
                   onClick={() => {
@@ -453,13 +496,15 @@ export default function StageRundownTool({ project, myPermissions }: Props) {
           </CardContent>
         </Card>
 
+        <ExecutionPanel projectId={project.id} rundown={detail} canManage={canManage} onChanged={setDetail} />
+
         {detail.items.length === 0 ? (
           <Card>
             <CardContent className="py-8 text-center text-sm text-muted-foreground">
               暂无节目{canManage ? '，点击「添加节目」开始编排' : ''}
             </CardContent>
           </Card>
-        ) : canManage ? (
+        ) : canManage && !running ? (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
             <SortableContext items={detail.items.map((it) => it.id)} strategy={verticalListSortingStrategy}>
               {rows}
@@ -482,12 +527,15 @@ export default function StageRundownTool({ project, myPermissions }: Props) {
           onOpenChange={setFormOpen}
           base={base}
           rundown={editingRundown}
+          lockStartAt={running}
           onSaved={(rid) => {
             setEditingRundown(null);
             loadDetail(rid);
             loadList();
           }}
         />
+
+        <ScreenShareDialog open={screenOpen} onOpenChange={setScreenOpen} base={base} rundownId={detail.id} />
 
         <AlertDialog open={!!deleteRundown} onOpenChange={(o) => { if (!o) setDeleteRundown(null); }}>
           <AlertDialogContent>
@@ -576,7 +624,13 @@ export default function StageRundownTool({ project, myPermissions }: Props) {
             >
               <CardContent className="flex items-center justify-between gap-2 p-4">
                 <div className="min-w-0 space-y-1">
-                  <p className="font-medium">{r.name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium">{r.name}</p>
+                    {r.executionStatus === 'running' && (
+                      <Badge className="bg-green-600 text-white hover:bg-green-600">执行中</Badge>
+                    )}
+                    {r.executionStatus === 'finished' && <Badge variant="secondary">已结束</Badge>}
+                  </div>
                   <p className="text-sm text-muted-foreground">
                     {fmtLocal(r.startAt, true)} ｜ {r.itemCount} 个节目 · 共 {r.totalDurationMin} 分钟
                   </p>

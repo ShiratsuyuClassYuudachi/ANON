@@ -4,19 +4,23 @@ import {
   AlertTriangle,
   ArrowLeft,
   CheckCircle2,
+  CirclePlay,
   ClipboardCheck,
   Clock,
+  ListVideo,
   MapPin,
   Megaphone,
   PackageSearch,
   Phone,
+  SkipForward,
   Smartphone,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../api/client';
 import { enqueueOffline, isOfflineError } from '../lib/offlineQueue';
 import { fmtLocal } from '../lib/datetime';
-import type { IncidentCategory, OnsiteData, OnsiteModule } from '../types';
+import { hhmm } from '../components/project/tools/rundownExport';
+import type { IncidentCategory, OnsiteData, OnsiteModule, OnsiteRundown } from '../types';
 import LostFoundItemDialog from '../components/project/tools/LostFoundItemDialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -124,6 +128,14 @@ export default function OnsitePage() {
     }
   };
 
+  const rundownAction = async (rid: string, op: string, body: unknown, okText: string) => {
+    try {
+      await postAction(`/api/projects/${id}/stage-rundowns/${rid}/execution/${op}`, body, okText);
+    } catch {
+      /* 非离线错误已 toast */
+    }
+  };
+
   const submitIncident = async () => {
     if (!note.trim()) {
       toast.error('请填写备注');
@@ -165,6 +177,8 @@ export default function OnsitePage() {
   const my = currentModule?.myAssignee ?? null;
   const canManageLF =
     data.myPermissions.includes('project:manage') || data.myPermissions.includes('lostfound:manage');
+  const canManageTools =
+    data.myPermissions.includes('project:manage') || data.myPermissions.includes('tools:manage');
 
   return (
     <div className="mx-auto max-w-2xl space-y-4 pb-8">
@@ -253,6 +267,22 @@ export default function OnsitePage() {
 
       {/* 下一项任务 */}
       {nextModule && <NextModuleCard module={nextModule} />}
+
+      {/* 舞台执行 */}
+      {data.rundowns.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <ListVideo className="size-5 text-primary" /> 舞台执行
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {data.rundowns.map((r) => (
+              <RundownExecRow key={r.id} rundown={r} canManage={canManageTools} onAction={rundownAction} />
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* 异常上报 */}
       <Card>
@@ -390,6 +420,95 @@ export default function OnsitePage() {
         base={`/api/projects/${id}/lostfound`}
         onSaved={() => {}}
       />
+    </div>
+  );
+}
+
+function RundownExecRow({
+  rundown: r,
+  canManage,
+  onAction,
+}: {
+  rundown: OnsiteRundown;
+  canManage: boolean;
+  onAction: (rid: string, op: string, body: unknown, okText: string) => Promise<void>;
+}) {
+  const running = r.status === 'running';
+  // 延误 = 当前节目实际开始 - 计划开始（分钟，提前为负）
+  const delay =
+    running && r.currentActualStart && r.currentPlannedStart
+      ? Math.round((new Date(r.currentActualStart).getTime() - new Date(r.currentPlannedStart).getTime()) / 60_000)
+      : null;
+  return (
+    <div className="space-y-2 rounded-lg border p-3">
+      <div className="flex items-center gap-2">
+        <p className="font-medium">{r.name}</p>
+        {running ? (
+          <Badge className="bg-green-600 text-white hover:bg-green-600">执行中</Badge>
+        ) : (
+          <Badge variant="secondary">未开始</Badge>
+        )}
+        {delay !== null && delay > 0 && <Badge variant="destructive">延误 +{delay} 分钟</Badge>}
+        {delay !== null && delay < 0 && (
+          <Badge className="bg-green-600 text-white hover:bg-green-600">提前 {-delay} 分钟</Badge>
+        )}
+        {running && r.shiftMin !== 0 && (
+          <Badge variant="outline" className="border-amber-500 text-amber-600 dark:text-amber-400">
+            {r.shiftMin > 0 ? `顺延 +${r.shiftMin} 分钟` : `提前 ${-r.shiftMin} 分钟`}
+          </Badge>
+        )}
+      </div>
+      {running ? (
+        <>
+          <p className="text-xl font-bold leading-tight">{r.currentItemName ?? '推进中…'}</p>
+          {r.currentIndex !== null && (
+            <p className="text-sm text-muted-foreground">
+              第 {r.currentIndex + 1}/{r.itemCount} 个节目
+            </p>
+          )}
+          {canManage && (
+            <div className="flex gap-2">
+              <Button
+                className="h-12 flex-1 text-base font-bold"
+                onClick={() => void onAction(r.id, 'advance', {}, '已推进')}
+              >
+                <SkipForward className="size-5" />
+                {r.currentIndex === r.itemCount - 1 ? '完成并结束' : '完成当前 → 下一个'}
+              </Button>
+              <Button
+                variant="outline"
+                className="h-12"
+                aria-label="提前 5 分钟"
+                onClick={() => void onAction(r.id, 'shift', { minutes: -5 }, '已提前 5 分钟')}
+              >
+                -5
+              </Button>
+              <Button
+                variant="outline"
+                className="h-12"
+                aria-label="顺延 5 分钟"
+                onClick={() => void onAction(r.id, 'shift', { minutes: 5 }, '已顺延 5 分钟')}
+              >
+                +5
+              </Button>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <p className="text-base text-muted-foreground">
+            {hhmm(new Date(r.startAt))} 开始 · {r.itemCount} 个节目
+          </p>
+          {canManage && (
+            <Button
+              className="h-12 w-full text-base font-bold"
+              onClick={() => void onAction(r.id, 'start', {}, '已开始执行')}
+            >
+              <CirclePlay className="size-5" /> 开始执行
+            </Button>
+          )}
+        </>
+      )}
     </div>
   );
 }

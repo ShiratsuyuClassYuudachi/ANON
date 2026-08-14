@@ -22,7 +22,7 @@ import { pushRouter } from './routes/push';
 import { physicalRouter } from './routes/physical';
 import { risksRouter } from './routes/risks';
 import { stagesRouter } from './routes/stages';
-import { stageRundownsRouter } from './routes/stageRundowns';
+import { stageRundownsRouter, publicRundownScreenRouter } from './routes/stageRundowns';
 import { stageSignupsRouter } from './routes/stageSignups';
 import { todosRouter } from './routes/todos';
 import { workModulesRouter } from './routes/workModules';
@@ -78,6 +78,7 @@ const publicLimiter = rateLimit({
   message: { error: { code: 'rate_limited', message: '请求过于频繁，请稍后再试' } },
 });
 app.use('/api/public/lostfound', publicLimiter, publicLostFoundRouter);
+app.use('/api/public/rundown-screen', publicLimiter, publicRundownScreenRouter);
 app.use('/api/files', filesRouter);
 app.use('/api/cron', cronRouter);
 

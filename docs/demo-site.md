@@ -4,7 +4,7 @@
 
 - **构建**：`cd frontend && npm run build:demo`（= `tsc --noEmit && vite build --mode demo`），产物 `frontend/dist/`。
 - **与生产构建的关系**：demo 是 vite `--mode demo` 的同仓库构建变体；生产构建（`npm run build` + Docker 部署）完全不受影响——demo 代码经动态 import + `import.meta.env.VITE_DEMO` 静态替换被 tree-shake（生产产物中零 demo 字符串/chunk，已验证），且 demo 模式摘除 VitePWA（不生成 sw.js，避免 Service Worker 缓存 mock 响应）。
-- **演示数据**：种子含 2 个项目（「示例·夏日同人祭」+「示例·秋季 Live」）、6 成员、15 待办、9 账目 + 双票种、6 物料资源（含可预览 SVG 海报/平面图、PDF 参展指南、可下载 CSV 摊位号表）、3 平台账号、4 现场模块、实物清单、公告/风险/动态/里程碑/邀请码、舞台 Rundown、报名审核批次、失物招领物品（含公开分享）。微博账号密码可输入口令 `demo` 在前端解密（真 PBKDF2 + AES-GCM，与生产同一代码路径）。
+- **演示数据**：种子含 2 个项目（「示例·夏日同人祭」+「示例·秋季 Live」）、6 成员、15 待办、9 账目 + 双票种、6 物料资源（含可预览 SVG 海报/平面图、PDF 参展指南、可下载 CSV 摊位号表）、3 平台账号、4 现场模块、实物清单、公告/风险/动态/里程碑/邀请码、舞台 Rundown、报名审核批次、失物招领物品（含公开分享）。舞台 Rundown 附执行模式（默认未开始），现场大屏分享已开启——直接访问 `/screen/demo-screen-token` 可演示免登录深色大屏（含种子紧急公告上屏）。微博账号密码可输入口令 `demo` 在前端解密（真 PBKDF2 + AES-GCM，与生产同一代码路径）。
 
 ## 部署（Cloudflare Pages，二选一）
 

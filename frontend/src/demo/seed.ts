@@ -2,7 +2,7 @@ import { encryptWithPassphrase } from '../crypto';
 import type { Db, DbProject, DbStage, DbUser } from './types';
 
 /** 种子结构版本：变更时递增，旧会话数据自动作废重种，防 schema 漂移 */
-export const DB_VERSION = 5;
+export const DB_VERSION = 6;
 
 // 种子数据：全部日期相对构建时刻（new Date()）计算，保证演示站任何时候打开都「正在进行中」。
 
@@ -441,6 +441,7 @@ export async function buildSeed(): Promise<Db> {
         { id: 'sri-05', name: '随机宅舞', durationMin: 30, participants: [{ cn: '全场自由上台', contact: '' }], attachmentIds: [], note: '歌单 B 盘，主持人口播规则' },
         { id: 'sri-06', name: '闭幕合唱《给明天的信》', durationMin: 10, participants: [{ cn: '全体成员', contact: '' }], attachmentIds: [], note: '' },
       ],
+      execution: { status: 'idle', currentItemId: null, startedAt: null, finishedAt: null, shiftMin: 0, actuals: [] },
       createdBy: 'u-demo', createdAt: rel(-3), updatedAt: rel(-3),
     },
   ];
@@ -498,6 +499,11 @@ export async function buildSeed(): Promise<Db> {
     { projectId: 'p-demo', token: 'demo-lostfound', enabled: true },
   ];
 
+  // 现场大屏默认开启：演示站可直接访问 /screen/demo-screen-token
+  const screenShares: Db['screenShares'] = [
+    { id: 'ssr-01', projectId: 'p-demo', rundownId: 'sr-01', token: 'demo-screen-token', enabled: true },
+  ];
+
   return {
     version: DB_VERSION,
     currentUserId: 'u-demo',
@@ -523,6 +529,7 @@ export async function buildSeed(): Promise<Db> {
     stageSignups,
     lostFoundItems,
     lostFoundShares,
+    screenShares,
     dashboardPreferences,
     inviteCodes,
     invites: [],
