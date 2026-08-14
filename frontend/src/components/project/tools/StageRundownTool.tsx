@@ -171,6 +171,11 @@ function SortableProgramRow({
     disabled: !sortable,
   });
   const contacts = scheduled.participants.filter((p) => p.contact);
+  // 未执行节目行时间实时级联：徽章显示推算区间（推晚琥珀描边），原计划降为下行小字基准
+  const upcomingExec = exec && exec.state === 'upcoming' ? exec : null;
+  const rangeStart = upcomingExec ? upcomingExec.projectedStart : scheduled.start;
+  const rangeEnd = upcomingExec ? upcomingExec.projectedEnd : scheduled.end;
+  const livePushed = upcomingExec !== null && upcomingExec.projectedStart.getTime() > upcomingExec.expectedStart.getTime();
   return (
     <Card
       ref={setNodeRef}
@@ -191,8 +196,11 @@ function SortableProgramRow({
         <span className="mt-1 w-6 shrink-0 text-center text-sm text-muted-foreground">{index + 1}</span>
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary" className="font-mono">
-              {hhmm(scheduled.start)}–{hhmm(scheduled.end)}
+            <Badge
+              variant="secondary"
+              className={`font-mono ${livePushed ? 'border-amber-500 text-amber-600 dark:text-amber-400' : ''}`}
+            >
+              {hhmm(rangeStart)}–{hhmm(rangeEnd)}
             </Badge>
             <span className="font-medium">{scheduled.name}</span>
             <span className="text-sm text-muted-foreground">{scheduled.durationMin} 分钟</span>
@@ -206,8 +214,10 @@ function SortableProgramRow({
               实际 {hhmm(exec.actualStart)}–{exec.actualEnd ? hhmm(exec.actualEnd) : '—'}
             </p>
           )}
-          {exec?.state === 'upcoming' && exec.expectedStart.getTime() !== exec.plannedStart.getTime() && (
-            <p className="text-xs text-muted-foreground">预计 {hhmm(exec.expectedStart)}</p>
+          {upcomingExec !== null && upcomingExec.projectedStart.getTime() !== upcomingExec.plannedStart.getTime() && (
+            <p className="text-xs text-muted-foreground">
+              计划 {hhmm(upcomingExec.plannedStart)}–{hhmm(upcomingExec.plannedEnd)}
+            </p>
           )}
           {scheduled.participants.length > 0 && (
             <p className="text-sm text-muted-foreground">
@@ -251,6 +261,15 @@ export default function StageRundownTool({ project, myPermissions }: Props) {
   const [rundowns, setRundowns] = useState<StageRundownSummary[] | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<StageRundown | null>(null);
+
+  // 执行中详情页 1s 时钟：驱动节目行预计时间与头卡预计结束实时级联
+  const detailRunning = detail?.execution.status === 'running';
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    if (!detailRunning) return;
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, [detailRunning]);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingRundown, setEditingRundown] = useState<StageRundownSummary | null>(null);
@@ -372,8 +391,8 @@ export default function StageRundownTool({ project, myPermissions }: Props) {
   // ---------- 详情视图 ----------
   if (selected && detail) {
     const scheduled = computeSchedule(detail.startAt, detail.items);
-    // 与 scheduled 同算法同序，按下标配对执行态
-    const execList = computeExecution(detail.startAt, detail.items, detail.execution);
+    // 与 scheduled 同算法同序，按下标配对执行态（now 驱动实时级联）
+    const execList = computeExecution(detail.startAt, detail.items, detail.execution, now);
     const running = detail.execution.status === 'running';
     const total = detail.items.reduce((sum, it) => sum + it.durationMin, 0);
     const rows = (
@@ -408,7 +427,10 @@ export default function StageRundownTool({ project, myPermissions }: Props) {
               <div className="space-y-1">
                 <p className="text-lg font-semibold">{detail.name}</p>
                 <p className="text-sm text-muted-foreground">
-                  开始 {fmtLocal(detail.startAt, true)} ｜ 预计结束 {scheduleEndLabel(detail.startAt, detail.items)}
+                  开始 {fmtLocal(detail.startAt, true)} ｜ 预计结束{' '}
+                  {running && execList.length > 0
+                    ? `${hhmm(execList[execList.length - 1].projectedEnd)}（实时推算）`
+                    : scheduleEndLabel(detail.startAt, detail.items)}
                 </p>
                 <p className="text-sm text-muted-foreground">
                   {detail.items.length} 个节目 · 共 {total} 分钟
