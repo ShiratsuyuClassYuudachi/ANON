@@ -71,7 +71,7 @@ export default function ScreenShareDialog({ open, onOpenChange, base, rundownId 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="grid-cols-[minmax(0,1fr)]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MonitorPlay className="size-5" /> 现场大屏

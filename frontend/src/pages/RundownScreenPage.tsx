@@ -163,10 +163,10 @@ export default function RundownScreenPage() {
         {e.status !== 'finished' && nextUp.length > 0 && (
           <div className="space-y-2 border-t border-neutral-800 pt-4">
             <p className="text-xl text-neutral-400">接下来</p>
-            {nextUp.map((c, i) => (
+            {nextUp.map((c) => (
               <div key={c.item.id} className="flex items-baseline gap-4">
                 <span className="w-8 shrink-0 text-right text-xl text-neutral-500">
-                  {(currentIndex >= 0 ? currentIndex + 1 : 0) + i + 1}
+                  {execList.indexOf(c) + 1}
                 </span>
                 <span className="font-mono text-2xl tabular-nums">{hhmm(c.expectedStart)}</span>
                 <span className="min-w-0 flex-1 truncate text-2xl">{c.item.name}</span>
