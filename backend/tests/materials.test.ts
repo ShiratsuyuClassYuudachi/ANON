@@ -1,5 +1,6 @@
 import request from 'supertest';
 import sharp from 'sharp';
+import mongoose, { Types } from 'mongoose';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../src/app';
 import { InviteCode } from '../src/models/InviteCode';
@@ -316,5 +317,59 @@ describe('materials: 可见范围', () => {
       .get(`/api/projects/${projectId}/materials`)
       .set('Authorization', `Bearer ${staff.token}`);
     expect(list2.body.resources.map((x: { id: string }) => x.id)).toContain(r2.id);
+  });
+});
+
+describe('materials: 旧版版本文档兼容', () => {
+  it('filePath 时代版本（无 fileId）不拖垮列表/版本/下载端点', async () => {
+    const t = await addType(owner.token);
+    const r = await addResource(owner.token, t.id, '旧资源');
+    // raw insert 绕过 mongoose 校验，模拟 filePath 时代的历史版本文档
+    await mongoose.connection.db!.collection('resourceversions').insertOne({
+      projectId: new Types.ObjectId(projectId),
+      resourceId: new Types.ObjectId(r.id),
+      version: 1,
+      note: '初稿',
+      filePath: '/dev/null',
+      previewPath: null,
+      mimeType: 'image/png',
+      size: 1024,
+      createdBy: new Types.ObjectId(owner.user.id),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const list = await request(app)
+      .get(`/api/projects/${projectId}/materials`)
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(list.status).toBe(200);
+    const row = list.body.resources.find((x: { id: string }) => x.id === r.id);
+    expect(row).toBeTruthy();
+    expect(row.latestVersion).toBe(1);
+    expect(row.hasPreview).toBe(false);
+
+    const detail = await request(app)
+      .get(`/api/projects/${projectId}/materials/${r.id}`)
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.resource.latestVersion).toBe(1);
+
+    const versions = await request(app)
+      .get(`/api/projects/${projectId}/materials/${r.id}/versions`)
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(versions.status).toBe(200);
+    expect(versions.body.versions[0].file).toBeNull();
+    expect(versions.body.versions[0].hasPreview).toBe(false);
+
+    const download = await request(app)
+      .get(`/api/projects/${projectId}/materials/${r.id}/versions/1/download`)
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(download.status).toBe(404);
+    expect(download.body.error.message).toContain('文件不存在');
+
+    const preview = await request(app)
+      .get(`/api/projects/${projectId}/materials/${r.id}/versions/1/preview`)
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(preview.status).toBe(404);
   });
 });

@@ -77,7 +77,8 @@ function resourceJson(r: ResourceDoc, latest: ResourceVersionDoc | null, latestF
 }
 
 async function versionJson(v: ResourceVersionDoc) {
-  const file = await File.findById(v.fileId).lean();
+  // fileId 判空：filePath 时代的历史版本文档没有 fileId
+  const file = v.fileId ? await File.findById(v.fileId).lean() : null;
   return {
     version: v.version,
     note: v.note,
@@ -183,13 +184,14 @@ materialsRouter.get(
       canSee(viewer, r.visibility, typeMap.get(r.typeId.toString())?.visibility),
     );
     // 无缩略预览的最新版本批量取一次文件信息，供 hasPreview 按内联白名单据实回报
-    const fileIds = [...latestMap.values()].filter((v) => !v.previewPath).map((v) => v.fileId);
+    // （fileId 判空：filePath 时代的历史版本文档没有 fileId，缺文件不应拖垮整个列表）
+    const fileIds = [...latestMap.values()].filter((v) => !v.previewPath && v.fileId).map((v) => v.fileId);
     const files = await File.find({ _id: { $in: fileIds } }).lean();
     const fileMap = new Map(files.map((f) => [f._id.toString(), { mime: f.mime, filename: f.filename }]));
     res.json({
       resources: visible.map((r) => {
         const latest = latestMap.get(r._id.toString()) ?? null;
-        const latestFile = latest ? fileMap.get(latest.fileId.toString()) ?? null : null;
+        const latestFile = latest?.fileId ? fileMap.get(latest.fileId.toString()) ?? null : null;
         return resourceJson(r, latest, latestFile);
       }),
     });
@@ -254,7 +256,7 @@ materialsRouter.get(
   ah(async (req, res) => {
     const { resource } = await loadVisibleResource(req);
     const latest = await latestVersionOf(resource._id);
-    const latestFile = latest && !latest.previewPath ? await File.findById(latest.fileId).lean() : null;
+    const latestFile = latest && !latest.previewPath && latest.fileId ? await File.findById(latest.fileId).lean() : null;
     res.json({ resource: resourceJson(resource, latest, latestFile) });
   }),
 );
@@ -280,7 +282,7 @@ materialsRouter.patch(
     if (vis) resource.visibility = vis as never;
     await resource.save();
     const latest = await latestVersionOf(resource._id);
-    const latestFile = latest && !latest.previewPath ? await File.findById(latest.fileId).lean() : null;
+    const latestFile = latest && !latest.previewPath && latest.fileId ? await File.findById(latest.fileId).lean() : null;
     res.json({ resource: resourceJson(resource, latest, latestFile) });
   }),
 );
@@ -369,7 +371,7 @@ materialsRouter.get(
       version: Number(req.params.version),
     });
     if (!v) throw new AppError(404, 'not_found', '版本不存在');
-    const file = await File.findById(v.fileId);
+    const file = v.fileId ? await File.findById(v.fileId) : null;
     if (!file) throw new AppError(404, 'not_found', '文件不存在');
     await sendStoredFile(res, file.path, file.filename);
   }),
@@ -388,7 +390,7 @@ materialsRouter.get(
       await sendStoredFile(res, v.previewPath);
       return;
     }
-    const file = await File.findById(v.fileId);
+    const file = v.fileId ? await File.findById(v.fileId) : null;
     if (file && inlinePreviewable(file.mime, file.filename)) {
       await sendStoredFile(res, file.path);
       return;
@@ -407,7 +409,7 @@ materialsRouter.get(
       await sendStoredFile(res, latest.previewPath);
       return;
     }
-    const file = await File.findById(latest.fileId);
+    const file = latest.fileId ? await File.findById(latest.fileId) : null;
     if (file && inlinePreviewable(file.mime, file.filename)) {
       await sendStoredFile(res, file.path);
       return;
