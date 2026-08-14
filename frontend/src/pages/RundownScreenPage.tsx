@@ -67,6 +67,8 @@ export default function RundownScreenPage() {
   const current = currentIndex >= 0 ? execList[currentIndex] : null;
   const delay = current ? delayMin(current) : null;
   const overrun = current ? overrunMin(current, now) : 0;
+  // 当前预期延误/提前 = 开场延误 + 已超时（与「接下来」时间同基准：计划+顺延）
+  const projected = delay !== null ? delay + Math.max(0, overrun) : null;
   const elapsed = current?.actualStart
     ? Math.max(0, Math.floor((now.getTime() - current.actualStart.getTime()) / 60_000))
     : 0;
@@ -134,7 +136,16 @@ export default function RundownScreenPage() {
               已进行 {elapsed} 分钟 <span className="text-neutral-400">/ 计划 {current.item.durationMin} 分钟</span>
               {overrun > 0 && <span className="ml-3 text-red-500">已超时 +{overrun} 分钟</span>}
             </p>
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              {projected !== null && projected > 0 && (
+                <span className="rounded-md bg-red-600 px-4 py-1.5 text-xl font-bold">预计延误 {projected} 分钟</span>
+              )}
+              {projected !== null && projected < 0 && (
+                <span className="rounded-md bg-emerald-600 px-4 py-1.5 text-xl font-bold">预计提前 {-projected} 分钟</span>
+              )}
+              {projected === 0 && (
+                <span className="rounded-md bg-neutral-700 px-4 py-1.5 text-xl font-bold">准点</span>
+              )}
               {delay !== null && delay > 0 && (
                 <span className="rounded-md bg-red-600 px-3 py-1 text-lg font-medium">延误 +{delay} 分钟</span>
               )}
