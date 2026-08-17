@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { Router } from 'express';
-import { authRequired } from '../middleware/auth';
+import { authRequired, rejectApiKey } from '../middleware/auth';
 import { loadMembership, requirePermission } from '../middleware/projectAccess';
 import { Membership } from '../models/Membership';
 import { Project, defaultStages } from '../models/Project';
@@ -50,6 +50,7 @@ async function membersJson(projectId: unknown) {
 
 projectsRouter.post(
   '/',
+  rejectApiKey,
   ah(async (req, res) => {
     const { name, description, startDate, endDate } = req.body ?? {};
     if (!name || !String(name).trim()) throw new AppError(400, 'bad_request', '项目名称必填');
@@ -69,6 +70,7 @@ projectsRouter.post(
 
 projectsRouter.get(
   '/',
+  rejectApiKey,
   ah(async (req, res) => {
     const ms = await Membership.find({ userId: req.userId }).lean();
     const projectIds = ms.map((m) => m.projectId);

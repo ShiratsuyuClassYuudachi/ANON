@@ -2,7 +2,7 @@ import { encryptWithPassphrase } from '../crypto';
 import type { Db, DbProject, DbStage, DbUser } from './types';
 
 /** 种子结构版本：变更时递增，旧会话数据自动作废重种，防 schema 漂移 */
-export const DB_VERSION = 6;
+export const DB_VERSION = 7;
 
 // 种子数据：全部日期相对构建时刻（new Date()）计算，保证演示站任何时候打开都「正在进行中」。
 
@@ -504,6 +504,11 @@ export async function buildSeed(): Promise<Db> {
     { id: 'ssr-01', projectId: 'p-demo', rundownId: 'sr-01', token: 'demo-screen-token', enabled: true },
   ];
 
+  const customTools: Db['customTools'] = [
+    { id: 'ct-01', projectId: 'p-demo', name: '示例：外部组件', url: 'https://example.org', description: '自定义工具嵌入示例', mode: 'embed', passToken: false, scopes: [], createdBy: 'u-demo', createdAt: rel(-30) },
+    { id: 'ct-02', projectId: 'p-demo', name: '示例：数据看板', url: 'https://example.com', description: '', mode: 'link', passToken: true, scopes: ['todo:complete'], createdBy: 'u-demo', createdAt: rel(-30) },
+  ];
+
   return {
     version: DB_VERSION,
     currentUserId: 'u-demo',
@@ -533,6 +538,8 @@ export async function buildSeed(): Promise<Db> {
     dashboardPreferences,
     inviteCodes,
     invites: [],
+    customTools,
+    apiKeys: [],
     files,
   };
 }

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { Trash2 } from 'lucide-react';
 import { api } from '../../api/client';
+import { PERMISSIONS } from '../../lib/permissions';
 import type { ProjectDetail } from '../../types';
 import { Button } from '@/components/ui/button';
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,23 +18,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-
-const PERMISSIONS = [
-  { key: 'project:manage', label: '项目管理' },
-  { key: 'member:manage', label: '成员管理' },
-  { key: 'role:manage', label: '角色管理' },
-  { key: 'todo:create', label: '创建待办' },
-  { key: 'todo:manage', label: '待办管理' },
-  { key: 'todo:complete', label: '完成待办' },
-  { key: 'file:upload', label: '上传文件' },
-  { key: 'finance:manage', label: '财务管理' },
-  { key: 'finance:add', label: '记账' },
-  { key: 'materials:manage', label: '物料管理' },
-  { key: 'accounts:manage', label: '账号管理' },
-  { key: 'work:manage', label: '现场分工管理' },
-  { key: 'tools:manage', label: '工具管理' },
-  { key: 'lostfound:manage', label: '失物招领管理' },
-];
 
 interface Props {
   project: ProjectDetail;

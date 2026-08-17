@@ -1,9 +1,11 @@
 import { accountRoutes } from './accounts';
 import { authRoutes } from './auth';
+import { customToolRoutes } from './customTools';
 import { dashboardRoutes } from './dashboard';
 import { financeRoutes } from './finance';
 import { lostFoundRoutes } from './lostFound';
 import { materialRoutes } from './materials';
+import { openRoutes } from './open';
 import { physicalRoutes } from './physical';
 import { projectRoutes } from './projects';
 import { stageRundownRoutes } from './stageRundowns';
@@ -25,5 +27,7 @@ export const routes: Route[] = [
   ...workRoutes,
   ...stageRundownRoutes,
   ...stageSignupRoutes,
+  ...customToolRoutes,
+  ...openRoutes,
   ...lostFoundRoutes,
 ];

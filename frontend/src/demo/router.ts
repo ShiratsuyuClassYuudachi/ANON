@@ -64,7 +64,14 @@ export async function route(
     r.keys.forEach((k, i) => {
       params[k] = decodeURIComponent(m[i + 1]);
     });
-    const ctx: Ctx = { db, params, query: url.searchParams, body, origFetch };
+    const h = init?.headers;
+    const authorization =
+      h instanceof Headers
+        ? (h.get('authorization') ?? '')
+        : h && typeof h === 'object' && !Array.isArray(h)
+          ? String((h as Record<string, string>).authorization ?? (h as Record<string, string>).Authorization ?? '')
+          : '';
+    const ctx: Ctx = { db, params, query: url.searchParams, body, authorization, origFetch };
     try {
       const res = await r.handler(ctx);
       if (method !== 'GET' && res.ok) persist();

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authRequired } from '../middleware/auth';
+import { authRequired, rejectApiKey } from '../middleware/auth';
 import { requirePermission } from '../middleware/projectAccess';
 import { upload } from '../middleware/upload';
 import { File } from '../models/File';
@@ -29,7 +29,7 @@ projectFilesRouter.post(
 );
 
 export const filesRouter = Router();
-filesRouter.use(authRequired);
+filesRouter.use(authRequired, rejectApiKey);
 
 filesRouter.get(
   '/:id',

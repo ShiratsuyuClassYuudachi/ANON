@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { api } from '../api/client';
 import { useAuth } from '../auth';
 import { ModeToggle, useTheme } from '@/theme';
+import ApiKeysCard from '../components/ApiKeysCard';
 import PushSettingsCard from '../components/PushSettingsCard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -92,6 +93,8 @@ export default function Me() {
       </Card>
 
       <PushSettingsCard />
+
+      <ApiKeysCard />
 
       <Card>
         <CardHeader className="pb-2">

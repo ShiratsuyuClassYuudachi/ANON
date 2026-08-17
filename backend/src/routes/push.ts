@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import { config } from '../config';
-import { authRequired } from '../middleware/auth';
+import { authRequired, rejectApiKey } from '../middleware/auth';
 import { PushSubscription } from '../models/PushSubscription';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
 
 export const pushRouter = Router();
-pushRouter.use(authRequired);
+pushRouter.use(authRequired, rejectApiKey);
 
 /** 每个用户最多保留的设备订阅数（超出时淘汰最旧的） */
 const MAX_SUBSCRIPTIONS_PER_USER = 20;
