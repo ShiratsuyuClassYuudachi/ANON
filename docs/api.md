@@ -1221,7 +1221,7 @@ multipart/form-data，字段同 POST（均可选）；另支持 `removePhoto=1`�
 interface CustomTool {
   id: string; name: string; url: string; description: string;
   mode: 'embed' | 'link';        // embed=页内 iframe；link=新标签页
-  passToken: boolean;            // 打开时 URL query 附带 anon_launch 启动令牌
+  passToken: boolean;            // 打开时经 postMessage 握手投递 5 分钟启动令牌（不进 URL）
   scopes: string[];              // 允许插件使用的权限点（仅 ALL_PERMISSIONS 内项，非法项静默丢弃）
   createdBy: { userId: string; name: string };
   createdAt: string;
@@ -1247,7 +1247,7 @@ interface CustomTool {
 
 ### POST /api/projects/:id/custom-tools/:toolId/launch（成员）
 
-passToken=false → 400「该工具未开启身份携带」。否则响应 200：`{ launchToken: string }`——5 分钟有效 JWT（kind=tool-launch），前端拼到工具 URL 的 `anon_launch` query 交给组件。
+passToken=false → 400「该工具未开启身份携带」。否则响应 200：`{ launchToken: string }`——5 分钟有效 JWT（kind=tool-launch），前端经 postMessage 握手把令牌投递给组件（embed 走 `window.parent`、link 走 `window.opener`，令牌不进 URL）。
 
 ## OpenAPI（API 密钥）
 

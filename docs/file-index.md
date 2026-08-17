@@ -28,7 +28,7 @@
 | 现场模式/工作模块/任务单 | routes/{onsite,workModules,workSheet}.ts、models/{WorkModule,Incident}.ts、services/workModules.ts | pages/{OnsitePage,WorkSheetPrint}.tsx、project/WorkTab.tsx、lib/offlineQueue.ts | tests/{onsite,workModules}.test.ts |
 | 舞台工具（编排/报名/阶段/执行/大屏） | routes/{stageRundowns,stageSignups,stages}.ts、models/{StageRundown,StageScreenShare,StageSignup}.ts | project/tools/*.tsx、project/{ToolsTab,StageManager,StageStepper}.tsx、pages/RundownScreenPage.tsx（大屏公开页）、pages/OnsitePage.tsx（舞台执行卡） | tests/{stageRundowns,stageExecution,stageSignups}.test.ts |
 | 失物招领/公开查找页 | routes/lostFound.ts、models/{LostFoundItem,LostFoundShare}.ts、services/permissions.ts（迁移） | project/tools/LostFound*.tsx、pages/PublicLostFound.tsx、pages/OnsitePage.tsx（现场录入入口） | tests/lostFound.test.ts |
-| 自定义工具/OpenAPI（API 密钥） | routes/{customTools,open}.ts、models/{CustomTool,ApiKey}.ts、middleware/auth.ts（anonk_ 分流 + rejectApiKey 围栏）、middleware/projectAccess.ts（项目绑定 + scopes 收窄）、utils/jwt.ts（kind 隔离 + tool-launch） | project/ToolsTab.tsx、project/tools/{CustomToolEmbed,CustomToolDialog}.tsx、components/ApiKeysCard.tsx（Me 页）、lib/permissions.ts（共享权限清单） | tests/{customTools,open}.test.ts |
+| 自定义工具/OpenAPI（API 密钥） | routes/{customTools,open}.ts、models/{CustomTool,ApiKey}.ts、middleware/auth.ts（anonk_ 分流 + rejectApiKey 围栏）、middleware/projectAccess.ts（项目绑定 + scopes 收窄）、utils/jwt.ts（kind 隔离 + tool-launch） | project/ToolsTab.tsx、project/tools/{CustomToolEmbed,CustomToolDialog}.tsx、lib/toolLaunch.ts（启动令牌 postMessage 握手投递）、components/ApiKeysCard.tsx（Me 页）、lib/permissions.ts（共享权限清单） | tests/{customTools,open}.test.ts |
 | 里程碑 | routes/milestones.ts、models/Milestone.ts | project/MilestoneSection.tsx | — |
 | 通知（邮件+WebPush）/ cron | services/{notifications,mailer,webpush}.ts、routes/{push,cron}.ts、models/{PushSubscription,ReminderLog,WeeklyReportLog}.ts | lib/push.ts、components/{PushBanner,PushSettingsCard}.tsx、scripts/patch-sw.mjs | tests/{notifications,push,cron}.test.ts |
 | 试用模式 | services/trial.ts、models/TrialSession.ts、services/demoSeed.ts | components/TrialBanner.tsx | tests/trial.test.ts |
@@ -154,6 +154,7 @@
 - `src/lib/datetime.ts` — 本地时间格式化 + 活动倒计时 + 开展倒排换算（daysBeforeLocal）
 - `src/lib/offlineQueue.ts` — 离线 POST 队列（现场模式用）
 - `src/lib/push.ts` — Web Push 订阅管理
+- `src/lib/toolLaunch.ts` — 自定义工具启动令牌握手投递（fetchLaunchToken + registerLaunchTarget：校验 source/origin 后回发 anon:launch，令牌不进 URL，5 分钟过期自动清除）
 - `src/lib/permissions.ts` — PERMISSIONS 权限点清单（与后端 ALL_PERMISSIONS 对齐；RolesTab 矩阵/自定义工具 scopes/ApiKeysCard 勾选区共用）
 - `src/lib/utils.ts` — cn() 类名合并
 
@@ -197,8 +198,8 @@
 - `AnnouncementManager.tsx` — 公告发布/置顶/确认名单
 - `MilestoneSection.tsx` / `StageStepper.tsx` / `StageManager.tsx` — 里程碑卡 / 阶段进度条 / 阶段增删排序
 - `VisibilityPicker.tsx` — 可见范围选择器（成员+角色勾选，多 Tab 复用）
-- `ToolsTab.tsx` — 实用工具容器（内置：舞台编排/报名审核/失物招领卡片；自定义工具卡片网格 + ⋯ 管理菜单 + 虚框添加卡，点击 embed→页内 iframe / link→新标签页）
-- `tools/CustomToolEmbed.tsx` / `tools/CustomToolDialog.tsx` — 自定义工具页内 iframe 视图（sandbox 不放行 top-navigation + 新窗口打开）/ 新建编辑弹层（FormOverlay，携带身份开关 + scopes 勾选）
+- `ToolsTab.tsx` — 实用工具容器（内置：舞台编排/报名审核/失物招领卡片；自定义工具卡片网格 + ⋯ 管理菜单 + 虚框添加卡，点击 embed→页内 iframe / link→新标签页；passToken 工具先取启动令牌经 lib/toolLaunch.ts 握手投递，URL 干净无令牌）
+- `tools/CustomToolEmbed.tsx` / `tools/CustomToolDialog.tsx` — 自定义工具页内 iframe 视图（sandbox 不放行 top-navigation + 新窗口打开；passToken 令牌经 iframe contentWindow 握手投递）/ 新建编辑弹层（FormOverlay，携带身份开关 + scopes 勾选）
 - `tools/StageRundownTool.tsx` + `ProgramFormDialog.tsx` + `ExecutionPanel.tsx` + `ScreenShareDialog.tsx` — 流程单编排/节目表单/导出/执行控制台（开始/推进/跳节目/顺延/结束重置）/大屏分享管理
 - `tools/StageSignupTool.tsx` + `SignupItemDialog.tsx` + `SignupReviewDialog.tsx` — 报名审核/投票/拍板/导入
 - `tools/SwipeRow.tsx` — 触屏侧滑操作行；`tools/rundownExport.ts` — 时间推算/文本/PNG 导出（纯前端）；`tools/rundownExecution.ts` — 执行态推算纯函数（延误/超时/预计时间/实时级联推算开始与结束）
