@@ -163,7 +163,8 @@ CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... npm run deploy
 
 - **会话**：access JWT 15 分钟有效，refresh token 30 天滚动（每次刷新轮换，库中只存 sha256，单用户上限 10 个），退出登录即吊销。旧 30 天 JWT 在部署后仍有效直至自然过期（同一 JWT_SECRET），前端会自动走刷新流程续期。
 - **登录限流**：`/api/auth/*`（注册/登录/试用登录/refresh/logout）每 IP 15 分钟最多 50 次，防撞库与试用环境资源消耗。
-- **安全响应头**：nginx 对静态页下发 CSP（无 unsafe-inline 脚本，主题初始化脚本已外置 `theme-init.js`）、`X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`、`Permissions-Policy`；`server_tokens off` 隐藏版本号。
+- **安全响应头**：nginx 对静态页下发 CSP（无 unsafe-inline 脚本，主题初始化脚本已外置 `theme-init.js`；`frame-src` 放行 `https:`/`http:` 以支持自定义工具 iframe 嵌入，本系统自身仍 `frame-ancestors 'none'` 禁止被嵌）、`X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`、`Permissions-Policy`；`server_tokens off` 隐藏版本号。
+- **API 密钥（OpenAPI 模式）**：`anonk_` 前缀 Bearer 凭证（库中只存 sha256，原文仅创建时返回一次）；绑定单一项目且权限 = 密钥 scopes ∩ 持有者实时角色权限；`/api/me`、`/api/admin`、`/api/push`、`/api/invites`、`/api/files` 与项目创建/全量列表整体拒绝密钥；兑换端点限流 60 次/15 分钟/IP；工具启动令牌为 5 分钟短期 JWT（kind 隔离，不可当登录态使用）。
 - **权限化审计日志**：实物清单数量变动/状态变更需 `materials:manage`，无权限成员看不到「变动记录」入口。
 - **文件预览收敛**：仅位图（png/jpeg/webp/gif）生成缩略预览；内联预览白名单仅放行位图 + PDF/Markdown/常见音视频（PDF 浏览器沙箱渲染、音视频标签解码、Markdown 原始 HTML 转义），SVG 等可携带脚本的格式不生成预览、下载走 `Content-Disposition: attachment`。
 - **非 root 容器**：backend（node 用户）与 frontend（`nginxinc/nginx-unprivileged`，监听 8080）均不以 root 运行。

@@ -331,3 +331,30 @@ export interface PublicLostFoundResponse {
   projectName: string;
   items: PublicLostFoundItem[];
 }
+
+export type CustomToolMode = 'embed' | 'link';
+
+export interface CustomTool {
+  id: string;
+  name: string;
+  url: string;
+  description: string;
+  mode: CustomToolMode;
+  passToken: boolean;
+  scopes: string[];
+  createdBy: { userId: string; name: string };
+  createdAt: string;
+}
+
+export interface ApiKeyInfo {
+  id: string;
+  name: string;
+  projectId: string;
+  projectName: string;
+  toolId: string | null;
+  toolName: string | null;
+  scopes: string[];
+  createdAt: string;
+  lastUsedAt: string | null;
+  expiresAt: string | null;
+}

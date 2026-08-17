@@ -1,12 +1,12 @@
 import { Router } from 'express';
-import { authRequired } from '../middleware/auth';
+import { authRequired, rejectApiKey } from '../middleware/auth';
 import { TrialSession } from '../models/TrialSession';
 import { publicUser } from '../models/User';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
 
 export const meRouter = Router();
-meRouter.use(authRequired);
+meRouter.use(authRequired, rejectApiKey);
 
 meRouter.get(
   '/',

@@ -9,6 +9,8 @@ import mongoose, { Types, type Model } from 'mongoose';
 import { Activity } from '../models/Activity';
 import { Announcement } from '../models/Announcement';
 import { AnnouncementConfirmation } from '../models/AnnouncementConfirmation';
+import { ApiKey } from '../models/ApiKey';
+import { CustomTool } from '../models/CustomTool';
 import { DashboardPreference } from '../models/DashboardPreference';
 import { File } from '../models/File';
 import { Incident } from '../models/Incident';
@@ -434,6 +436,13 @@ export async function seedDemoData(opts: DemoSeedOptions): Promise<DemoSeedResul
     });
   }
 
+  // --- 自定义工具示例 ---
+  await db.collection('customtools').insertOne({
+    _id: oid(), projectId, name: '示例：外部组件', url: 'https://example.org',
+    description: '自定义工具嵌入示例（可替换为自研组件地址）', mode: 'embed',
+    passToken: false, scopes: [], createdBy: adminId, createdAt: now, updatedAt: now,
+  });
+
   return {
     adminUserId: adminId,
     memberUserIds: [artId, prId, logId, staffId],
@@ -475,6 +484,7 @@ export async function deleteDemoData(ref: {
     AnnouncementConfirmation, Activity, Milestone, RiskInstance, DashboardPreference,
     Incident, PhysicalCategory, PhysicalItem, PhysicalItemLog, ProjectInvite, WeeklyReportLog,
     StageRundown, StageScreenShare, StageSignup, LostFoundItem, LostFoundShare,
+    CustomTool, ApiKey,
   ];
   for (const m of projectScoped) await m.deleteMany({ projectId });
   await Project.deleteMany({ _id: projectId });

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authRequired } from '../middleware/auth';
+import { authRequired, rejectApiKey } from '../middleware/auth';
 import { Membership } from '../models/Membership';
 import { Project } from '../models/Project';
 import { ProjectInvite } from '../models/ProjectInvite';
@@ -7,7 +7,7 @@ import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
 
 export const invitesRouter = Router();
-invitesRouter.use(authRequired);
+invitesRouter.use(authRequired, rejectApiKey);
 
 async function loadValidInvite(token: string) {
   const invite = await ProjectInvite.findOne({ token });

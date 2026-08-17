@@ -427,7 +427,38 @@ export interface Db {
   dashboardPreferences: DbDashboardPreference[];
   inviteCodes: DbInviteCode[];
   invites: DbProjectInvite[];
+  customTools: DbCustomTool[];
+  apiKeys: DbApiKey[];
   files: Record<string, DbFile>;
+}
+
+export interface DbCustomTool {
+  id: string;
+  projectId: string;
+  name: string;
+  url: string;
+  description: string;
+  mode: 'embed' | 'link';
+  passToken: boolean;
+  scopes: string[];
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface DbApiKey {
+  id: string;
+  userId: string;
+  projectId: string;
+  /** 工具兑换的 key 有值；手动生成的 key 无值 */
+  toolId?: string;
+  name: string;
+  /** demo 侧直接存原文（无哈希），供 open/me 反查 */
+  key: string;
+  scopes: string[];
+  createdAt: string;
+  lastUsedAt: string | null;
+  /** null = 永久有效 */
+  expiresAt: string | null;
 }
 
 export interface Ctx {
@@ -435,6 +466,8 @@ export interface Ctx {
   params: Record<string, string>;
   query: URLSearchParams;
   body: unknown;
+  /** 请求 Authorization 头（demo open/me 需要识别 Bearer anonk_demo_*） */
+  authorization: string;
   origFetch: (input: string) => Promise<Response>;
 }
 

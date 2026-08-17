@@ -1,12 +1,12 @@
 import crypto from 'crypto';
 import { Router } from 'express';
-import { authRequired, requireSuperAdmin } from '../middleware/auth';
+import { authRequired, rejectApiKey, requireSuperAdmin } from '../middleware/auth';
 import { InviteCode } from '../models/InviteCode';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
 
 export const adminRouter = Router();
-adminRouter.use(authRequired, requireSuperAdmin);
+adminRouter.use(authRequired, rejectApiKey, requireSuperAdmin);
 
 adminRouter.post(
   '/invite-codes',
