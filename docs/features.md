@@ -565,7 +565,7 @@ Rundown 从计划工具升级为执行工具（需 `tools:manage` 操作；无�
 
 登记时开启「携带用户身份」并勾选**允许插件使用的权限点**后：
 
-1. 成员打开工具时，系统在链接 query 上附带 `anon_launch=<启动令牌>`（JWT，**5 分钟有效**，仅可兑换）
+1. 成员打开工具时，系统签发 **5 分钟有效**的启动令牌（JWT，仅可兑换），经页内 postMessage 握手投递给组件（embed 走 `window.parent`、link 走 `window.opener`，令牌全程不进 URL）
 2. 组件凭启动令牌调 `POST /api/open/exchange` 换取 **30 天 API 密钥**（`anonk_` 前缀）；生效权限 = 工具登记 scopes ∩ 该用户实有角色权限（用户被降权后旧密钥同步收窄——每次请求都实时求交）
 3. 组件之后以 `Authorization: Bearer anonk_…` 调项目域接口（待办/财务/物料等）；可调 `GET /api/open/me` 自查用户身份、项目与当前生效权限点
 4. 同一用户在同一工具下重复兑换会**顶替**旧密钥（旧密钥立即 401）

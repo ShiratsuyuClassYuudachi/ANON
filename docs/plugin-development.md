@@ -15,7 +15,7 @@
 | 打开方式 | 行为 | 适用 |
 | --- | --- | --- |
 | `embed`（嵌入页面内） | 工具页内 iframe 渲染，顶部有「全部工具」返回与「新窗口打开」 | 与主系统强交互的组件 |
-| `link`（新标签页） | 点击卡片 `window.open` 新标签（noopener/noreferrer） | 独立完整应用、或禁止被嵌入的站点 |
+| `link`（新标签页） | 点击卡片 `window.open` 新标签（携带身份时保留 opener 通道供握手，见 §2） | 独立完整应用、或禁止被嵌入的站点 |
 
 登记项：名称（≤50）、链接（仅 http/https，≤1000）、描述（≤200）、打开方式、「携带用户身份」开关 + 权限点勾选。
 
@@ -34,14 +34,20 @@ sequenceDiagram
   U->>A: 点击工具卡片
   A->>S: POST /api/projects/:id/custom-tools/:toolId/launch
   S-->>A: { launchToken }（JWT，5 分钟）
-  A->>P: 打开 https://插件/?…&anon_launch=<launchToken>
+  A->>P: 以干净登记 URL 打开插件（embed iframe / link 新标签），登记投递目标
+  P->>A: postMessage { type: "anon:launch-request", nonce }（embed 发 window.parent，link 发 window.opener）
+  A-->>P: postMessage { type: "anon:launch", launchToken, nonce }（校验 source+origin 后回发，targetOrigin=插件 origin）
   P->>S: POST /api/open/exchange { launchToken }
   S-->>P: 201 { apiKey: "anonk_…", scopes, expiresAt, projectId, user }
   P->>S: Authorization: Bearer anonk_… 调项目接口
   P->>S: GET /api/open/me（自查身份/权限/有效期）
 ```
 
-1. **接收启动令牌**：用户每次打开工具，ANON 都会签发新的 `launchToken`（5 分钟有效，JWT，kind=`tool-launch` 与用户登录态隔离），拼在登记 URL 的 query `anon_launch` 上（已有 query 会正确追加）。插件前端从地址栏读取并交给插件后端（**exchange 必须由插件服务端发起**，见 §5 安全条目）。
+1. **握手接收启动令牌**：用户每次打开工具，ANON 都会签发新的 `launchToken`（5 分钟有效，JWT，kind=`tool-launch` 与用户登录态隔离），但**令牌不进 URL**——插件以干净登记 URL 打开后，由插件前端主动向 ANON 父页面发起 postMessage 握手获取：
+   - 请求（插件 → ANON）：`{ type: 'anon:launch-request', nonce: '<8–128 字符随机串>' }`；embed 形态发给 `window.parent`，link 形态发给 `window.opener`；targetOrigin 可用 `*`（请求不含机密）
+   - 响应（ANON → 插件）：`{ type: 'anon:launch', launchToken, nonce }`，targetOrigin=工具登记 URL 的 origin。ANON 侧仅向「本次打开已登记的插件窗口 且 origin 匹配登记 URL」回发；插件**必须校验** `event.origin` 为 ANON 源且 `nonce` 与请求一致再使用令牌
+   - 拿不到握手通道（无 parent/opener，如用户把插件 URL 直接贴进新标签）时不提供 URL 兜底——提示用户从 ANON 打开，或改用自助 API 密钥（见 §3）
+   - 插件前端拿到令牌后交给插件后端（**exchange 必须由插件服务端发起**，见 §5 安全条目）；插件 SPA 重挂载可在 5 分钟内重复发起握手，重发幂等
 2. **兑换 API 密钥**：`POST {ANON 源}/api/open/exchange`，body `{ "launchToken": "…" }`。成功 201 返回：
    ```json
    {
@@ -85,7 +91,9 @@ sequenceDiagram
 
 ## 5. 安全要点（插件侧）
 
-- **exchange 放在插件服务端**：launchToken 出现在 URL 里（可能进浏览器历史/Referer），5 分钟短效 + 一次性用途是底线保护；插件前端拿到后应立即发给插件后端兑换并**从 URL 抹掉**（`history.replaceState`）。anonk_ 密钥永远不该出现在插件前端代码/ localStorage 以外的可共享位置——插件前端若要调 ANON，也应经插件后端转发
+- **握手校验是插件侧责任**：请求 `anon:launch-request` 可用 `*` 作 targetOrigin（消息不含机密，nonce 防串扰）；但响应**必须**校验 `event.origin` 等于 ANON 源且 `nonce` 与请求一致再使用令牌——不校验 origin 等于把令牌接收口开给任意父页面/opener 方
+- **无 parent/opener 时**：不提供 URL 兜底（令牌进 URL 会落浏览器历史/Referer/服务器日志/截屏）。提示用户从 ANON 打开工具，或引导其在「个人资料 → API 密钥」自助生成密钥后粘贴进插件配置
+- **exchange 放在插件服务端**：launchToken 虽不进 URL，仍是「谁拿到谁兑换」的 5 分钟短效 Bearer 凭证，5 分钟短效 + 一次性用途是底线保护；插件前端握手拿到后应立即转交插件后端兑换。anonk_ 密钥永远不该出现在插件前端代码/ localStorage 以外的可共享位置——插件前端若要调 ANON，也应经插件后端转发
 - **HTTPS**：生产环境插件必须 HTTPS。ANON 页面本身是 HTTPS 时，iframe 内嵌 http 会被浏览器混合内容拦截
 - **顶替他山之石**：同一用户多点打开同一工具会互相顶替旧 key（后者生效）。插件按 (userId, toolId 或 projectId+user) 存一把 key 即可
 - **不要假设权限恒定**：每次关键操作前可 `GET /api/open/me` 确认 `permissions`；写操作被拒（403 `forbidden`）时向用户展示「权限不足」而非重试
@@ -102,7 +110,7 @@ allow="clipboard-read; clipboard-write; fullscreen"
 - 允许：脚本、同源（localStorage/cookie 可用）、表单、弹窗、模态、下载、剪贴板、全屏
 - **不允许顶层跳转**（无 `allow-top-navigation`）：插件内 `window.top.location = …` 被静默拦截；需外跳一律 `target="_blank"`
 - 你的站点响应头**不得**禁止被嵌：`X-Frame-Options: DENY/SAMEORIGIN` 或 CSP `frame-ancestors` 未含 ANON 域名都会导致 iframe 白屏。正确做法：`Content-Security-Policy: frame-ancestors https://app.anontokyo.design <其他 ANON 部署域>`；不能改头时，登记工具选 `link` 形态
-- iframe 内读 query：打开时 `anon_launch` 在 `location.search`，`new URLSearchParams(location.search).get('anon_launch')`
+- 携带身份时令牌经握手投递（不进 URL）：iframe 内 `window.parent.postMessage({ type: 'anon:launch-request', nonce }, '*')`，监听 `anon:launch` 回包并校验 origin+nonce，完整代码见 §8
 
 ## 7. 权限点清单（登记勾选 / scopes 取值）
 
@@ -128,17 +136,39 @@ allow="clipboard-read; clipboard-write; fullscreen"
 
 ## 8. 最小可用插件示例
 
-插件前端（接收令牌、立刻抹除 URL、转交自家后端）：
+插件前端（向 ANON 父页面握手取令牌，校验响应 origin+nonce，转交自家后端）：
 
 ```ts
 // 插件页面入口
-const launch = new URLSearchParams(location.search).get('anon_launch');
-history.replaceState(null, '', location.pathname); // 抹掉 URL 中的令牌
-if (launch) {
+const ANON_ORIGIN = 'https://app.anontokyo.design'; // 或自部署实例源
+
+function requestLaunchToken(): Promise<string | null> {
+  const target = window.parent !== window ? window.parent : window.opener;
+  if (!target) return Promise.resolve(null); // 非 ANON 打开：提示用户从 ANON 进入，或改用自助 API 密钥
+  return new Promise((resolve) => {
+    const nonce = crypto.randomUUID();
+    const timer = setTimeout(() => {
+      window.removeEventListener('message', onMsg);
+      resolve(null); // 5s 超时：ANON 侧未登记/已过期
+    }, 5000);
+    function onMsg(e: MessageEvent) {
+      if (e.origin !== ANON_ORIGIN) return; // 必须校验来源
+      if (e.data?.type !== 'anon:launch' || e.data.nonce !== nonce) return; // 必须校验 nonce
+      clearTimeout(timer);
+      window.removeEventListener('message', onMsg);
+      resolve(e.data.launchToken as string);
+    }
+    window.addEventListener('message', onMsg);
+    target.postMessage({ type: 'anon:launch-request', nonce }, '*'); // 请求不含机密，可用 *
+  });
+}
+
+const launchToken = await requestLaunchToken();
+if (launchToken) {
   await fetch('/plugin-backend/session', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ launchToken: launch }),
+    body: JSON.stringify({ launchToken }),
   });
 }
 ```
@@ -186,5 +216,5 @@ async function myPermissions(key: string): Promise<string[]> {
 
 1. 按 `docs/readme.md` 起一套本地实例（Docker compose，唯一端口 `WEB_PORT`，默认 8081）
 2. 创建项目 → 「工具」Tab → 添加自定义工具，链接填插件 dev server 地址（如 `http://localhost:5173`——本地 http 页面互相嵌入无混合内容问题），开「携带用户身份」并勾选权限点
-3. 打开工具卡片，观察 iframe/新标签页 URL 上的 `anon_launch`，走通 exchange → 业务调用
+3. 打开工具卡片，在插件 DevTools Console 观察握手（先挂 `window.addEventListener('message', e => console.log(e.origin, e.data))`，应看到 `anon:launch` 回包；URL 全程无令牌），走通 exchange → 业务调用
 4. 权限收窄/顶替/撤销/过期的断言可参考后端测试 `backend/tests/open.test.ts`（16 个场景的行为基准）
