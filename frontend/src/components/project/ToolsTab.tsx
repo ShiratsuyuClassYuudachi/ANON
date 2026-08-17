@@ -4,6 +4,7 @@ import {
   ArrowLeft, CalendarClock, ClipboardCheck, ExternalLink, MoreHorizontal, PackageSearch, Pencil, Plus, Puzzle, Trash2,
 } from 'lucide-react';
 import { api } from '../../api/client';
+import { fetchLaunchToken, registerLaunchTarget } from '../../lib/toolLaunch';
 import type { CustomTool, ProjectDetail } from '../../types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -37,7 +38,7 @@ interface Props {
 /** 实用工具容器：内置工具卡片 + 项目自定义工具卡片 → 具体工具。 */
 export default function ToolsTab({ project, myPermissions }: Props) {
   const [builtin, setBuiltin] = useState<'stage-rundown' | 'stage-signup' | 'lost-found' | null>(null);
-  const [custom, setCustom] = useState<{ tool: CustomTool; url: string } | null>(null);
+  const [custom, setCustom] = useState<{ tool: CustomTool; launchToken: string | null } | null>(null);
   const [tools, setTools] = useState<CustomTool[]>([]);
   const [editing, setEditing] = useState<CustomTool | 'new' | null>(null);
   const [deleting, setDeleting] = useState<CustomTool | null>(null);
@@ -54,30 +55,24 @@ export default function ToolsTab({ project, myPermissions }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id]);
 
-  /** passToken 工具：先换启动令牌再拼到 URL query；失败返回 null 中止打开 */
-  const resolveUrl = async (tool: CustomTool): Promise<string | null> => {
-    if (!tool.passToken) return tool.url;
-    try {
-      const { launchToken } = await api<{ launchToken: string }>(
-        `/api/projects/${project.id}/custom-tools/${tool.id}/launch`,
-        { method: 'POST' },
-      );
-      const u = new URL(tool.url);
-      u.searchParams.set('anon_launch', launchToken);
-      return u.toString();
-    } catch (e) {
-      toast.error((e as Error).message);
-      return null;
-    }
-  };
-
+  /**
+   * 打开自定义工具。passToken 工具先取启动令牌，经 postMessage 握手投递（令牌不进 URL）。
+   * link 形态 handshake 需 opener 通道，故 passToken 工具不能带 noreferrer（其实现隐含 noopener）——
+   * tabnabbing 面由「工具 URL 本身即管理端登记可信组件」这一既有信任前提覆盖
+   * （与 iframe embed 的 allow-same-origin 同级）；非 passToken 工具仍 noreferrer 防 Referer 落第三方日志。
+   */
   const openTool = async (tool: CustomTool) => {
-    const url = await resolveUrl(tool);
-    if (!url) return;
+    const launchToken = tool.passToken ? await fetchLaunchToken(project.id, tool.id) : null;
+    if (tool.passToken && !launchToken) return; // 失败已 toast
     if (tool.mode === 'link') {
-      window.open(url, '_blank', 'noopener,noreferrer');
+      const w = window.open(tool.url, '_blank', launchToken ? undefined : 'noreferrer');
+      if (!w) {
+        toast.error('浏览器拦截了弹出窗口，请允许弹窗后重试');
+        return;
+      }
+      if (launchToken) registerLaunchTarget(w, tool.url, launchToken);
     } else {
-      setCustom({ tool, url });
+      setCustom({ tool, launchToken });
     }
   };
 
@@ -123,7 +118,7 @@ export default function ToolsTab({ project, myPermissions }: Props) {
   }
 
   if (custom) {
-    return <CustomToolEmbed tool={custom.tool} url={custom.url} onBack={() => setCustom(null)} />;
+    return <CustomToolEmbed tool={custom.tool} launchToken={custom.launchToken} onBack={() => setCustom(null)} />;
   }
 
   return (
