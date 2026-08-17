@@ -13,8 +13,13 @@
 { "error": { "code": "bad_request", "message": "人类可读信息" } }
 ```
 
-- 常见 code：`bad_request`/`invalid_invite`(400)、`unauthorized`/`bad_credentials`/`invalid_refresh`(401)、`forbidden`(403)、`not_found`(404)、`email_taken`/`email_reserved`/`role_exists`/`role_in_use`/`already_done`/`conflict`(409)、`invite_gone`(410)、`rate_limited`/`trial_limit`(429)、`internal`(500)、`cron_disabled`(503)
+- 常见 code：`bad_request`/`invalid_invite`(400)、`unauthorized`/`bad_credentials`/`invalid_refresh`/`invalid_launch_token`(401)、`forbidden`/`api_key_forbidden`/`api_key_wrong_project`/`api_key_required`(403)、`not_found`(404)、`email_taken`/`email_reserved`/`role_exists`/`role_in_use`/`already_done`/`conflict`(409)、`invite_gone`(410)、`rate_limited`/`trial_limit`(429)、`internal`(500)、`cron_disabled`(503)
 - 时间字段均为 ISO 8601 字符串（如 `2026-08-01T10:00:00.000Z`），可空字段返回 `null`
+
+### 认证凭证（两种 Bearer）
+
+- **用户 JWT**：`POST /api/auth/login` 签发，15 分钟，refresh 轮换
+- **API 密钥**：`anonk_` 前缀（OpenAPI 模式，见文末「OpenAPI」章）。项目域接口自动生效：密钥绑定单一项目（跨项目 403 `api_key_wrong_project`），权限 = 密钥 scopes ∩ 持有者实时角色权限。用户态接口（`/api/me`、`/api/admin`、`/api/push`、`/api/invites`、`/api/files`、项目创建与全量列表）整体拒绝密钥（403 `api_key_forbidden`）
 
 ## 数据类型
 
@@ -1205,3 +1210,99 @@ multipart/form-data，字段同 POST（均可选）；另支持 `removePhoto=1`�
 ### GET /api/public/lostfound/:token/items/:itemId/photo（免登录）
 
 返回照片二进制；item 必须属于该分享的项目（跨项目 404）。
+
+## 自定义工具（实用工具）
+
+项目自定义工具：登记自研组件地址，成员以页内 iframe（embed）或新标签页（link）打开。
+
+### 数据类型
+
+```ts
+interface CustomTool {
+  id: string; name: string; url: string; description: string;
+  mode: 'embed' | 'link';        // embed=页内 iframe；link=新标签页
+  passToken: boolean;            // 打开时 URL query 附带 anon_launch 启动令牌
+  scopes: string[];              // 允许插件使用的权限点（仅 ALL_PERMISSIONS 内项，非法项静默丢弃）
+  createdBy: { userId: string; name: string };
+  createdAt: string;
+}
+```
+
+### GET /api/projects/:id/custom-tools（成员）
+
+响应 200：`{ tools: CustomTool[] }`（按 createdAt 升序；创建者已注销显示「未知用户」）。
+
+### POST /api/projects/:id/custom-tools（tools:manage）
+
+请求：`{ name, url, description?, mode?, passToken?, scopes? }`。name 必填 ≤50；url 必须可解析且协议为 http/https（≤1000，否则 400 `invalid_url`）；mode 缺省 `embed`；description ≤200；scopes 超集静默过滤。
+响应 201：`{ tool: CustomTool }`。
+
+### PATCH /api/projects/:id/custom-tools/:toolId（tools:manage）
+
+部分更新，校验同上。工具不存在 → 404。响应 200：`{ tool: CustomTool }`。
+
+### DELETE /api/projects/:id/custom-tools/:toolId（tools:manage）
+
+删除工具并**级联作废该工具签发的全部 API 密钥**。响应 200：`{ ok: true }`。
+
+### POST /api/projects/:id/custom-tools/:toolId/launch（成员）
+
+passToken=false → 400「该工具未开启身份携带」。否则响应 200：`{ launchToken: string }`——5 分钟有效 JWT（kind=tool-launch），前端拼到工具 URL 的 `anon_launch` query 交给组件。
+
+## OpenAPI（API 密钥）
+
+插件/自动化脚本的密钥链路：`anonk_` 前缀 Bearer 凭证，sha256 哈希落库、原文仅创建时返回一次。两个来源：工具兑换（恒 30 天、同 user+tool 顶替）与自助生成（30 天或永久、自由多把）。
+
+### POST /api/open/exchange（公开，限流 60 次/15 分钟/IP）
+
+请求：`{ launchToken: string }`。launchToken 无效/过期 → 401 `invalid_launch_token`（kind 隔离：用户 JWT 同样拒绝）；工具已删 → 404；非项目成员 → 403。
+生效 `scopes = 工具 scopes ∩ 用户当前角色权限`；同 (user, tool) 重复兑换**顶替**旧密钥（旧密钥立即失效）。
+响应 201：
+
+```json
+{
+  "apiKey": "anonk_<64hex>",
+  "expiresAt": "2026-09-16T00:00:00.000Z",
+  "scopes": ["todo:create"],
+  "projectId": "<pid>",
+  "user": { "id": "<uid>", "name": "…" }
+}
+```
+
+### GET /api/open/me（需 API 密钥）
+
+以用户 JWT 调用 → 403 `api_key_required`。响应 200：
+
+```json
+{
+  "user": { "id": "<uid>", "name": "…" },
+  "project": { "id": "<pid>", "name": "…" },
+  "permissions": ["todo:create"],
+  "expiresAt": "2026-09-16T00:00:00.000Z"
+}
+```
+
+`permissions` 为密钥 scopes 与持有者实时角色权限的交集；永久密钥 `expiresAt` 为 `null`。
+
+### POST /api/open/keys（用户态，API 密钥不可调）
+
+请求：`{ projectId, name, scopes?, permanent? }`。name 必填 ≤50；非项目成员 403；scopes 静默收窄为「合法且用户实际持有」的子集；`permanent: true` 永久有效，否则 30 天。
+响应 201：`{ apiKey: string, key: ApiKeyInfo }`——**`apiKey` 原文仅此一次返回**。
+
+### GET /api/open/keys（用户态）
+
+响应 200：`{ keys: ApiKeyInfo[] }`（仅本人，createdAt 倒序）。
+
+```ts
+interface ApiKeyInfo {
+  id: string; name: string;
+  projectId: string; projectName: string;        // 项目已删显示「已删除项目」
+  toolId: string | null; toolName: string | null; // 工具兑换的有值（工具已删显示「已删除工具」），手动生成为 null
+  scopes: string[];
+  createdAt: string; lastUsedAt: string | null; expiresAt: string | null; // expiresAt null = 永久
+}
+```
+
+### DELETE /api/open/keys/:keyId（用户态）
+
+仅可撤销本人密钥（他人 → 404 `not_found`）；硬删除，撤销后该密钥立即 401。响应 200：`{ ok: true }`。

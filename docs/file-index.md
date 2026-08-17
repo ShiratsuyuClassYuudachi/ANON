@@ -8,7 +8,7 @@
 
 - 请求链：浏览器 → Cloudflare Worker（`worker/src/index.js`，`/api/*` 反代源站、静态走 ASSETS）→ 源站 nginx（`frontend/nginx.conf`，`/api/` → backend:4000）→ Express（`backend/src/app.ts`）→ FerretDB(MongoDB 协议) / S3(MinIO)。
 - 前端：React 18 + Vite 6 PWA，入口 `frontend/src/main.tsx` → `App.tsx` 路由表；全部请求经 `api/client.ts`（Bearer + 401 单飞刷新重放）；共享类型集中在 `types.ts`。
-- 后端：Express + Mongoose；路由统一挂 `/api/projects/:id/*`（项目域）与 `/api/{auth,admin,me,push,invites,files,cron}` + `/api/public/lostfound`（顶级域，后者免登录）；权限经 `middleware/projectAccess.ts` 的 `loadMembership` + `requirePermission`。
+- 后端：Express + Mongoose；路由统一挂 `/api/projects/:id/*`（项目域）与 `/api/{auth,admin,me,open,push,invites,files,cron}` + `/api/public/lostfound`（顶级域，后者免登录）；权限经 `middleware/projectAccess.ts` 的 `loadMembership` + `requirePermission`；API 密钥（`anonk_` 前缀 Bearer）经 `middleware/auth.ts` 分流鉴权，项目域内由 loadMembership 按 key 绑项目 + scopes 收窄。
 - 纯前端演示站：`frontend/src/demo/` 构建期拦截 `fetch('/api/*')`，内存库 mock 全部后端契约。
 
 ## 功能域速查表（改哪个功能 → 看哪些文件）
@@ -28,6 +28,7 @@
 | 现场模式/工作模块/任务单 | routes/{onsite,workModules,workSheet}.ts、models/{WorkModule,Incident}.ts、services/workModules.ts | pages/{OnsitePage,WorkSheetPrint}.tsx、project/WorkTab.tsx、lib/offlineQueue.ts | tests/{onsite,workModules}.test.ts |
 | 舞台工具（编排/报名/阶段/执行/大屏） | routes/{stageRundowns,stageSignups,stages}.ts、models/{StageRundown,StageScreenShare,StageSignup}.ts | project/tools/*.tsx、project/{ToolsTab,StageManager,StageStepper}.tsx、pages/RundownScreenPage.tsx（大屏公开页）、pages/OnsitePage.tsx（舞台执行卡） | tests/{stageRundowns,stageExecution,stageSignups}.test.ts |
 | 失物招领/公开查找页 | routes/lostFound.ts、models/{LostFoundItem,LostFoundShare}.ts、services/permissions.ts（迁移） | project/tools/LostFound*.tsx、pages/PublicLostFound.tsx、pages/OnsitePage.tsx（现场录入入口） | tests/lostFound.test.ts |
+| 自定义工具/OpenAPI（API 密钥） | routes/{customTools,open}.ts、models/{CustomTool,ApiKey}.ts、middleware/auth.ts（anonk_ 分流 + rejectApiKey 围栏）、middleware/projectAccess.ts（项目绑定 + scopes 收窄）、utils/jwt.ts（kind 隔离 + tool-launch） | project/ToolsTab.tsx、project/tools/{CustomToolEmbed,CustomToolDialog}.tsx、components/ApiKeysCard.tsx（Me 页）、lib/permissions.ts（共享权限清单） | tests/{customTools,open}.test.ts |
 | 里程碑 | routes/milestones.ts、models/Milestone.ts | project/MilestoneSection.tsx | — |
 | 通知（邮件+WebPush）/ cron | services/{notifications,mailer,webpush}.ts、routes/{push,cron}.ts、models/{PushSubscription,ReminderLog,WeeklyReportLog}.ts | lib/push.ts、components/{PushBanner,PushSettingsCard}.tsx、scripts/patch-sw.mjs | tests/{notifications,push,cron}.test.ts |
 | 试用模式 | services/trial.ts、models/TrialSession.ts、services/demoSeed.ts | components/TrialBanner.tsx | tests/trial.test.ts |
@@ -44,21 +45,21 @@
 - `src/app.ts` — Express 装配：helmet + json(2mb) + `/api/health` + errorHandler；路由挂载表（见下文「路由挂载」）
 - `src/config.ts` — 环境配置聚合：port/mongoUri/jwtSecret/S3/SMTP/VAPID/trialEmail
 - `src/index.ts` — 启动入口：连 Mongo → initStorage → grantPermissionToAllRoles（新权限点迁移）→ startTrialSweeper → listen
-- `src/middleware/auth.ts` — authRequired 校验 Bearer JWT；requireSuperAdmin 超管闸
-- `src/middleware/projectAccess.ts` — loadMembership 载入 project/membership/myPermissions；requirePermission(perm)
+- `src/middleware/auth.ts` — authRequired 校验 Bearer（`anonk_` 前缀走 ApiKey 哈希鉴权：过期即删、lastUsedAt 1h 节流回写；否则 JWT）；requireSuperAdmin 超管闸；rejectApiKey 用户态专属接口围栏（403 api_key_forbidden）
+- `src/middleware/projectAccess.ts` — loadMembership 载入 project/membership/myPermissions（API 密钥请求尾部统一收窄：绑项目错配 403 api_key_wrong_project、myPermissions ∩ key.scopes）；requirePermission(perm)
 - `src/middleware/errorHandler.ts` — 统一 AppError/Mongoose 错误为 `{error:{code,message}}`
 - `src/middleware/upload.ts` — multer 磁盘上传（20MB、UUID 命名）；fixFilename 中文名修复
 - `src/utils/async.ts` — ah 包装 async handler 转 next(err)
 - `src/utils/errors.ts` — AppError(status, code, message)
-- `src/utils/jwt.ts` — signToken 15 分钟；verifyToken 返回 userId
+- `src/utils/jwt.ts` — signToken/verifyToken（15 分钟，kind:'user'）；signToolLaunchToken/verifyToolLaunchToken（5 分钟 kind:'tool-launch'，仅可兑换 API 密钥）
 - `vitest.config.ts` — 单 fork 串行、注入测试 JWT_SECRET
 - `scripts/seed-demo.ts` — CLI 种子：5 用户 + 示例项目 + 邀请码 DEMO-2026
 
 ### 路由挂载（app.ts）
-- 顶级：`/api/auth`(限流 50/15min)、`/api/admin`、`/api/me`、`/api/push`、`/api/invites`、`/api/files`、`/api/cron`、`/api/projects`、`/api/public/lostfound` 与 `/api/public/rundown-screen`(免登录,限流 300/min)
-- 项目域 `/api/projects/:id/`：`files` `todos` `work-modules` `work-sheet` `finance` `materials` `physical` `accounts` `dashboard` `onsite` `risks` `announcements` `activities` `stages` `stage-rundowns` `stage-signups` `lostfound` `milestones`
+- 顶级：`/api/auth`(限流 50/15min)、`/api/admin`、`/api/me`、`/api/open`、`/api/push`、`/api/invites`、`/api/files`、`/api/cron`、`/api/projects`、`/api/public/lostfound` 与 `/api/public/rundown-screen`(免登录,限流 300/min)
+- 项目域 `/api/projects/:id/`：`files` `todos` `work-modules` `work-sheet` `finance` `materials` `physical` `accounts` `dashboard` `onsite` `risks` `announcements` `activities` `stages` `stage-rundowns` `stage-signups` `custom-tools` `lostfound` `milestones`
 
-### 路由 `src/routes/`（25 个，一文件一业务域）
+### 路由 `src/routes/`（27 个，一文件一业务域）
 - `auth.ts` — POST register/login/refresh/logout，JWT+refresh 轮换；/login 内嵌试用入口（trialLogin）
 - `admin.ts` — 超管邀请码 POST/GET /invite-codes
 - `me.ts` — 个人资料 GET/PATCH /、POST /onboarded
@@ -79,13 +80,15 @@
 - `stages.ts` — 阶段 CRUD、PATCH /reorder
 - `stageRundowns.ts` — 流程单 CRUD、节目 items、reorder（执行中仅未执行节目槽位可重排，动已演/在演位置 409）、execution 执行控制（start/advance/jump/shift/finish/reset）、screen-share 开关、publicRundownScreenRouter 公开大屏（token + 白名单）
 - `stageSignups.ts` — 报名批次/节目、PUT|DELETE review 投票、POST /:sid/import
+- `customTools.ts` — 自定义工具 CRUD（tools:manage；DELETE 级联删该工具 ApiKey）、POST /:toolId/launch（成员可用，passToken 工具签发 5 分钟启动令牌）
+- `open.ts` — OpenAPI 模式：POST /exchange（launch token 换 30 天 API 密钥，限流 60/15min，同 user+tool 顶替）、GET /me（apikey 自查身份/权限交集/有效期）、keys CRUD（自助生成 30 天或永久，一次性返回原文；authRequired+rejectApiKey 防密钥造密钥）
 - `lostFound.ts` — 双路由：项目域物品 CRUD/status/photo/share（lostfound:manage）；公开域免登录只读（token + 字段白名单）
 - `milestones.ts` — 里程碑 CRUD、POST /:milestoneId/complete
 - `activities.ts` — GET / 项目动态流（limit≤50）
 - `push.ts` — GET /config(VAPID)、POST/DELETE /subscription
 - `cron.ts` — CRON_SECRET 鉴权：POST /reminders、POST /weekly-report
 
-### 模型 `src/models/`（33 个，Mongoose，`models.X ?? model(...)` 幂等注册）
+### 模型 `src/models/`（35 个，Mongoose，`models.X ?? model(...)` 幂等注册）
 - `User.ts` — 用户：email/name/passwordHash/isSuperAdmin/contacts；导出 publicUser() 脱敏
 - `RefreshToken.ts` — 会话：tokenHash(sha256 唯一)、expiresAt
 - `InviteCode.ts` — 注册邀请码：code/createdBy/usedBy/usedAt
@@ -110,6 +113,8 @@
 - `PushSubscription.ts` — WebPush 订阅：endpoint/p256dh/auth（端点唯一）
 - `TrialSession.ts` — 试用会话：keyHash/userId/projectId/expiresAt(24h)
 - `WeeklyReportLog.ts` — 周报发送记录：projectId+weekStart（唯一）
+- `CustomTool.ts` — 自定义工具：projectId/name/url/mode(embed|link)/passToken/scopes
+- `ApiKey.ts` — API 密钥：keyHash(sha256 唯一)/userId/projectId/toolId(可选，工具兑换来源)/scopes/expiresAt(可空=永久)/lastUsedAt
 
 ### 服务 `src/services/`
 - `activity.ts` — logActivity 异步写操作日志
@@ -132,7 +137,7 @@
 
 ### 测试 `tests/`（vitest + supertest + mongodb-memory-server，打真实路由）
 - `setup.ts` / `helpers.ts` — 内存 Mongo 基建 / 造号工具（createSuperAdmin/registerUser）
-- 每域一个 `*.test.ts`：auth/admin/me/projects/invites/todos/todo-complete/todo-updates/template/finance/materials/files/physical/accounts/announcements/dashboard/onsite/workModules/stageRundowns/stageExecution/stageSignups/lostFound/notifications/push/cron/trial/onboarding/health
+- 每域一个 `*.test.ts`：auth/admin/me/projects/invites/todos/todo-complete/todo-updates/template/finance/materials/files/physical/accounts/announcements/dashboard/onsite/workModules/stageRundowns/stageExecution/stageSignups/customTools/open/lostFound/notifications/push/cron/trial/onboarding/health
 
 ## 前端 `frontend/`
 
@@ -149,6 +154,7 @@
 - `src/lib/datetime.ts` — 本地时间格式化 + 活动倒计时 + 开展倒排换算（daysBeforeLocal）
 - `src/lib/offlineQueue.ts` — 离线 POST 队列（现场模式用）
 - `src/lib/push.ts` — Web Push 订阅管理
+- `src/lib/permissions.ts` — PERMISSIONS 权限点清单（与后端 ALL_PERMISSIONS 对齐；RolesTab 矩阵/自定义工具 scopes/ApiKeysCard 勾选区共用）
 - `src/lib/utils.ts` — cn() 类名合并
 
 ### 页面 `src/pages/`
@@ -157,7 +163,7 @@
 - `ProjectHome.tsx` — 项目主页：10 个按权限过滤的 Tab + 现场模式入口
 - `OnsitePage.tsx` — 现场模式：签到/完成/异常上报（离线入队）、舞台执行卡（Rundown 开始/推进/顺延，按 tools:manage 显隐）、失物登记入口（复用 LostFoundItemDialog，按 myPermissions 显隐）、30s 轮询
 - `WorkSheetPrint.tsx` — 任务单打印页（按人/全员）
-- `Me.tsx` — 个人资料/联系方式/推送设置/界面偏好
+- `Me.tsx` — 个人资料/联系方式/推送设置/API 密钥（ApiKeysCard）/界面偏好
 - `Admin.tsx` — 超管邀请码管理
 - `InviteAccept.tsx` — 接受项目邀请
 - `PublicLostFound.tsx` — 失物招领免登录公开查找页（/lf/:token，搜索+状态筛选+照片）
@@ -172,6 +178,7 @@
 - `DemoBadge.tsx` / `DemoBanner.tsx` — 演示站角标 / 横幅（一键还原种子）
 - `TrialBanner.tsx` — 试用横幅（数据销毁倒计时）
 - `PushBanner.tsx` / `PushSettingsCard.tsx` — Push 提示条 / 订阅开关卡
+- `ApiKeysCard.tsx` — Me 页 API 密钥卡：自助生成（项目+实有权限点+30 天/永久）、一次性原文展示复制、列表与撤销
 - `Toaster.tsx` — sonner 封装；`Logo.tsx` — 品牌标识
 - `help/content.ts` — HELP_CHAPTERS 帮助文案（11 章，UI 变化需同步并重生成截图）
 - `onboarding/OnboardingDialog.tsx` — 首登三页幻灯；`onboarding/tour.ts` — driver.js 分步高亮（data-tour 锚点）
@@ -190,7 +197,8 @@
 - `AnnouncementManager.tsx` — 公告发布/置顶/确认名单
 - `MilestoneSection.tsx` / `StageStepper.tsx` / `StageManager.tsx` — 里程碑卡 / 阶段进度条 / 阶段增删排序
 - `VisibilityPicker.tsx` — 可见范围选择器（成员+角色勾选，多 Tab 复用）
-- `ToolsTab.tsx` — 实用工具容器（舞台编排/报名审核/失物招领卡片入口）
+- `ToolsTab.tsx` — 实用工具容器（内置：舞台编排/报名审核/失物招领卡片；自定义工具卡片网格 + ⋯ 管理菜单 + 虚框添加卡，点击 embed→页内 iframe / link→新标签页）
+- `tools/CustomToolEmbed.tsx` / `tools/CustomToolDialog.tsx` — 自定义工具页内 iframe 视图（sandbox 不放行 top-navigation + 新窗口打开）/ 新建编辑弹层（FormOverlay，携带身份开关 + scopes 勾选）
 - `tools/StageRundownTool.tsx` + `ProgramFormDialog.tsx` + `ExecutionPanel.tsx` + `ScreenShareDialog.tsx` — 流程单编排/节目表单/导出/执行控制台（开始/推进/跳节目/顺延/结束重置）/大屏分享管理
 - `tools/StageSignupTool.tsx` + `SignupItemDialog.tsx` + `SignupReviewDialog.tsx` — 报名审核/投票/拍板/导入
 - `tools/SwipeRow.tsx` — 触屏侧滑操作行；`tools/rundownExport.ts` — 时间推算/文本/PNG 导出（纯前端）；`tools/rundownExecution.ts` — 执行态推算纯函数（延误/超时/预计时间/实时级联推算开始与结束）
@@ -198,11 +206,11 @@
 
 ### 演示站 `src/demo/`（`npm run build:demo`，浏览器内 mock 全部 /api）
 - `install.ts` — installDemo：包装 window.fetch 拦截 /api/*；sessionStorage 内存库
-- `router.ts` — def/route：`:param` 模板路由 + 80ms 延迟
-- `seed.ts` — buildSeed（DB_VERSION=6）：相对当前时刻生成演示数据
+- `router.ts` — def/route：`:param` 模板路由 + 80ms 延迟；Ctx 透传 Authorization 头（open/me 识别 anonk_demo_*）
+- `seed.ts` — buildSeed（DB_VERSION=7）：相对当前时刻生成演示数据（含两条自定义工具种子）
 - `types.ts` / `helpers.ts` — Db/Ctx/Handler 类型 / 错误信封·权限·文件存取
 - `aggregate.ts` — R1–R7 聚合（注释标注移植自后端哪个服务）
-- `handlers/*.ts`（13 个）— 按域复刻后端路由：auth/projects/todos/finance/materials/physical/accounts/dashboard/work/stageRundowns/stageSignups/lostFound + index.ts 合并路由表
+- `handlers/*.ts`（15 个）— 按域复刻后端路由：auth/projects/todos/finance/materials/physical/accounts/dashboard/work/stageRundowns/stageSignups/customTools/open/lostFound + index.ts 合并路由表
 - `pwa-register-stub.ts` — 禁 SW 防缓存干扰 mock
 
 ### 构建与脚本
@@ -224,6 +232,6 @@
 
 ## 走查脚本 `.walkthrough/`（不入库的 Playwright 工具集）
 - 截图生成：`help-screenshot*.mjs`（帮助中心 tab-*.png）、`stage-signup-shots.mjs` 等
-- 功能走查：`stage-signup.mjs`、`stage-rundown.mjs`、`stage-execution.mjs`（执行模式+现场大屏）、`onsite-walkthrough.mjs`、`nav-layout-verify.mjs`、`security-verify.mjs` 等约 30 个，输出 PASS/FAIL
+- 功能走查：`stage-signup.mjs`、`stage-rundown.mjs`、`stage-execution.mjs`（执行模式+现场大屏）、`custom-tools.mjs`（自定义工具 + OpenAPI/Me 页密钥全流程）、`onsite-walkthrough.mjs`、`nav-layout-verify.mjs`、`security-verify.mjs` 等约 30 个，输出 PASS/FAIL
 - 冒烟：`smoke/prod-smoke.mjs`、`pwa-smoke.mjs`
 - 调试：`debug-*.mjs` 约 20 个临时复现脚本；`shots/` 为截图产物
