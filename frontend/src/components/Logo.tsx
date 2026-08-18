@@ -1,15 +1,10 @@
 import { cn } from '@/lib/utils';
 
-/** 品牌标识：渐变方块 + ANON 字样，随主题色变化 */
+/** 品牌标识：应用图标 + ANON 字样（图标与 PWA/主屏图标同源 /icons/icon-192.png） */
 export default function Logo({ className }: { className?: string }) {
   return (
     <span className={cn('inline-flex items-center gap-2', className)}>
-      <span
-        aria-hidden
-        className="grid size-7 place-items-center rounded-lg bg-gradient-to-br from-primary to-primary/60 text-sm font-black text-primary-foreground shadow-sm"
-      >
-        A
-      </span>
+      <img src="/icons/icon-192.png" alt="" className="size-7 rounded-lg shadow-sm" />
       <span className="text-lg font-bold tracking-wide text-primary">ANON</span>
     </span>
   );
