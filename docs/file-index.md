@@ -31,6 +31,7 @@
 | 自定义工具/OpenAPI（API 密钥） | routes/{customTools,open}.ts、models/{CustomTool,ApiKey}.ts、middleware/auth.ts（anonk_ 分流 + rejectApiKey 围栏）、middleware/projectAccess.ts（项目绑定 + scopes 收窄）、utils/jwt.ts（kind 隔离 + tool-launch） | project/ToolsTab.tsx、project/tools/{CustomToolEmbed,CustomToolDialog}.tsx、lib/toolLaunch.ts（启动令牌 postMessage 握手投递）、components/ApiKeysCard.tsx（Me 页）、lib/permissions.ts（共享权限清单） | tests/{customTools,open}.test.ts |
 | 里程碑 | routes/milestones.ts、models/Milestone.ts | project/MilestoneSection.tsx | — |
 | 通知（邮件+WebPush）/ cron | services/{notifications,mailer,webpush}.ts、routes/{push,cron}.ts、models/{PushSubscription,ReminderLog,WeeklyReportLog}.ts | lib/push.ts、components/{PushBanner,PushSettingsCard}.tsx、scripts/patch-sw.mjs | tests/{notifications,push,cron}.test.ts |
+| PWA 安装入口 | —（纯前端） | lib/pwaInstall.ts（事件捕获/状态）、components/PwaInstallGuide.tsx（指引弹层）、pages/ProjectHome.tsx（「更多」Sheet 行） | .walkthrough/pwa-install.mjs（走查） |
 | 试用模式 | services/trial.ts、models/TrialSession.ts、services/demoSeed.ts | components/TrialBanner.tsx | tests/trial.test.ts |
 | 纯前端演示站 | —（mock 后端契约） | demo/ 全目录、components/{DemoBadge,DemoBanner}.tsx、vite.config.ts | — |
 | 新手引导/帮助中心 | routes/me.ts（onboarded 端点） | onboarding/*、help/content.ts、pages/DocsPage.tsx | tests/onboarding.test.ts |
@@ -154,14 +155,15 @@
 - `src/lib/datetime.ts` — 本地时间格式化 + 活动倒计时 + 开展倒排换算（daysBeforeLocal）
 - `src/lib/offlineQueue.ts` — 离线 POST 队列（现场模式用）
 - `src/lib/push.ts` — Web Push 订阅管理
-- `src/lib/toolLaunch.ts` — 自定义工具启动令牌握手投递（fetchLaunchToken + registerLaunchTarget：校验 source/origin 后回发 anon:launch，令牌不进 URL，5 分钟过期自动清除）
+- `src/lib/toolLaunch.ts` — 自定义工具启动令牌投递（fetchLaunchToken + registerLaunchTarget 握手：校验 source/origin 后回发 anon:launch，5 分钟过期自动清除；canDeliverViaOpener 判定 opener 通道可用性，不可用时该 URL fragment `#anon_launch=` 兜底投递，插件侧即读即抹）
+- `src/lib/pwaInstall.ts` — PWA 安装状态管理（模块级捕获 beforeinstallprompt——SW 已激活回访中事件早于 React 挂载；installed/canPrompt/dismissedOnce/available，demo 构建期恒隐藏；promptInstall 等 userChoice 落地才作废一次性事件）
 - `src/lib/permissions.ts` — PERMISSIONS 权限点清单（与后端 ALL_PERMISSIONS 对齐；RolesTab 矩阵/自定义工具 scopes/ApiKeysCard 勾选区共用）
 - `src/lib/utils.ts` — cn() 类名合并
 
 ### 页面 `src/pages/`
 - `Login.tsx` / `Register.tsx` — 登录 / 邀请码注册（演示模式一键进入）
 - `Projects.tsx` — 项目列表：健康度/阶段/倒计时卡片 + 新建
-- `ProjectHome.tsx` — 项目主页：10 个按权限过滤的 Tab + 现场模式入口
+- `ProjectHome.tsx` — 项目主页：10 个按权限过滤的 Tab + 现场模式入口；移动端底部导航「更多」Sheet（现场模式/溢出 Tab/「安装应用」PWA 入口，指引弹层挂 Sheet 外由本页持有）
 - `OnsitePage.tsx` — 现场模式：签到/完成/异常上报（离线入队）、舞台执行卡（Rundown 开始/推进/顺延，按 tools:manage 显隐）、失物登记入口（复用 LostFoundItemDialog，按 myPermissions 显隐）、30s 轮询
 - `WorkSheetPrint.tsx` — 任务单打印页（按人/全员）
 - `Me.tsx` — 个人资料/联系方式/推送设置/API 密钥（ApiKeysCard）/界面偏好
@@ -179,6 +181,7 @@
 - `DemoBadge.tsx` / `DemoBanner.tsx` — 演示站角标 / 横幅（一键还原种子）
 - `TrialBanner.tsx` — 试用横幅（数据销毁倒计时）
 - `PushBanner.tsx` / `PushSettingsCard.tsx` — Push 提示条 / 订阅开关卡
+- `PwaInstallGuide.tsx` — PWA 手动安装指引弹层（iOS 分享路径 / 浏览器菜单路径两版；由 ProjectHome 挂在「更多」Sheet 外）
 - `ApiKeysCard.tsx` — Me 页 API 密钥卡：自助生成（项目+实有权限点+30 天/永久）、一次性原文展示复制、列表与撤销
 - `Toaster.tsx` — sonner 封装；`Logo.tsx` — 品牌标识
 - `help/content.ts` — HELP_CHAPTERS 帮助文案（11 章，UI 变化需同步并重生成截图）
@@ -198,7 +201,7 @@
 - `AnnouncementManager.tsx` — 公告发布/置顶/确认名单
 - `MilestoneSection.tsx` / `StageStepper.tsx` / `StageManager.tsx` — 里程碑卡 / 阶段进度条 / 阶段增删排序
 - `VisibilityPicker.tsx` — 可见范围选择器（成员+角色勾选，多 Tab 复用）
-- `ToolsTab.tsx` — 实用工具容器（内置：舞台编排/报名审核/失物招领卡片；自定义工具卡片网格 + ⋯ 管理菜单 + 虚框添加卡，点击 embed→页内 iframe / link→新标签页；passToken 工具先取启动令牌经 lib/toolLaunch.ts 握手投递，URL 干净无令牌）
+- `ToolsTab.tsx` — 实用工具容器（内置：舞台编排/报名审核/失物招领卡片；自定义工具卡片网格 + ⋯ 管理菜单 + 虚框添加卡，点击 embed→页内 iframe / link→新标签页；passToken 工具先取启动令牌经 lib/toolLaunch.ts 投递：手势内同步 window.open 防移动端拦弹窗，opener 丢失（standalone PWA）走 fragment 兜底，iOS 先弹底部选择层「内置预览/独立窗口」，URL 干净无令牌）
 - `tools/CustomToolEmbed.tsx` / `tools/CustomToolDialog.tsx` — 自定义工具页内 iframe 视图（sandbox 不放行 top-navigation + 新窗口打开；passToken 令牌经 iframe contentWindow 握手投递）/ 新建编辑弹层（FormOverlay，携带身份开关 + scopes 勾选）
 - `tools/StageRundownTool.tsx` + `ProgramFormDialog.tsx` + `ExecutionPanel.tsx` + `ScreenShareDialog.tsx` — 流程单编排/节目表单/导出/执行控制台（开始/推进/跳节目/顺延/结束重置）/大屏分享管理
 - `tools/StageSignupTool.tsx` + `SignupItemDialog.tsx` + `SignupReviewDialog.tsx` — 报名审核/投票/拍板/导入

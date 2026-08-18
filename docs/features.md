@@ -455,6 +455,8 @@ ANON 是一个面向活动（展会、同人活动、演出等）组织团队的
 
 前端是完整 PWA：浏览器「添加到主屏幕」后可像原生应用一样全屏打开；应用外壳离线可用（页面/资源走 precache），API 响应不再缓存（避免跨用户数据残留），弱网时仅待发送队列（现场签到/完成/异常上报）依赖离线能力。
 
+应用内提供安装入口：项目页移动端底部导航「更多」→「安装应用」——Android/桌面 Chromium 弹系统原生安装框，iOS 与已关闭过原生框的场景给出「分享 → 添加到主屏幕」/ 浏览器菜单路径指引；已安装（standalone 运行中）或当前环境无安装路径时入口自动隐藏。
+
 ---
 
 ## 实用工具 · 舞台时间编排
@@ -557,7 +559,7 @@ Rundown 从计划工具升级为执行工具（需 `tools:manage` 操作；无�
 
 - 「添加自定义工具」虚框卡片 → 填写名称、链接（仅 http/https）、描述（选填）、打开方式：
   - **嵌入页面内打开**（embed）：页内 iframe 渲染，顶部带「全部工具」返回与「新窗口打开」外跳；iframe 启用 sandbox（允许脚本/同源/表单/弹窗/下载，**不放行顶层跳转**防外部页劫持）。对方站点若禁止被嵌入（X-Frame-Options / frame-ancestors），页面底部有提示，可改新窗口打开
-  - **新标签页打开**（link）：点击卡片直接 `window.open` 新标签（noopener/noreferrer）
+  - **新标签页打开**（link）：点击卡片直接 `window.open` 新标签（未携带身份的工具带 noreferrer；携带身份的保留 opener 通道供令牌握手）。移动端链路见下节
 - 已登记工具卡片右上角 ⋯ 菜单可**编辑**/**删除**；删除工具会一并作废它签发的所有 API 密钥，不可恢复
 - 无管理权限的成员看不到添加卡片与 ⋯ 菜单，仅能打开工具
 
@@ -565,7 +567,7 @@ Rundown 从计划工具升级为执行工具（需 `tools:manage` 操作；无�
 
 登记时开启「携带用户身份」并勾选**允许插件使用的权限点**后：
 
-1. 成员打开工具时，系统签发 **5 分钟有效**的启动令牌（JWT，仅可兑换），经页内 postMessage 握手投递给组件（embed 走 `window.parent`、link 走 `window.opener`，令牌全程不进 URL）
+1. 成员打开工具时，系统签发 **5 分钟有效**的启动令牌（JWT，仅可兑换），经页内 postMessage 握手投递给组件（embed 走 `window.parent`、link 走 `window.opener`，令牌全程不进 URL）。**移动端兜底**：手机浏览器拦异步弹窗、已安装 PWA（standalone）内打开新标签时 `window.opener` 丢失——此时系统自动改用 URL fragment 重定向投递（`{工具URL}#anon_launch=<令牌>`，fragment 不进 HTTP 请求与 Referer；插件侧约定即读即抹，见 `docs/plugin-development.md` §2）；iOS 上携带身份的 link 工具会先弹底部选择层：「内置预览」（iframe 嵌入走握手）或「独立窗口」（Safari 走 fragment）
 2. 组件凭启动令牌调 `POST /api/open/exchange` 换取 **30 天 API 密钥**（`anonk_` 前缀）；生效权限 = 工具登记 scopes ∩ 该用户实有角色权限（用户被降权后旧密钥同步收窄——每次请求都实时求交）
 3. 组件之后以 `Authorization: Bearer anonk_…` 调项目域接口（待办/财务/物料等）；可调 `GET /api/open/me` 自查用户身份、项目与当前生效权限点
 4. 同一用户在同一工具下重复兑换会**顶替**旧密钥（旧密钥立即 401）
