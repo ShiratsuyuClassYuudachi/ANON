@@ -15,7 +15,7 @@
 | 打开方式 | 行为 | 适用 |
 | --- | --- | --- |
 | `embed`（嵌入页面内） | 工具页内 iframe 渲染，顶部有「全部工具」返回与「新窗口打开」 | 与主系统强交互的组件 |
-| `link`（新标签页） | 点击卡片 `window.open` 新标签（携带身份时保留 opener 通道供握手，见 §2） | 独立完整应用、或禁止被嵌入的站点 |
+| `link`（新标签页） | 点击卡片 `window.open` 新标签（携带身份时保留 opener 通道供握手；已安装 PWA 等 opener 丢失场景自动改走 URL fragment 投递，见 §2） | 独立完整应用、或禁止被嵌入的站点 |
 
 登记项：名称（≤50）、链接（仅 http/https，≤1000）、描述（≤200）、打开方式、「携带用户身份」开关 + 权限点勾选。
 
@@ -47,6 +47,7 @@ sequenceDiagram
    - 请求（插件 → ANON）：`{ type: 'anon:launch-request', nonce: '<8–128 字符随机串>' }`；embed 形态发给 `window.parent`，link 形态发给 `window.opener`；targetOrigin 可用 `*`（请求不含机密）
    - 响应（ANON → 插件）：`{ type: 'anon:launch', launchToken, nonce }`，targetOrigin=工具登记 URL 的 origin。ANON 侧仅向「本次打开已登记的插件窗口 且 origin 匹配登记 URL」回发；插件**必须校验** `event.origin` 为 ANON 源且 `nonce` 与请求一致再使用令牌
    - 拿不到握手通道（无 parent/opener，如用户把插件 URL 直接贴进新标签）时不提供 URL 兜底——提示用户从 ANON 打开，或改用自助 API 密钥（见 §3）
+   - **移动端特例——fragment 兜底投递**：手机浏览器对异步 `window.open` 常拦弹窗、已安装 PWA（standalone）内 `window.open` 交给系统浏览器打开后 `window.opener` 必为 null。ANON 侧检测到 opener 通道不可用时，改为把令牌放进 URL fragment 重定向：`{工具URL}#anon_launch={launchToken}`（fragment 不进 HTTP 请求、不进 Referer 与服务器日志，暴露面远小于 query）。**插件侧契约：页面加载时先读 `location.hash`，命中 `#anon_launch=` 立即取出令牌并用 `history.replaceState` 抹除（防残留浏览器历史/截屏），再走正常 exchange；未命中再走 postMessage 握手**。iOS 上「携带身份」的 link 工具会弹底部选择层：「内置预览」（iframe 嵌入，走 parent 握手）或「独立窗口」（Safari，走 fragment 投递）
    - 插件前端拿到令牌后交给插件后端（**exchange 必须由插件服务端发起**，见 §5 安全条目）；插件 SPA 重挂载可在 5 分钟内重复发起握手，重发幂等
 2. **兑换 API 密钥**：`POST {ANON 源}/api/open/exchange`，body `{ "launchToken": "…" }`。成功 201 返回：
    ```json
@@ -92,7 +93,8 @@ sequenceDiagram
 ## 5. 安全要点（插件侧）
 
 - **握手校验是插件侧责任**：请求 `anon:launch-request` 可用 `*` 作 targetOrigin（消息不含机密，nonce 防串扰）；但响应**必须**校验 `event.origin` 等于 ANON 源且 `nonce` 与请求一致再使用令牌——不校验 origin 等于把令牌接收口开给任意父页面/opener 方
-- **无 parent/opener 时**：不提供 URL 兜底（令牌进 URL 会落浏览器历史/Referer/服务器日志/截屏）。提示用户从 ANON 打开工具，或引导其在「个人资料 → API 密钥」自助生成密钥后粘贴进插件配置
+- **无 parent/opener 时**：不提供 URL query 兜底（令牌进 query 会落 Referer/服务器日志）。提示用户从 ANON 打开工具，或引导其在「个人资料 → API 密钥」自助生成密钥后粘贴进插件配置
+- **fragment 投递须即读即抹**：ANON 在移动端 opener 丢失场景用 `#anon_launch=` fragment 投递令牌（见 §2）。fragment 不进 HTTP 请求与 Referer，但会残留浏览器历史与截屏——插件读到后必须立即 `history.replaceState` 抹除再使用，且不要把带 fragment 的 URL 转发给任何第三方
 - **exchange 放在插件服务端**：launchToken 虽不进 URL，仍是「谁拿到谁兑换」的 5 分钟短效 Bearer 凭证，5 分钟短效 + 一次性用途是底线保护；插件前端握手拿到后应立即转交插件后端兑换。anonk_ 密钥永远不该出现在插件前端代码/ localStorage 以外的可共享位置——插件前端若要调 ANON，也应经插件后端转发
 - **HTTPS**：生产环境插件必须 HTTPS。ANON 页面本身是 HTTPS 时，iframe 内嵌 http 会被浏览器混合内容拦截
 - **顶替他山之石**：同一用户多点打开同一工具会互相顶替旧 key（后者生效）。插件按 (userId, toolId 或 projectId+user) 存一把 key 即可
@@ -142,7 +144,18 @@ allow="clipboard-read; clipboard-write; fullscreen"
 // 插件页面入口
 const ANON_ORIGIN = 'https://app.anontokyo.design'; // 或自部署实例源
 
+/** 移动端 fragment 投递：先读 #anon_launch= 并立即抹除（见 §2 移动端特例） */
+function readFragmentToken(): string | null {
+  const m = location.hash.match(/(?:^|&)anon_launch=([^&]+)/);
+  if (!m) return null;
+  const token = decodeURIComponent(m[1]);
+  history.replaceState(null, '', location.pathname + location.search); // 即读即抹，防残留历史/截屏
+  return token;
+}
+
 function requestLaunchToken(): Promise<string | null> {
+  const fragmentToken = readFragmentToken();
+  if (fragmentToken) return Promise.resolve(fragmentToken); // fragment 优先，命中则无握手通道可用
   const target = window.parent !== window ? window.parent : window.opener;
   if (!target) return Promise.resolve(null); // 非 ANON 打开：提示用户从 ANON 进入，或改用自助 API 密钥
   return new Promise((resolve) => {

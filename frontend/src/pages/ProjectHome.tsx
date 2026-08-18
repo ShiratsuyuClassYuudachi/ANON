@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ClipboardList,
+  Download,
   FolderOpen,
   KeyRound,
   LayoutDashboard,
@@ -14,7 +15,10 @@ import {
   Wallet,
   Wrench,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { api } from '../api/client';
+import { usePwaInstall } from '../lib/pwaInstall';
+import PwaInstallGuide from '../components/PwaInstallGuide';
 import AccountsTab from '../components/project/AccountsTab';
 import DashboardTab from '../components/project/DashboardTab';
 import FinanceTab from '../components/project/FinanceTab';
@@ -70,6 +74,20 @@ export default function ProjectHome() {
   );
   const [err, setErr] = useState('');
   const [moreOpen, setMoreOpen] = useState(false);
+  const [installGuideOpen, setInstallGuideOpen] = useState(false);
+  const pwa = usePwaInstall();
+
+  /** 「更多」里的安装入口：可弹原生框直接弹（Android/桌面 Chromium）；否则关 Sheet 开手动指引 */
+  const installApp = async () => {
+    setMoreOpen(false);
+    if (pwa.canPrompt) {
+      const outcome = await pwa.promptInstall();
+      if (outcome === 'accepted') toast.success('已安装，可从主屏幕/应用列表直接打开 ANON');
+      // dismissed：入口保留在「更多」，再点出手动指引
+    } else {
+      setInstallGuideOpen(true);
+    }
+  };
 
   const handleNavigate = useCallback(
     (targetTab: string) => {
@@ -238,9 +256,16 @@ export default function ProjectHome() {
                 <t.icon className="size-4" /> {t.label}
               </Button>
             ))}
+            {pwa.available && (
+              <Button variant="outline" className="justify-start" onClick={() => void installApp()}>
+                <Download className="size-4" /> 安装应用
+              </Button>
+            )}
           </div>
         </SheetContent>
       </Sheet>
+      {/* 安装指引弹层挂 Sheet 外：Sheet 关闭即卸载子树，弹层须由本层持有 */}
+      <PwaInstallGuide open={installGuideOpen} onOpenChange={setInstallGuideOpen} />
     </div>
   );
 }
