@@ -113,7 +113,8 @@ export default function CustomToolDialog({ open, onOpenChange, projectId, tool, 
             <Label htmlFor="ct-pass-token">携带用户身份</Label>
           </div>
           <p className="text-xs text-muted-foreground">
-            打开时在链接中附带短期启动令牌（5 分钟有效），组件可凭其调用 POST /api/open/exchange 换取 30 天 API 密钥
+            打开时经 postMessage 握手向组件投递短期启动令牌（5 分钟有效；独立窗口 App 等无握手通道的环境改为随链接
+            fragment 一次性携带），组件可凭其调用 POST /api/open/exchange 换取 30 天 API 密钥
           </p>
         </div>
         {passToken && (

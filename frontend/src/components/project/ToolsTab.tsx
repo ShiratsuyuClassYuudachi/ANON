@@ -4,7 +4,7 @@ import {
   ArrowLeft, CalendarClock, ClipboardCheck, ExternalLink, MoreHorizontal, PackageSearch, Pencil, Plus, Puzzle, Trash2,
 } from 'lucide-react';
 import { api } from '../../api/client';
-import { fetchLaunchToken, registerLaunchTarget } from '../../lib/toolLaunch';
+import { fetchLaunchToken, registerLaunchTarget, canDeliverViaOpener, appendLaunchTokenToUrl } from '../../lib/toolLaunch';
 import type { CustomTool, ProjectDetail } from '../../types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -42,6 +42,8 @@ export default function ToolsTab({ project, myPermissions }: Props) {
   const [tools, setTools] = useState<CustomTool[]>([]);
   const [editing, setEditing] = useState<CustomTool | 'new' | null>(null);
   const [deleting, setDeleting] = useState<CustomTool | null>(null);
+  /** standalone PWA 下 link+passToken 的 fragment 兜底确认（无 opener 握手通道） */
+  const [pendingLink, setPendingLink] = useState<{ tool: CustomTool; launchToken: string } | null>(null);
 
   const canManage = myPermissions.includes('project:manage') || myPermissions.includes('tools:manage');
 
@@ -60,20 +62,44 @@ export default function ToolsTab({ project, myPermissions }: Props) {
    * link 形态 handshake 需 opener 通道，故 passToken 工具不能带 noreferrer（其实现隐含 noopener）——
    * tabnabbing 面由「工具 URL 本身即管理端登记可信组件」这一既有信任前提覆盖
    * （与 iframe embed 的 allow-same-origin 同级）；非 passToken 工具仍 noreferrer 防 Referer 落第三方日志。
+   *
+   * 移动端两点适配：
+   * - link + passToken 在点击手势内同步直开干净 URL（await 令牌后再 window.open 会丢 transient
+   *   activation，iOS 全系浏览器必拦弹窗；about:blank 占位再 location.replace 跨域导航会换进程、
+   *   断 WindowProxy 同一性导致握手 source 校验失败，故只能直开）。插件可能先于令牌就绪加载完，
+   *   其首发 anon:launch-request 由 registerLaunchTarget 的早到请求队列暂存重放。
+   *   取令牌失败则关掉已打开的工具页（失败 toast 已在 fetchLaunchToken 内发出）。
+   * - standalone PWA（canDeliverViaOpener() === false）下 window.open 跨域被甩给系统浏览器，
+   *   opener 必断、握手无解 → 弹确认框改走 fragment 兜底（appendLaunchTokenToUrl）。
    */
   const openTool = async (tool: CustomTool) => {
-    const launchToken = tool.passToken ? await fetchLaunchToken(project.id, tool.id) : null;
-    if (tool.passToken && !launchToken) return; // 失败已 toast
-    if (tool.mode === 'link') {
-      const w = window.open(tool.url, '_blank', launchToken ? undefined : 'noreferrer');
-      if (!w) {
-        toast.error('浏览器拦截了弹出窗口，请允许弹窗后重试');
-        return;
-      }
-      if (launchToken) registerLaunchTarget(w, tool.url, launchToken);
-    } else {
+    if (tool.mode !== 'link') {
+      const launchToken = tool.passToken ? await fetchLaunchToken(project.id, tool.id) : null;
+      if (tool.passToken && !launchToken) return; // 失败已 toast
       setCustom({ tool, launchToken });
+      return;
     }
+    if (!tool.passToken) {
+      window.open(tool.url, '_blank', 'noreferrer'); // 无令牌，同步直开
+      return;
+    }
+    if (!canDeliverViaOpener()) {
+      const launchToken = await fetchLaunchToken(project.id, tool.id);
+      if (!launchToken) return; // 失败已 toast
+      setPendingLink({ tool, launchToken });
+      return;
+    }
+    const w = window.open(tool.url, '_blank');
+    if (!w) {
+      toast.error('浏览器拦截了弹出窗口，请允许弹窗后重试');
+      return;
+    }
+    const launchToken = await fetchLaunchToken(project.id, tool.id);
+    if (!launchToken || w.closed) {
+      if (!w.closed) w.close();
+      return;
+    }
+    registerLaunchTarget(w, tool.url, launchToken);
   };
 
   const toolHost = (tool: CustomTool) => {
@@ -258,6 +284,34 @@ export default function ToolsTab({ project, myPermissions }: Props) {
           </CardContent>
         </Card>
       )}
+
+      <AlertDialog open={!!pendingLink} onOpenChange={(o) => !o && setPendingLink(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              在新窗口打开{pendingLink ? `「${pendingLink.tool.name}」` : ''}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              当前处于独立窗口（App）模式，与外部浏览器之间无法建立安全握手通道。本次打开将随链接一次性携带
+              5 分钟启动令牌（仅放在链接 fragment 中，不会进入对方服务器日志；组件接收后会立即抹除）。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                // 手势内同步打开（令牌已就位，无 await）；fragment 仅随本次打开携带
+                if (pendingLink) {
+                  window.open(appendLaunchTokenToUrl(pendingLink.tool.url, pendingLink.launchToken), '_blank');
+                }
+                setPendingLink(null);
+              }}
+            >
+              打开
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
         <AlertDialogContent>

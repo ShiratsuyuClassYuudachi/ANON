@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
 import type { CustomTool } from '../../../types';
-import { registerLaunchTarget } from '../../../lib/toolLaunch';
+import { registerLaunchTarget, canDeliverViaOpener, appendLaunchTokenToUrl } from '../../../lib/toolLaunch';
 import { Button } from '@/components/ui/button';
 
 interface Props {
@@ -28,6 +28,11 @@ export default function CustomToolEmbed({ tool, launchToken, onBack }: Props) {
     if (tool.passToken && launchToken) {
       // 需要 opener 通道回发令牌，不能用 noreferrer（其实现隐含 noopener）；
       // 同一 5 分钟令牌投递给第二扇窗合法——插件后端兑换结果相同
+      if (!canDeliverViaOpener()) {
+        // standalone PWA：opener 必断，改 fragment 一次性携带（同步调用保点击手势）
+        window.open(appendLaunchTokenToUrl(tool.url, launchToken), '_blank');
+        return;
+      }
       const w = window.open(tool.url, '_blank');
       if (w) registerLaunchTarget(w, tool.url, launchToken);
       return;
