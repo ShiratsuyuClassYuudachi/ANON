@@ -5,6 +5,7 @@
 
 ## 通用约定
 
+- 机器可读规范见 `docs/openapi.yaml`（OpenAPI 3.0，覆盖率经 `backend/scripts/check-openapi-coverage.ts` 校验）
 - 请求/响应均为 JSON（文件上传/下载除外），`Content-Type: application/json`；JSON 请求体上限 2MB
 - 健康检查：`GET /api/health`（公开）→ `{ ok: true }`
 - 错误响应统一格式，HTTP 状态码 +  body：

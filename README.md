@@ -110,6 +110,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 - [docs/readme.md](docs/readme.md) — 部署、环境变量、cron 提醒、测试与冒烟
 - [docs/features.md](docs/features.md) — 功能使用指南
 - [docs/api.md](docs/api.md) — 接口契约
+- [docs/openapi.yaml](docs/openapi.yaml) — OpenAPI 3.0 机器可读规范（覆盖率校验：`cd backend && npx tsx scripts/check-openapi-coverage.ts`）
 - [docs/plugin-development.md](docs/plugin-development.md) — 插件开发指南（自定义工具接入 + OpenAPI 模式对接）
 - [docs/design.md](docs/design.md) — 设计说明与变更记录
 - [docs/demo-site.md](docs/demo-site.md) — 纯前端演示站（Cloudflare Pages）：构建部署、mock 内核与会话保留语义

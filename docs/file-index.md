@@ -55,6 +55,7 @@
 - `src/utils/jwt.ts` — signToken/verifyToken（15 分钟，kind:'user'）；signToolLaunchToken/verifyToolLaunchToken（5 分钟 kind:'tool-launch'，仅可兑换 API 密钥）
 - `vitest.config.ts` — 单 fork 串行、注入测试 JWT_SECRET
 - `scripts/seed-demo.ts` — CLI 种子：5 用户 + 示例项目 + 邀请码 DEMO-2026
+- `scripts/check-openapi-coverage.ts` — OpenAPI 覆盖率校验：双向比对 app.ts 挂载表与 `docs/openapi.yaml`（`--list` 打印全部操作清单；新增 app.use 时同步脚本内挂载表）
 
 ### 路由挂载（app.ts）
 - 顶级：`/api/auth`(限流 50/15min)、`/api/admin`、`/api/me`、`/api/open`、`/api/push`、`/api/invites`、`/api/files`、`/api/cron`、`/api/projects`、`/api/public/lostfound` 与 `/api/public/rundown-screen`(免登录,限流 300/min)
@@ -233,6 +234,7 @@
 - `backend/Dockerfile` — tsc 编译 + 仅生产依赖，非 root，挂 uploads 卷
 - `.github/workflows/dependency-scan.yml` — osv-scanner 依赖漏洞周扫
 - `backend/.env.example` — 环境变量样例（数据库/认证/SMTP/VAPID/S3/加密密钥）
+- `docs/openapi.yaml` — OpenAPI 3.0 机器可读规范（167 操作；与 app.ts 挂载表经 `check-openapi-coverage.ts` 双向比对，接口语义以 docs/api.md 为准）
 
 ## 走查脚本 `.walkthrough/`（不入库的 Playwright 工具集）
 - 截图生成：`help-screenshot*.mjs`（帮助中心 tab-*.png）、`stage-signup-shots.mjs` 等
