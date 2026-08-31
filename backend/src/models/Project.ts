@@ -36,6 +36,8 @@ export interface IProject {
   ticketPriceCents: number;
   ticketCount: number;
   ticketTypes: ITicketType[];
+  /** QQ 群 group_openid（项目群通知投递目标） */
+  qqGroupOpenId?: string;
 }
 
 export type ProjectDoc = HydratedDocument<IProject>;
@@ -72,6 +74,7 @@ const schema = new Schema<IProject>(
     ticketPriceCents: { type: Number, default: 0 },
     ticketCount: { type: Number, default: 0 },
     ticketTypes: { type: [{ name: String, priceCents: Number, count: Number, _id: false }], default: [] },
+    qqGroupOpenId: String,
   },
   { timestamps: true },
 );

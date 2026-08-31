@@ -8,6 +8,8 @@ export interface IUser {
   contacts: { platform: string; value: string }[];
   inviteCodeId?: Types.ObjectId;
   onboardedAt: Date | null;
+  /** QQ 开放平台 C2C user_openid（QQ 通知渠道投递目标；publicUser 不导出） */
+  qqOpenId?: string;
 }
 
 export type UserDoc = HydratedDocument<IUser>;
@@ -21,6 +23,7 @@ const userSchema = new Schema<IUser>(
     contacts: [{ platform: String, value: String, _id: false }],
     inviteCodeId: { type: Schema.Types.ObjectId, ref: 'InviteCode' },
     onboardedAt: { type: Date, default: null },
+    qqOpenId: String,
   },
   { timestamps: true },
 );

@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import { authRequired, rejectApiKey } from '../middleware/auth';
 import { TrialSession } from '../models/TrialSession';
-import { publicUser } from '../models/User';
+import { publicUser, User } from '../models/User';
+import { createBindCode } from '../services/qqbot';
+import { qqConfigured } from '../services/qqApi';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
 
@@ -15,6 +17,7 @@ meRouter.get(
     res.json({
       user: publicUser(req.user!),
       trialExpiresAt: session ? session.expiresAt.toISOString() : null,
+      qq: { enabled: qqConfigured(), bound: Boolean(req.user!.qqOpenId) },
     });
   }),
 );
@@ -49,5 +52,24 @@ meRouter.post(
       await u.save();
     }
     res.json({ user: publicUser(u) });
+  }),
+);
+
+// ---- QQ 通知绑定 ----
+
+meRouter.post(
+  '/qq-bind-code',
+  ah(async (req, res) => {
+    if (!qqConfigured()) throw new AppError(503, 'qq_disabled', '部署未启用 QQ 通知');
+    const { code, expiresAt } = await createBindCode('user', req.userId!);
+    res.status(201).json({ code, expiresAt: expiresAt.toISOString() });
+  }),
+);
+
+meRouter.delete(
+  '/qq-binding',
+  ah(async (req, res) => {
+    await User.updateOne({ _id: req.userId }, { $unset: { qqOpenId: 1 } });
+    res.json({ qqBound: false });
   }),
 );

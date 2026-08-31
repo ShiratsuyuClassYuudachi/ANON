@@ -18,6 +18,8 @@ function projectJson(p: DbProject) {
     stages: stages.map((s) => ({ id: s.id, name: s.name, order: s.order, completedAt: s.completedAt, note: s.note })),
     roles: p.roles,
     createdBy: p.createdBy,
+    qqGroupBound: false,
+    qqEnabled: false,
   };
 }
 

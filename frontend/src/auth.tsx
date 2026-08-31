@@ -26,7 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     try {
-      const d = await api<{ user: User; trialExpiresAt?: string | null }>('/api/me');
+      const d = await api<{ user: User; trialExpiresAt?: string | null; qq?: { enabled: boolean; bound: boolean } }>('/api/me');
       setUser(d.user);
       setTrialExpiresAt(d.trialExpiresAt ?? null);
     } catch {

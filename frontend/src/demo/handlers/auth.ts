@@ -32,7 +32,8 @@ export const authRoutes: Route[] = [
   }),
 
   def('GET', '/api/me', async (ctx) => {
-    return json({ user: userJson(currentUser(ctx.db)), trialExpiresAt: null });
+    // QQ：演示站未配置机器人凭证，卡片显示未启用（与 push 未配置一致）
+    return json({ user: userJson(currentUser(ctx.db)), trialExpiresAt: null, qq: { enabled: false, bound: false } });
   }),
 
   def('PATCH', '/api/me', async (ctx) => {
