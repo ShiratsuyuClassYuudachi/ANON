@@ -18,6 +18,8 @@ export const config = {
     secretKey: process.env.S3_SECRET_KEY ?? '',
   },
   cronSecret: process.env.CRON_SECRET ?? '',
+  // 前端公开地址（通知消息拼接「查看」链接用，如 https://app.example.com；置空不拼链接）
+  publicBaseUrl: (process.env.PUBLIC_BASE_URL ?? '').replace(/\/+$/, ''),
   superAdminEmail: (process.env.SUPER_ADMIN_EMAIL ?? '').toLowerCase(),
   // 试用模式账号邮箱：该邮箱 + 任意 ≥8 位密码登录进入独立演示环境；置空禁用
   trialEmail: (process.env.TRIAL_EMAIL ?? 'admin@test.com').toLowerCase(),
@@ -33,5 +35,11 @@ export const config = {
     publicKey: process.env.VAPID_PUBLIC_KEY ?? '',
     privateKey: process.env.VAPID_PRIVATE_KEY ?? '',
     subject: process.env.VAPID_SUBJECT ?? 'mailto:anon@localhost',
+  },
+  // QQ 机器人通知（QQ 开放平台 Bot API v2）：凭证未配置时 QQ 渠道静默禁用，不影响其他渠道
+  qq: {
+    appId: process.env.QQ_BOT_APP_ID ?? '',
+    appSecret: process.env.QQ_BOT_APP_SECRET ?? '',
+    sandbox: process.env.QQ_BOT_SANDBOX === 'true',
   },
 };

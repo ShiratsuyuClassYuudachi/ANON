@@ -58,7 +58,9 @@ cronRouter.post(
           metadata: { todoId: todo._id.toString() },
           recipients: todo.assigneeIds.map((id) => id.toString()),
         });
-        if (ok) await ReminderLog.create({ todoId: todo._id, kind });
+        // targetId 必须写入：FerretDB 的 sparse 唯一索引会把缺失 targetId 当 null 值索引，
+        // 缺省时第二条同 kind 记录即撞 E11000（真实 MongoDB 的 sparse 会跳过缺失字段）
+        if (ok) await ReminderLog.create({ todoId: todo._id, kind, targetId: todo._id });
         sent += 1;
       }
     }

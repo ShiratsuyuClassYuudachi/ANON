@@ -6,6 +6,7 @@ import { useAuth } from '../auth';
 import { ModeToggle, useTheme } from '@/theme';
 import ApiKeysCard from '../components/ApiKeysCard';
 import PushSettingsCard from '../components/PushSettingsCard';
+import QqBindCard from '../components/QqBindCard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -93,6 +94,8 @@ export default function Me() {
       </Card>
 
       <PushSettingsCard />
+
+      <QqBindCard />
 
       <ApiKeysCard />
 

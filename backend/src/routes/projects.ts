@@ -10,6 +10,8 @@ import { Todo } from '../models/Todo';
 import { User } from '../models/User';
 import { logActivity } from '../services/activity';
 import { ALL_PERMISSIONS, PRESET_ROLES } from '../services/permissions';
+import { createBindCode } from '../services/qqbot';
+import { qqConfigured } from '../services/qqApi';
 import { computeHealth } from '../services/risk';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
@@ -33,6 +35,8 @@ function projectJson(p: InstanceType<typeof Project>) {
     stages: stages.map((s) => ({ id: s._id.toString(), name: s.name, order: s.order, completedAt: s.completedAt?.toISOString() ?? null, note: s.note ?? '' })),
     roles: p.roles,
     createdBy: p.createdBy.toString(),
+    qqGroupBound: Boolean(p.qqGroupOpenId),
+    qqEnabled: qqConfigured(),
   };
 }
 
@@ -264,5 +268,26 @@ projectsRouter.post(
       expiresAt: new Date(Date.now() + hours * 3600_000),
     });
     res.status(201).json({ token, url: `/invite/${token}` });
+  }),
+);
+
+// ---- QQ 群通知绑定 ----
+
+projectsRouter.post(
+  '/:id/qq-bind-code',
+  ...requirePermission('project:manage'),
+  ah(async (req, res) => {
+    if (!qqConfigured()) throw new AppError(503, 'qq_disabled', '部署未启用 QQ 通知');
+    const { code, expiresAt } = await createBindCode('project', req.project!._id.toString());
+    res.status(201).json({ code, expiresAt: expiresAt.toISOString() });
+  }),
+);
+
+projectsRouter.delete(
+  '/:id/qq-binding',
+  ...requirePermission('project:manage'),
+  ah(async (req, res) => {
+    await Project.updateOne({ _id: req.project!._id }, { $unset: { qqGroupOpenId: 1 } });
+    res.json({ qqGroupBound: false });
   }),
 );

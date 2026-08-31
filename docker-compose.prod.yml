@@ -57,6 +57,12 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-}
+      # QQ 机器人通知（可选）：未配置时 QQ 渠道静默禁用
+      QQ_BOT_APP_ID: ${QQ_BOT_APP_ID:-}
+      QQ_BOT_APP_SECRET: ${QQ_BOT_APP_SECRET:-}
+      QQ_BOT_SANDBOX: ${QQ_BOT_SANDBOX:-}
+      # 前端公开地址（可选）：QQ 通知消息末尾附「查看」链接时用作基座
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
       PLATFORM_CRYPTO_KEY: ${PLATFORM_CRYPTO_KEY:-}
       # 对象存储（S3）：默认指向编排内 minio；S3_ENDPOINT= 置空回退本地磁盘
       S3_ENDPOINT: ${S3_ENDPOINT-http://minio:9000}

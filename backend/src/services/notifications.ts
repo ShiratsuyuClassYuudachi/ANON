@@ -4,6 +4,7 @@ import { Project } from '../models/Project';
 import { User } from '../models/User';
 import { sendMail } from './mailer';
 import { webPushChannel } from './webpush';
+import { qqChannel } from './qqbot';
 
 // --- 事件与载荷 ---
 
@@ -41,6 +42,7 @@ export interface NotificationRecipient {
   userId: string;
   name: string;
   email?: string;
+  qqOpenId?: string;
 }
 
 // --- 渠道接口：新增站内 / Web Push 等渠道时实现并注册即可 ---
@@ -61,7 +63,7 @@ class EmailChannel implements NotificationChannel {
 }
 
 /** 已注册渠道；新增渠道时 push 实现 */
-export const notificationChannels: NotificationChannel[] = [new EmailChannel(), webPushChannel];
+export const notificationChannels: NotificationChannel[] = [new EmailChannel(), webPushChannel, qqChannel];
 
 /**
  * 统一通知入口：解析收件人（排除 actorId）→ 逐渠道投递。
@@ -74,7 +76,7 @@ export function notify(payload: NotificationPayload): Promise<boolean> {
       const users = await User.find({ _id: { $in: payload.recipients } }).lean();
       const recipients: NotificationRecipient[] = users
         .filter((u) => !payload.actorId || u._id.toString() !== payload.actorId)
-        .map((u) => ({ userId: u._id.toString(), name: u.name, email: u.email }));
+        .map((u) => ({ userId: u._id.toString(), name: u.name, email: u.email, qqOpenId: u.qqOpenId }));
       if (recipients.length === 0) return true;
       const results = await Promise.all(
         notificationChannels.map((ch) =>

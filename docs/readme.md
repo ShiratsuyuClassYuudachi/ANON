@@ -6,7 +6,7 @@ ANON 是一个「活动全流程追踪」协作系统，面向展会/同人活�
 - **试用模式**：`TRIAL_EMAIL`（默认 `admin@test.com`）+ 任意 ≥8 位密码登录即建独立演示环境（全模块演示数据），同密码 24h 内复用，到期自动级联销毁；试用期间全站顶部展示「试用」横幅与销毁时间
 - **纯前端演示站**：`npm run build:demo` 构建不依赖后端的 Cloudflare Pages 演示站——浏览器内 mock 全部 `/api`（中文示例数据，访客修改会话内保留、关页还原），全站角标 + 横幅标识；部署与 mock 内核原理见 [`docs/demo-site.md`](./demo-site.md)
 - **待办**：快速创建 + 按类别分组列表 / 进度时间线（完成前多次提交进度，备注+附件）/ 完成带附件 / 编辑与重新打开 / 模板导入导出 / 到期与节点邮件提醒（cron + SMTP）；`todo:create` 创建权限点
-- **通知**：统一通知管线（渠道接口，当前为邮件 + Web Push）：待办指派/改派/完成/新进度、现场任务分配、重要/紧急公告、现场异常上报、新风险、里程碑临近、周报
+ - **通知**：统一通知管线（渠道接口，当前为邮件 + Web Push + QQ 机器人）：待办指派/改派/完成/新进度、现场任务分配、重要/紧急公告、现场异常上报、新风险、里程碑临近、周报；QQ 侧支持个人单聊（全量）与项目群（精选类型）绑定码关联
 - **财务**：收支记账、多票种门票盈亏、按人净额与转账建议、CSV 导出
 - **物料**：类型 / 多版本 / WebP 预览 / 可见范围
 - **账号**：三模式平台账号（完整 / OTP 辅助 / 联系人），浏览器端或服务端加密
@@ -61,6 +61,8 @@ cd frontend && npm install && npm run dev
 | `TRIAL_EMAIL` | 否 | 试用模式账号邮箱（默认 `admin@test.com`）：该邮箱 + 任意 ≥8 位密码登录进入独立演示环境（24h 自动销毁）；置空禁用 |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | 否 | SMTP 发信配置；未配置 `SMTP_HOST` 时邮件退化为控制台日志（存根） |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | 否 | Web Push 推送（`npx web-push generate-vapid-keys` 生成密钥）；未配置时推送渠道静默禁用，邮件不受影响 |
+| `QQ_BOT_APP_ID` / `QQ_BOT_APP_SECRET` / `QQ_BOT_SANDBOX` | 否 | QQ 机器人通知（QQ 开放平台 Bot API v2 凭证，`QQ_BOT_SANDBOX=true` 走沙箱环境）；未配置时 QQ 渠道静默禁用。管理端前提：勾选「单聊/群聊消息事件」订阅（否则网关收不到事件）；群主动消息需单独开通权限（有数分钟生效延迟；沙箱环境另需在「沙箱配置」白名单加群） |
+| `PUBLIC_BASE_URL` | 否 | 前端公开地址（如 `https://app.example.com`）：QQ 通知消息末尾附「查看」链接时用作基座；置空不拼链接 |
 | `PLATFORM_CRYPTO_KEY` | 否 | 平台账号「服务端加密」模式的密钥源（SHA-256 派生 AES-256-GCM 密钥）；缺省回退 `JWT_SECRET`。浏览器端 ANONv1 加密（默认）不依赖此项 |
 
 ## cron 提醒

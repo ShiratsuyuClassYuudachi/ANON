@@ -41,6 +41,8 @@ interface ProjectDetail {
   id: string; name: string; description: string; status: ProjectStatus;
   startDate: string|null; endDate: string|null; location: string; timezone: string;
   currentStage: string; stages: StageItem[]; roles: Role[]; createdBy: string;
+  qqGroupBound: boolean; // 是否已绑定 QQ 群（群 openid 不外泄）
+  qqEnabled: boolean;    // 部署是否配置了 QQ 机器人凭证
 }
 interface TodoItem {
   id: string; title: string; category: string;
@@ -102,7 +104,7 @@ interface FileMeta { id: string; filename: string; mime: string; size: number }
 
 ### GET /api/me
 
-响应 200：`{ user: User, trialExpiresAt: string | null }`（试用会话返回销毁时间，非试用恒为 `null`）
+响应 200：`{ user: User, trialExpiresAt: string | null, qq: { enabled: boolean, bound: boolean } }`（试用会话返回销毁时间，非试用恒为 `null`；`qq.enabled` = 部署已配置 QQ 机器人凭证，`qq.bound` = 当前用户已绑定 QQ）
 
 ### PATCH /api/me
 
@@ -113,6 +115,17 @@ interface FileMeta { id: string; filename: string; mime: string; size: number }
 
 标记当前用户已完成新手引导。幂等：仅首次调用写入 `onboardedAt`（当前时间），重复调用不刷新时间戳。
 响应 200：`{ user: User }`
+
+### POST /api/me/qq-bind-code
+
+生成 QQ 绑定码：6 位数字，10 分钟有效；同用户单一有效码，重复生成旧码作废。随后在 QQ 私聊机器人发送「绑定 XXXXXX」完成关联（机器人被动回复确认）。
+响应 201：`{ code: string, expiresAt: string }`
+错误：503 `qq_disabled`（部署未配置 QQ 机器人凭证）
+
+### DELETE /api/me/qq-binding
+
+解绑当前用户的 QQ（清除 qqOpenId，幂等）。QQ 侧删除机器人好友（FRIEND_DEL 事件）也会自动解绑。
+响应 200：`{ qqBound: false }`
 
 ---
 
@@ -175,6 +188,16 @@ interface FileMeta { id: string; filename: string; mime: string; size: number }
   响应 201：`{ token: string, url: "/invite/<token>" }`（前端拼 `location.origin + url` 发给对方）
   - 不传 `targetUserId`：开放链接，任何登录用户可接受（一次性）
   - 传 `targetUserId`：仅该用户可接受
+
+### QQ 群通知
+
+- **POST /api/projects/:id/qq-bind-code**（需 `project:manage`）
+  生成项目 QQ 群绑定码（规则同个人绑定码）。把机器人拉进 QQ 群并 @机器人 发送「绑定 XXXXXX」完成关联；绑定后群里收到精选类型通知（里程碑临近、待办节点/到期提醒、重要/紧急公告、新风险、现场异常、每周周报；高频的指派/进度/完成/现场任务分配只发个人单聊不进群）。
+  响应 201：`{ code: string, expiresAt: string }`
+  错误：503 `qq_disabled`
+- **DELETE /api/projects/:id/qq-binding**（需 `project:manage`）
+  解绑项目 QQ 群（幂等）。QQ 侧把机器人移出群（GROUP_DEL_ROBOT 事件）也会自动解绑。
+  响应 200：`{ qqGroupBound: false }`
 
 ### 项目阶段
 
@@ -476,7 +499,7 @@ interface RiskItem {
 
 ## 定时提醒（运维）
 
-提醒统一走通知管线（`services/notifications.ts`）：向收件人投递邮件 + Web Push 两个渠道，单渠道失败仅记日志；仅在投递成功后写去重标记，失败下次扫描自动重试。
+提醒统一走通知管线（`services/notifications.ts`）：向收件人投递邮件 + Web Push + QQ 机器人三个渠道，单渠道失败仅记日志；仅在投递成功后写去重标记，失败下次扫描自动重试。
 
 ### POST /api/cron/reminders（公开路径，密钥保护）
 
@@ -511,6 +534,20 @@ interface RiskItem {
 
 请求：`{ endpoint: string }`（仅删当前用户名下的该订阅）
 响应 200：`{ ok: true, removed: number }`
+
+---
+
+## QQ 机器人通知
+
+配置 `QQ_BOT_APP_ID` / `QQ_BOT_APP_SECRET`（QQ 开放平台 Bot API v2，可选 `QQ_BOT_SANDBOX=true` 走沙箱）后启用第三通知渠道；未配置时静默禁用。事件接收走 WebSocket 网关（出站连接，无需公网回调地址），仅用于绑定流程与解绑清理。
+
+- **个人单聊**：成员在「个人资料」页生成绑定码，QQ 私聊机器人发送「绑定 XXXXXX」；绑定后收到全部发给自己的通知。QQ 侧删除好友或站内解绑即解除。
+- **项目群**：管理者在项目「设置」页生成绑定码，机器人拉进群后 @机器人 发送「绑定 XXXXXX」；群里只收精选类型（里程碑临近、待办节点/到期提醒、重要/紧急公告、新风险、现场异常、周报）。
+- 通知为纯文本（`msg_type=0`），配置 `PUBLIC_BASE_URL` 后消息末尾附「查看」链接；绑定确认走被动回复（不占主动消息额度）。
+- 投递韧性：单目标失败仅记日志；有目标且全部失败时本次投递视为失败（cron 不写去重标记，下轮重试）。
+- 管理端前提：机器人需勾选「单聊/群聊消息事件」订阅（否则网关收不到事件）；群主动消息需单独开通「主动消息」权限（开通有数分钟生效延迟）。
+
+绑定/解绑接口见「个人资料」与「项目 · QQ 群通知」节。
 
 ---
 

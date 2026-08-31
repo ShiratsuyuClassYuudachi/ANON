@@ -30,7 +30,7 @@
 | 失物招领/公开查找页 | routes/lostFound.ts、models/{LostFoundItem,LostFoundShare}.ts、services/permissions.ts（迁移） | project/tools/LostFound*.tsx、pages/PublicLostFound.tsx、pages/OnsitePage.tsx（现场录入入口） | tests/lostFound.test.ts |
 | 自定义工具/OpenAPI（API 密钥） | routes/{customTools,open}.ts、models/{CustomTool,ApiKey}.ts、middleware/auth.ts（anonk_ 分流 + rejectApiKey 围栏）、middleware/projectAccess.ts（项目绑定 + scopes 收窄）、utils/jwt.ts（kind 隔离 + tool-launch） | project/ToolsTab.tsx、project/tools/{CustomToolEmbed,CustomToolDialog}.tsx、lib/toolLaunch.ts（启动令牌 postMessage 握手投递）、components/ApiKeysCard.tsx（Me 页）、lib/permissions.ts（共享权限清单） | tests/{customTools,open}.test.ts |
 | 里程碑 | routes/milestones.ts、models/Milestone.ts | project/MilestoneSection.tsx | — |
-| 通知（邮件+WebPush）/ cron | services/{notifications,mailer,webpush}.ts、routes/{push,cron}.ts、models/{PushSubscription,ReminderLog,WeeklyReportLog}.ts | lib/push.ts、components/{PushBanner,PushSettingsCard}.tsx、scripts/patch-sw.mjs | tests/{notifications,push,cron}.test.ts |
+| 通知（邮件+WebPush+QQ）/ cron | services/{notifications,mailer,webpush,qqApi,qqbot,qqGateway}.ts、routes/{push,cron}.ts、models/{PushSubscription,ReminderLog,WeeklyReportLog,QQBindCode}.ts、routes/{me,projects}.ts（qq-bind-code/qq-binding 端点） | lib/push.ts、components/{PushBanner,PushSettingsCard,QqBindCard}.tsx、project/SettingsTab.tsx（QQ 群通知卡）、scripts/patch-sw.mjs | tests/{notifications,push,cron,qq}.test.ts |
 | PWA 安装入口 | —（纯前端） | lib/pwaInstall.ts（事件捕获/状态）、components/PwaInstallGuide.tsx（指引弹层）、pages/ProjectHome.tsx（「更多」Sheet 行） | .walkthrough/pwa-install.mjs（走查） |
 | 试用模式 | services/trial.ts、models/TrialSession.ts、services/demoSeed.ts | components/TrialBanner.tsx | tests/trial.test.ts |
 | 纯前端演示站 | —（mock 后端契约） | demo/ 全目录、components/{DemoBadge,DemoBanner}.tsx、vite.config.ts | — |
@@ -64,8 +64,8 @@
 ### 路由 `src/routes/`（27 个，一文件一业务域）
 - `auth.ts` — POST register/login/refresh/logout，JWT+refresh 轮换；/login 内嵌试用入口（trialLogin）
 - `admin.ts` — 超管邀请码 POST/GET /invite-codes
-- `me.ts` — 个人资料 GET/PATCH /、POST /onboarded
-- `projects.ts` — 项目 CRUD + roles/members/invites 子资源
+- `me.ts` — 个人资料 GET/PATCH /（GET 响应含 qq:{enabled,bound}）、POST /onboarded、QQ 绑定 POST /qq-bind-code、DELETE /qq-binding
+- `projects.ts` — 项目 CRUD + roles/members/invites 子资源 + QQ 群绑定 POST /:id/qq-bind-code、DELETE /:id/qq-binding（project:manage）
 - `invites.ts` — GET /:token 查询、POST /:token/accept
 - `todos.ts` — 待办 CRUD、模板 import/export、POST /:todoId/complete|updates
 - `finance.ts` — 账目 CRUD、PATCH /ticket、GET /export(CSV)
@@ -90,15 +90,16 @@
 - `push.ts` — GET /config(VAPID)、POST/DELETE /subscription
 - `cron.ts` — CRON_SECRET 鉴权：POST /reminders、POST /weekly-report
 
-### 模型 `src/models/`（35 个，Mongoose，`models.X ?? model(...)` 幂等注册）
-- `User.ts` — 用户：email/name/passwordHash/isSuperAdmin/contacts；导出 publicUser() 脱敏
+### 模型 `src/models/`（36 个，Mongoose，`models.X ?? model(...)` 幂等注册）
+- `User.ts` — 用户：email/name/passwordHash/isSuperAdmin/contacts/qqOpenId（QQ 单聊投递目标，publicUser 不导出）；导出 publicUser() 脱敏
 - `RefreshToken.ts` — 会话：tokenHash(sha256 唯一)、expiresAt
 - `InviteCode.ts` — 注册邀请码：code/createdBy/usedBy/usedAt
-- `Project.ts` — 项目：name/status/stages/roles/ticketTypes；导出默认阶段
+- `Project.ts` — 项目：name/status/stages/roles/ticketTypes/qqGroupOpenId（QQ 群投递目标）；导出默认阶段
 - `Membership.ts` — 成员：projectId+userId+roleName（唯一索引）
 - `ProjectInvite.ts` — 项目邀请：token/roleName/expiresAt
 - `Todo.ts` — 待办：title/assigneeIds/dueAt/status
-- `ReminderLog.ts` — 提醒去重：todoId+kind+targetId（唯一）
+- `ReminderLog.ts` — 提醒去重：todoId+kind+targetId（唯一；targetId 必填写入——FerretDB sparse 索引将缺失字段按 null 索引）
+- `QQBindCode.ts` — QQ 绑定码：code 唯一/kind(user|project)/userId|projectId/expiresAt（TTL 自动清理）
 - `Transaction.ts` — 财务：type/amountCents/payerUserId/splitAmong
 - `Resource.ts` / `ResourceType.ts` / `ResourceVersion.ts` / `File.ts` — 资料库四层：类型→资源→版本→文件；ResourceType 导出共用 visibilitySchema
 - `PhysicalCategory.ts` / `PhysicalItem.ts` / `PhysicalItemLog.ts` — 实物台账：分类(含默认常量)/条目(状态枚举+中文标签)/操作日志
@@ -135,6 +136,9 @@
 - `trial.ts` — trialLogin 派生独立演示环境；sweepExpiredTrials 24h 清扫
 - `visibility.ts` — canSee/isVisible 可见范围判定
 - `webpush.ts` — webpushChannel：VAPID 推送、410 清除失效订阅
+- `qqApi.ts` — QQ 传输层：getAppAccessToken 缓存单飞、C2C/群消息发送（msg_type=0，被动回复 msg_id/event_id）
+- `qqbot.ts` — QQ 绑定码生成/消费（单码、TTL、碰撞重试）+ qqChannel（群精选 7 类 + 单聊全量，全败 throw）
+- `qqGateway.ts` — QQ WebSocket 网关：Identify/Resume/心跳/事件去重/退避重连；handleQQEvent 绑定与解绑事件分发（导出供单测）
 - `workModules.ts` — buildSheet 任务单生成、moduleJson 序列化
 
 ### 测试 `tests/`（vitest + supertest + mongodb-memory-server，打真实路由）
@@ -167,7 +171,7 @@
 - `ProjectHome.tsx` — 项目主页：10 个按权限过滤的 Tab + 现场模式入口；移动端底部导航「更多」Sheet（现场模式/溢出 Tab/「安装应用」PWA 入口，指引弹层挂 Sheet 外由本页持有）
 - `OnsitePage.tsx` — 现场模式：签到/完成/异常上报（离线入队）、舞台执行卡（Rundown 开始/推进/顺延，按 tools:manage 显隐）、失物登记入口（复用 LostFoundItemDialog，按 myPermissions 显隐）、30s 轮询
 - `WorkSheetPrint.tsx` — 任务单打印页（按人/全员）
-- `Me.tsx` — 个人资料/联系方式/推送设置/API 密钥（ApiKeysCard）/界面偏好
+- `Me.tsx` — 个人资料/联系方式/推送设置/QQ 通知绑定（QqBindCard）/API 密钥（ApiKeysCard）/界面偏好
 - `Admin.tsx` — 超管邀请码管理
 - `InviteAccept.tsx` — 接受项目邀请
 - `PublicLostFound.tsx` — 失物招领免登录公开查找页（/lf/:token，搜索+状态筛选+照片）
@@ -182,6 +186,7 @@
 - `DemoBadge.tsx` / `DemoBanner.tsx` — 演示站角标 / 横幅（一键还原种子）
 - `TrialBanner.tsx` — 试用横幅（数据销毁倒计时）
 - `PushBanner.tsx` / `PushSettingsCard.tsx` — Push 提示条 / 订阅开关卡
+- `QqBindCard.tsx` — Me 页 QQ 通知卡：未启用提示 / 生成绑定码（大字码+指引）/ 已绑定+解绑
 - `PwaInstallGuide.tsx` — PWA 手动安装指引弹层（iOS 分享路径 / 浏览器菜单路径两版；由 ProjectHome 挂在「更多」Sheet 外）
 - `ApiKeysCard.tsx` — Me 页 API 密钥卡：自助生成（项目+实有权限点+30 天/永久）、一次性原文展示复制、列表与撤销
 - `Toaster.tsx` — sonner 封装；`Logo.tsx` — 品牌标识（应用图标 /icons/icon-192.png + ANON 字样，顶栏/登录/注册共用）
