@@ -166,10 +166,15 @@ async function connectOnce(state: GatewayState): Promise<boolean> {
     const ws = new WebSocket(url);
     let heartbeat: NodeJS.Timeout | null = null;
     let readySeen = false;
+    /** 半连接探活：上一心跳未收到任何回包则判定连接已死 */
+    let awaitingAck = false;
+    // 握手守卫：对端不回复 Hello 时 ws 可能永不触发任何事件，15s 无 Hello 主动终止走重连
+    const handshakeGuard = setTimeout(() => ws.terminate(), 15_000);
 
     const stopHeartbeat = () => {
       if (heartbeat) clearInterval(heartbeat);
       heartbeat = null;
+      awaitingAck = false;
     };
     const identify = () =>
       ws.send(JSON.stringify({
@@ -180,6 +185,7 @@ async function connectOnce(state: GatewayState): Promise<boolean> {
       ws.send(JSON.stringify({ op: 6, d: { token: `QQBot ${token}`, session_id: state.sessionId, seq: state.lastSeq } }));
 
     ws.on('message', (raw) => {
+      awaitingAck = false; // 任何回包都证明连接存活
       let msg: GatewayFrame;
       try {
         msg = JSON.parse(raw.toString()) as GatewayFrame;
@@ -190,10 +196,18 @@ async function connectOnce(state: GatewayState): Promise<boolean> {
       if (typeof s === 'number') state.lastSeq = s;
       switch (op) {
         case 10: { // Hello：起心跳，然后 Identify 或 Resume
+          clearTimeout(handshakeGuard);
           stopHeartbeat();
           const hello = (d ?? {}) as { heartbeat_interval?: number };
           heartbeat = setInterval(() => {
-            if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ op: 1, d: state.lastSeq }));
+            if (ws.readyState !== WebSocket.OPEN) return;
+            if (awaitingAck) {
+              // 上一心跳无回包：半开连接，主动终止走重连
+              ws.terminate();
+              return;
+            }
+            awaitingAck = true;
+            ws.send(JSON.stringify({ op: 1, d: state.lastSeq }));
           }, Number(hello.heartbeat_interval ?? 45_000));
           if (state.sessionId && state.lastSeq != null && !state.forceIdentify) resume();
           else identify();
@@ -230,6 +244,7 @@ async function connectOnce(state: GatewayState): Promise<boolean> {
     });
     ws.on('error', (err) => console.error('[qq-gateway] ws error:', err));
     ws.on('close', (code) => {
+      clearTimeout(handshakeGuard);
       stopHeartbeat();
       if (code === 4006 || code === 4007) {
         // 会话失效：重新 Identify
