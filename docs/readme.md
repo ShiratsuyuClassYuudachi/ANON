@@ -155,6 +155,7 @@ CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... npm run deploy
 - `deploy` 脚本会把 `frontend/dist` 拷成 `.deploy-assets/` 并剔除 `_redirects`（Pages 专用，与 SPA `not_found_handling` 组合会触发 CF API 无限重定向校验，code 100324），再 `wrangler deploy`
 - `/api` 反代时显式写 `X-Forwarded-For: <cf-connecting-ip>`，保证后端登录限流按真实客户端 IP 计数（否则全员共享 CF 出口 IP 配额）
 - 静态响应的安全头（CSP/nosniff/XFO 等）在 `worker/src/index.js` 复刻自 `frontend/nginx.conf`——改 nginx 安全头时两边同步
+- **QQ webhook op13 验证在边缘应答**：控制台校验窗口仅 ~3s，回源链路超时会导致「签名校验不通过」，故 `POST /api/qq/webhook` 的 op13 由 Worker 直接用 Ed25519 签名回包（算法与后端 `services/qqWebhook.ts` 一致）；**需配置 Worker secret**：`cd worker && printf '%s' '<AppSecret>' | CLOUDFLARE_API_TOKEN=… npx wrangler secret put QQ_BOT_APP_SECRET`，AppSecret 轮换时两边同步更新（未配置时透明回源，源站按 `qq_disabled` 处理）
 - **回源链（同 zone 约束的完整解法）**：Worker 绑 `app.anontokyo.design` 后与源站域名同属一个 zone，Worker 子请求强制走 CF 边缘管线，不支持 `:30362` 非常用端口直连，且 Host 头改写需 Enterprise。落地方案四件套：DNS `origin.anontokyo.design` CNAME → `anon.anontokyo.design`（橙云，跟随 DDNS IP）+ Origin Rule（该主机名 destination port → 30362，Free 套餐唯一开放的回源改写）+ Configuration Rule（该主机名 SSL=Full，源站 30362 为 TLS）+ 源站 NPMplus 为 `origin.anontokyo.design` 配虚拟主机（转发与应用相同；Full 不校验证书，无需配 SSL）。`wrangler.toml [vars].ORIGIN = https://origin.anontokyo.design`；换源站/回源走 Tunnel 时改这里
 - **wrangler.toml 不写 routes**：自定义域名绑定存于 CF 侧 Workers Domains；写 routes 会触发 wrangler 对 zone workers/routes 的读对账，要求额外的 Zone Workers Routes 权限
 - 绑新自定义域名：Dashboard -> Workers -> anon-app -> Domains 添加，token 需补 Workers Routes: Edit

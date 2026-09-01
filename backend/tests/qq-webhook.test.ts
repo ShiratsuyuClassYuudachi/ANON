@@ -93,6 +93,7 @@ describe('QQ webhook 回调', () => {
       d: { id: 'msg-w1', author: { user_openid: 'qq-open-wh1', union_openid: 'union-wh1' }, content: `绑定 ${code}` },
     });
     expect(res.status).toBe(200);
+    expect(res.body).toEqual({ opcode: 12 });
 
     // 路由先回包后异步处理：等副作用落库
     await vi.waitFor(async () => {

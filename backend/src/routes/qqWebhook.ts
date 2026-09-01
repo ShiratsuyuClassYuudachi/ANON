@@ -35,6 +35,8 @@ qqWebhookRouter.post('/webhook', raw({ type: () => true }), (req, res) => {
       res.status(400).json({ error: { code: 'bad_request', message: '缺少 plain_token/event_ts' } });
       return;
     }
+    // 联调期观测：记录 QQ 侧宣告的 bot appid 与挑战值（plain_token 为一次性随机串，非敏感）
+    console.log(`[qq] webhook op13 验证: appid=${req.header('X-Bot-Appid') ?? '?'} ts=${eventTs} token=${plainToken}`);
     res.json({ plain_token: plainToken, signature: signValidation(eventTs, plainToken) });
     return;
   }
@@ -51,6 +53,7 @@ qqWebhookRouter.post('/webhook', raw({ type: () => true }), (req, res) => {
   const dedupKey = frame.t === 'C2C_MESSAGE_CREATE' || frame.t === 'GROUP_AT_MESSAGE_CREATE' ? msgId : frame.id;
   const dup = dedupKey ? isDuplicate(dedupKey) : false;
 
-  res.json({}); // 先回包再处理：QQ 超时窗口短，AI 解析最长 30s+
+  // op 12 HTTP Callback ACK：webhook 模式标准回包（官方 opcode 表）；先回包再异步处理（AI 解析最长 30s+）
+  res.json({ opcode: 12 });
   if (!dup && frame.t) void handleQQEvent(frame.t, frame.d, frame.id);
 });
