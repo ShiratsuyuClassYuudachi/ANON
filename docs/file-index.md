@@ -39,7 +39,7 @@
 | 操作日志/动态 | models/Activity.ts、services/activity.ts、routes/activities.ts | —（暂未暴露界面） | — |
 | 可见范围（visibility） | services/visibility.ts、models/ResourceType.ts（visibilitySchema 共用子文档） | project/VisibilityPicker.tsx | 散见于各域测试 |
 | 个人中心/超管 | routes/{me,admin}.ts | pages/{Me,Admin}.tsx | tests/{me,admin}.test.ts |
-| 边缘部署/运维 | worker/src/index.js（含 QQ webhook op13 边缘验签）、wrangler.toml、docker-compose.prod.yml、frontend/nginx.conf、前后端 Dockerfile | — | .github/workflows/dependency-scan.yml |
+| 边缘部署/运维 | worker/src/index.js、wrangler.toml、docker-compose.prod.yml、frontend/nginx.conf、前后端 Dockerfile | — | .github/workflows/dependency-scan.yml |
 
 ## 后端 `backend/`
 
@@ -238,7 +238,7 @@
 - `Dockerfile` — 两阶段：构建 dist → nginx-unprivileged 托管
 
 ## 边缘与部署
-- `worker/src/index.js` — Cloudflare Worker 入口：/api/* 反代 ORIGIN（改写 X-Forwarded-For），静态走 ASSETS + 安全头；QQ webhook `/api/qq/webhook` op13 验证在边缘签名应答（secret 存 Worker secret `QQ_BOT_APP_SECRET`），其余帧回源
+- `worker/src/index.js` — Cloudflare Worker 入口：/api/* 反代 ORIGIN（改写 X-Forwarded-For），静态走 ASSETS + 安全头
 - `worker/wrangler.toml` — ORIGIN/ASSETS 绑定、SPA 回退、run_worker_first
 - `docker-compose.prod.yml` — 生产全栈：postgres + ferretdb + minio + backend + frontend
 - `docker-compose.yml` — 开发：仅 mongo:7
