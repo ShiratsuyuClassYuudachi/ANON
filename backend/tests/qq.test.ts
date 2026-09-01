@@ -8,7 +8,7 @@ import { QQBindCode } from '../src/models/QQBindCode';
 import { User } from '../src/models/User';
 import { notify } from '../src/services/notifications';
 import { createBindCode } from '../src/services/qqbot';
-import { handleQQEvent } from '../src/services/qqGateway';
+import { handleQQEvent } from '../src/services/qqEvents';
 import { createSuperAdmin, registerUser } from './helpers';
 
 // 拦截 QQ 发送（保留 createBindCode/consumeBindCode/qqConfigured 等真实实现），同 mailer mock 模式

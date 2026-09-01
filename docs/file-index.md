@@ -30,8 +30,8 @@
 | 失物招领/公开查找页 | routes/lostFound.ts、models/{LostFoundItem,LostFoundShare}.ts、services/permissions.ts（迁移） | project/tools/LostFound*.tsx、pages/PublicLostFound.tsx、pages/OnsitePage.tsx（现场录入入口） | tests/lostFound.test.ts |
 | 自定义工具/OpenAPI（API 密钥） | routes/{customTools,open}.ts、models/{CustomTool,ApiKey}.ts、middleware/auth.ts（anonk_ 分流 + rejectApiKey 围栏）、middleware/projectAccess.ts（项目绑定 + scopes 收窄）、utils/jwt.ts（kind 隔离 + tool-launch） | project/ToolsTab.tsx、project/tools/{CustomToolEmbed,CustomToolDialog}.tsx、lib/toolLaunch.ts（启动令牌 postMessage 握手投递）、components/ApiKeysCard.tsx（Me 页）、lib/permissions.ts（共享权限清单） | tests/{customTools,open}.test.ts |
 | 里程碑 | routes/milestones.ts、models/Milestone.ts | project/MilestoneSection.tsx | — |
-| 通知（邮件+WebPush+QQ）/ cron | services/{notifications,mailer,webpush,qqApi,qqbot,qqGateway}.ts、routes/{push,cron}.ts、models/{PushSubscription,ReminderLog,WeeklyReportLog,QQBindCode}.ts、routes/{me,projects}.ts（qq-bind-code/qq-binding 端点） | lib/push.ts、components/{PushBanner,PushSettingsCard,QqBindCard}.tsx、project/SettingsTab.tsx（QQ 群通知卡）、scripts/patch-sw.mjs | tests/{notifications,push,cron,qq}.test.ts |
-| QQ 群 AI 录单 | services/{qqTodo,ai,todos}.ts、qqGateway.ts（群@分发）、models/{User,Project}.ts（qqMemberIds/qqUnionOpenId/qqGroupOpenId）、config.ts（ai 块，AI_API_KEY 未配静默禁用） | —（无界面，群消息入口） | tests/qq-todo.test.ts |
+| 通知（邮件+WebPush+QQ）/ cron | services/{notifications,mailer,webpush,qqApi,qqbot,qqEvents,qqWebhook}.ts、routes/{push,cron,qqWebhook}.ts、models/{PushSubscription,ReminderLog,WeeklyReportLog,QQBindCode}.ts、routes/{me,projects}.ts（qq-bind-code/qq-binding 端点） | lib/push.ts、components/{PushBanner,PushSettingsCard,QqBindCard}.tsx、project/SettingsTab.tsx（QQ 群通知卡）、scripts/patch-sw.mjs | tests/{notifications,push,cron,qq,qq-webhook}.test.ts |
+| QQ 群 AI 录单 | services/{qqTodo,ai,todos}.ts、qqEvents.ts（群@分发）、models/{User,Project}.ts（qqMemberIds/qqUnionOpenId/qqGroupOpenId）、config.ts（ai 块，AI_API_KEY 未配静默禁用） | —（无界面，群消息入口） | tests/qq-todo.test.ts |
 | PWA 安装入口 | —（纯前端） | lib/pwaInstall.ts（事件捕获/状态）、components/PwaInstallGuide.tsx（指引弹层）、pages/ProjectHome.tsx（「更多」Sheet 行） | .walkthrough/pwa-install.mjs（走查） |
 | 试用模式 | services/trial.ts、models/TrialSession.ts、services/demoSeed.ts | components/TrialBanner.tsx | tests/trial.test.ts |
 | 纯前端演示站 | —（mock 后端契约） | demo/ 全目录、components/{DemoBadge,DemoBanner}.tsx、vite.config.ts | — |
@@ -59,10 +59,11 @@
 - `scripts/check-openapi-coverage.ts` — OpenAPI 覆盖率校验：双向比对 app.ts 挂载表与 `docs/openapi.yaml`（`--list` 打印全部操作清单；新增 app.use 时同步脚本内挂载表）
 
 ### 路由挂载（app.ts）
-- 顶级：`/api/auth`(限流 50/15min)、`/api/admin`、`/api/me`、`/api/open`、`/api/push`、`/api/invites`、`/api/files`、`/api/cron`、`/api/projects`、`/api/public/lostfound` 与 `/api/public/rundown-screen`(免登录,限流 300/min)
+- 顶级：`/api/qq`(webhook 回调，全局 json() 前挂载取原始 body)、`/api/auth`(限流 50/15min)、`/api/admin`、`/api/me`、`/api/open`、`/api/push`、`/api/invites`、`/api/files`、`/api/cron`、`/api/projects`、`/api/public/lostfound` 与 `/api/public/rundown-screen`(免登录,限流 300/min)
 - 项目域 `/api/projects/:id/`：`files` `todos` `work-modules` `work-sheet` `finance` `materials` `physical` `accounts` `dashboard` `onsite` `risks` `announcements` `activities` `stages` `stage-rundowns` `stage-signups` `custom-tools` `lostfound` `milestones`
 
-### 路由 `src/routes/`（27 个，一文件一业务域）
+### 路由 `src/routes/`（28 个，一文件一业务域）
+- `qqWebhook.ts` — POST /api/qq/webhook：QQ 事件回调（op13 地址验证签名回包、op0 验签+去重+异步分发 handleQQEvent；须在全局 json() 前挂载取原始 body）
 - `auth.ts` — POST register/login/refresh/logout，JWT+refresh 轮换；/login 内嵌试用入口（trialLogin）
 - `admin.ts` — 超管邀请码 POST/GET /invite-codes
 - `me.ts` — 个人资料 GET/PATCH /（GET 响应含 qq:{enabled,bound}）、POST /onboarded、QQ 绑定 POST /qq-bind-code、DELETE /qq-binding
@@ -139,7 +140,8 @@
 - `webpush.ts` — webpushChannel：VAPID 推送、410 清除失效订阅
 - `qqApi.ts` — QQ 传输层：getAppAccessToken 缓存单飞、C2C/群消息发送（msg_type=0，被动回复 msg_id/event_id）
 - `qqbot.ts` — QQ 绑定码生成/消费（单码、TTL、碰撞重试）+ qqChannel（群精选 7 类 + 单聊全量，全败 throw）
-- `qqGateway.ts` — QQ WebSocket 网关：Identify/Resume/心跳/事件去重/退避重连；handleQQEvent 事件分发（导出供单测）：绑定（项目码 + 群内个人码）/解绑/群@任务消息 AI 录单分发
+- `qqEvents.ts` — QQ 事件分发 handleQQEvent（webhook 路由与单测共用）：绑定（项目码 + 群内个人码）/解绑/群@任务消息 AI 录单分发
+- `qqWebhook.ts` — QQ webhook 验签：Ed25519（appSecret 倍增取 32 字节 seed）op13 回包签名 / 事件回调验签（timestamp+rawBody）；事件 id 去重（500 条 FIFO）
 - `qqTodo.ts` — QQ 群 AI 录单：群@任务消息 → parseTask 解析 → createTodo 建单；@成员三层身份对照（member_openid→union_openid→昵称唯一）；msg_id 被动回复建单结果
 - `ai.ts` — AI 待办解析（OpenAI 兼容 SDK，默认 DeepSeek deepseek-v4-flash）：parseTask 文本→结构化待办（isTask/title/三个时间/note），失败一律 null；客户端按 config.ai 缓存
 - `todos.ts` — 待办建单共用逻辑：createTodo（成员校验+落库+动态+指派通知）、assertAssigneesAreMembers/todoAssignBody/todoLink（HTTP 路由与 QQ 录单共用）
@@ -147,7 +149,7 @@
 
 ### 测试 `tests/`（vitest + supertest + mongodb-memory-server，打真实路由）
 - `setup.ts` / `helpers.ts` — 内存 Mongo 基建 / 造号工具（createSuperAdmin/registerUser）
-- 每域一个 `*.test.ts`：auth/admin/me/projects/invites/todos/todo-complete/todo-updates/template/finance/materials/files/physical/accounts/announcements/dashboard/onsite/workModules/stageRundowns/stageExecution/stageSignups/customTools/open/lostFound/notifications/push/cron/trial/onboarding/qq/qq-todo/health
+- 每域一个 `*.test.ts`：auth/admin/me/projects/invites/todos/todo-complete/todo-updates/template/finance/materials/files/physical/accounts/announcements/dashboard/onsite/workModules/stageRundowns/stageExecution/stageSignups/customTools/open/lostFound/notifications/push/cron/trial/onboarding/qq/qq-todo/qq-webhook/health
 
 ## 前端 `frontend/`
 

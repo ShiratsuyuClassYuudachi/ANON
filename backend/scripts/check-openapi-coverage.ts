@@ -29,6 +29,7 @@ import { onsiteRouter } from '../src/routes/onsite';
 import { openRouter } from '../src/routes/open';
 import { projectsRouter } from '../src/routes/projects';
 import { pushRouter } from '../src/routes/push';
+import { qqWebhookRouter } from '../src/routes/qqWebhook';
 import { physicalRouter } from '../src/routes/physical';
 import { risksRouter } from '../src/routes/risks';
 import { stagesRouter } from '../src/routes/stages';
@@ -40,6 +41,7 @@ import { workSheetRouter } from '../src/routes/workSheet';
 
 // 挂载表：逐行照抄 src/app.ts 的 app.use；app.get('/api/health') 单列在 healthOp
 const mounts: Array<[string, unknown]> = [
+  ['/api/qq', qqWebhookRouter],
   ['/api/auth', authRouter],
   ['/api/admin', adminRouter],
   ['/api/me', meRouter],
