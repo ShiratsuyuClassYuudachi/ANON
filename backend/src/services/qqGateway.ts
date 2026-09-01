@@ -3,10 +3,12 @@ import { Project } from '../models/Project';
 import { User } from '../models/User';
 import { consumeBindCode } from './qqbot';
 import { apiBase, getAccessToken, qqConfigured, sendC2CMessage, sendGroupMessage } from './qqApi';
+import { aiConfigured } from './ai';
+import { handleGroupTaskTodo } from './qqTodo';
 
 /**
  * QQ 网关（WebSocket，出站连接，无需公网回调）：
- * 接收 C2C/群@消息与好友/群事件，仅用于绑定流程与解绑清理，不做对话机器人。
+ * 接收 C2C/群@消息与好友/群事件：绑定流程、解绑清理、群@任务消息 AI 录单（不做自由对话）。
  * op 协议：10 Hello(心跳) → 2 Identify / 6 Resume → 0 事件分发；7 重连、9 无效会话。
  * 断线指数退避重连；close 4009/op7 → Resume，4006/4007/op9 → 重新 Identify。
  */
@@ -16,18 +18,20 @@ const INTENTS_GROUP_AND_C2C = 1 << 25;
 const INVALID_BIND_HINT = '绑定码无效或已过期，请在 ANON「我的」页重新生成。';
 const INVALID_GROUP_BIND_HINT = '绑定码无效或已过期，请项目管理者在项目「设置」页重新生成。';
 const FRIEND_GUIDE = '这里是 ANON 通知机器人。在 ANON 个人中心生成绑定码后，发送「绑定 XXXXXX」即可接收待办与里程碑提醒。';
-const GROUP_GUIDE = '这里是 ANON 通知机器人。项目管理者在项目「设置」页生成绑定码后，@我 发送「绑定 XXXXXX」即可让本群接收项目通知。';
+const GROUP_GUIDE = '这里是 ANON 通知机器人。项目管理者在项目「设置」页生成绑定码后，@我 发送「绑定 XXXXXX」即可让本群接收项目通知。@我 发送任务描述（如「周五前把海报送到印刷店」）可直接创建待办。';
 
 /** QQ 事件负载：字段全部可选，消费前逐个运行时校验 */
 interface C2CMessagePayload {
   id?: string;
-  author?: { user_openid?: string };
+  author?: { user_openid?: string; union_openid?: string };
   content?: string;
 }
 interface GroupAtMessagePayload {
   id?: string;
   group_openid?: string;
   content?: string;
+  author?: { member_openid?: string; union_openid?: string; username?: string };
+  mentions?: { member_openid?: string; union_openid?: string; username?: string }[];
 }
 interface OpenidPayload {
   openid?: string;
@@ -67,29 +71,58 @@ async function handleC2CMessage(d: C2CMessagePayload): Promise<void> {
     if (d.id) await sendC2CMessage(openid, INVALID_BIND_HINT, { msgId: d.id });
     return;
   }
-  const user = await User.findByIdAndUpdate(bind.userId, { qqOpenId: openid }, { new: true }).lean();
+  // union_openid 官方标注「可能为空」：仅在事件携带时写入，为空不覆盖已有值
+  const user = await User.findByIdAndUpdate(
+    bind.userId,
+    { qqOpenId: openid, ...(d.author?.union_openid ? { qqUnionOpenId: d.author.union_openid } : {}) },
+    { new: true },
+  ).lean();
   if (d.id) {
     await sendC2CMessage(openid, `绑定成功：已关联 ANON 账号「${user?.name ?? ''}」，待办/里程碑等提醒将发送到这里。`, { msgId: d.id });
   }
 }
 
-async function handleGroupAtMessage(d: { id?: string; group_openid?: string; content?: string }): Promise<void> {
+async function handleGroupAtMessage(d: GroupAtMessagePayload): Promise<void> {
   const groupOpenid = d.group_openid;
   if (!groupOpenid) return;
   const content = (d.content ?? '').trim();
   const code = extractBindCode(content);
-  if (!code) {
-    if (content.includes('绑定') && d.id) await sendGroupMessage(groupOpenid, INVALID_GROUP_BIND_HINT, { msgId: d.id });
-    return;
-  }
-  const bind = await consumeBindCode(code, 'project');
-  if (!bind?.projectId) {
+  if (code) {
+    // 先项目绑定码，未命中再试群内个人绑定码（@用户 指派解析依赖 qqMemberIds 对照表）
+    const bind = await consumeBindCode(code, 'project');
+    if (bind?.projectId) {
+      const project = await Project.findByIdAndUpdate(bind.projectId, { qqGroupOpenId: groupOpenid }, { new: true }).lean();
+      if (d.id) {
+        await sendGroupMessage(groupOpenid, `已绑定项目「${project?.name ?? ''}」，里程碑临近、待办到期等通知将发送到本群。@我 发送任务描述（如「周五前把海报送到印刷店」）可直接创建待办。`, { msgId: d.id });
+      }
+      return;
+    }
+    const memberOpenid = d.author?.member_openid;
+    const userBind = await consumeBindCode(code, 'user');
+    if (userBind?.userId && memberOpenid) {
+      const user = await User.findByIdAndUpdate(
+        userBind.userId,
+        {
+          $addToSet: { qqMemberIds: { groupOpenId: groupOpenid, memberOpenId: memberOpenid } },
+          ...(d.author?.union_openid ? { qqUnionOpenId: d.author.union_openid } : {}),
+        },
+        { new: true },
+      ).lean();
+      if (d.id) {
+        await sendGroupMessage(groupOpenid, `绑定成功：已关联 ANON 账号「${user?.name ?? ''}」，群里 @你 创建的待办会指派到你名下。`, { msgId: d.id });
+      }
+      return;
+    }
     if (d.id) await sendGroupMessage(groupOpenid, INVALID_GROUP_BIND_HINT, { msgId: d.id });
     return;
   }
-  const project = await Project.findByIdAndUpdate(bind.projectId, { qqGroupOpenId: groupOpenid }, { new: true }).lean();
-  if (d.id) {
-    await sendGroupMessage(groupOpenid, `已绑定项目「${project?.name ?? ''}」，里程碑临近、待办到期等通知将发送到本群。`, { msgId: d.id });
+  if (content.includes('绑定')) {
+    if (d.id) await sendGroupMessage(groupOpenid, INVALID_GROUP_BIND_HINT, { msgId: d.id });
+    return;
+  }
+  // 任务消息：仅已绑定项目且 AI 已配置时处理；否则静默忽略（渠道禁用语义）
+  if (aiConfigured() && (await Project.exists({ qqGroupOpenId: groupOpenid }))) {
+    await handleGroupTaskTodo(d);
   }
 }
 

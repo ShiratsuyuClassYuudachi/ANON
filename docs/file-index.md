@@ -17,7 +17,7 @@
 |---|---|---|---|
 | 认证/注册/会话 | routes/auth.ts、middleware/auth.ts、services/session.ts、utils/jwt.ts、models/{User,RefreshToken,InviteCode}.ts | pages/{Login,Register}.tsx、auth.tsx、api/client.ts | tests/auth.test.ts |
 | 项目/成员/角色/邀请 | routes/projects.ts、routes/invites.ts、models/{Project,Membership,ProjectInvite}.ts、services/permissions.ts | pages/{Projects,ProjectHome,InviteAccept}.tsx、project/{MembersTab,RolesTab,SettingsTab}.tsx | tests/{projects,invites}.test.ts |
-| 待办（含模板/进度） | routes/todos.ts、models/{Todo,ReminderLog}.ts、services/template.ts | project/{TodosTab,TodoFormDialog,TodoActionSheet}.tsx | tests/{todos,todo-complete,todo-updates,template}.test.ts |
+| 待办（含模板/进度） | routes/todos.ts、models/{Todo,ReminderLog}.ts、services/{template,todos}.ts | project/{TodosTab,TodoFormDialog,TodoActionSheet}.tsx | tests/{todos,todo-complete,todo-updates,template}.test.ts |
 | 财务 | routes/finance.ts、models/Transaction.ts、services/finance.ts | project/FinanceTab.tsx | tests/finance.test.ts |
 | 物料/资料库/文件 | routes/{materials,files}.ts、models/{Resource,ResourceType,ResourceVersion,File}.ts、services/{preview,storage}.ts、middleware/upload.ts | project/MaterialsTab.tsx、components/{AuthImg,AuthMedia}.tsx | tests/{materials,files}.test.ts |
 | 实物/物资台账 | routes/physical.ts、models/Physical{Category,Item,ItemLog}.ts | project/PhysicalTab.tsx | tests/physical.test.ts |
@@ -31,6 +31,7 @@
 | 自定义工具/OpenAPI（API 密钥） | routes/{customTools,open}.ts、models/{CustomTool,ApiKey}.ts、middleware/auth.ts（anonk_ 分流 + rejectApiKey 围栏）、middleware/projectAccess.ts（项目绑定 + scopes 收窄）、utils/jwt.ts（kind 隔离 + tool-launch） | project/ToolsTab.tsx、project/tools/{CustomToolEmbed,CustomToolDialog}.tsx、lib/toolLaunch.ts（启动令牌 postMessage 握手投递）、components/ApiKeysCard.tsx（Me 页）、lib/permissions.ts（共享权限清单） | tests/{customTools,open}.test.ts |
 | 里程碑 | routes/milestones.ts、models/Milestone.ts | project/MilestoneSection.tsx | — |
 | 通知（邮件+WebPush+QQ）/ cron | services/{notifications,mailer,webpush,qqApi,qqbot,qqGateway}.ts、routes/{push,cron}.ts、models/{PushSubscription,ReminderLog,WeeklyReportLog,QQBindCode}.ts、routes/{me,projects}.ts（qq-bind-code/qq-binding 端点） | lib/push.ts、components/{PushBanner,PushSettingsCard,QqBindCard}.tsx、project/SettingsTab.tsx（QQ 群通知卡）、scripts/patch-sw.mjs | tests/{notifications,push,cron,qq}.test.ts |
+| QQ 群 AI 录单 | services/{qqTodo,ai,todos}.ts、qqGateway.ts（群@分发）、models/{User,Project}.ts（qqMemberIds/qqUnionOpenId/qqGroupOpenId）、config.ts（ai 块，AI_API_KEY 未配静默禁用） | —（无界面，群消息入口） | tests/qq-todo.test.ts |
 | PWA 安装入口 | —（纯前端） | lib/pwaInstall.ts（事件捕获/状态）、components/PwaInstallGuide.tsx（指引弹层）、pages/ProjectHome.tsx（「更多」Sheet 行） | .walkthrough/pwa-install.mjs（走查） |
 | 试用模式 | services/trial.ts、models/TrialSession.ts、services/demoSeed.ts | components/TrialBanner.tsx | tests/trial.test.ts |
 | 纯前端演示站 | —（mock 后端契约） | demo/ 全目录、components/{DemoBadge,DemoBanner}.tsx、vite.config.ts | — |
@@ -91,7 +92,7 @@
 - `cron.ts` — CRON_SECRET 鉴权：POST /reminders、POST /weekly-report
 
 ### 模型 `src/models/`（36 个，Mongoose，`models.X ?? model(...)` 幂等注册）
-- `User.ts` — 用户：email/name/passwordHash/isSuperAdmin/contacts/qqOpenId（QQ 单聊投递目标，publicUser 不导出）；导出 publicUser() 脱敏
+- `User.ts` — 用户：email/name/passwordHash/isSuperAdmin/contacts/qqOpenId（QQ 单聊投递目标，publicUser 不导出）/qqUnionOpenId/qqMemberIds（群维度 member_openid 对照表，群@指派解析用）；导出 publicUser() 脱敏
 - `RefreshToken.ts` — 会话：tokenHash(sha256 唯一)、expiresAt
 - `InviteCode.ts` — 注册邀请码：code/createdBy/usedBy/usedAt
 - `Project.ts` — 项目：name/status/stages/roles/ticketTypes/qqGroupOpenId（QQ 群投递目标）；导出默认阶段
@@ -138,12 +139,15 @@
 - `webpush.ts` — webpushChannel：VAPID 推送、410 清除失效订阅
 - `qqApi.ts` — QQ 传输层：getAppAccessToken 缓存单飞、C2C/群消息发送（msg_type=0，被动回复 msg_id/event_id）
 - `qqbot.ts` — QQ 绑定码生成/消费（单码、TTL、碰撞重试）+ qqChannel（群精选 7 类 + 单聊全量，全败 throw）
-- `qqGateway.ts` — QQ WebSocket 网关：Identify/Resume/心跳/事件去重/退避重连；handleQQEvent 绑定与解绑事件分发（导出供单测）
+- `qqGateway.ts` — QQ WebSocket 网关：Identify/Resume/心跳/事件去重/退避重连；handleQQEvent 事件分发（导出供单测）：绑定（项目码 + 群内个人码）/解绑/群@任务消息 AI 录单分发
+- `qqTodo.ts` — QQ 群 AI 录单：群@任务消息 → parseTask 解析 → createTodo 建单；@成员三层身份对照（member_openid→union_openid→昵称唯一）；msg_id 被动回复建单结果
+- `ai.ts` — AI 待办解析（OpenAI 兼容 SDK，默认 DeepSeek deepseek-v4-flash）：parseTask 文本→结构化待办（isTask/title/三个时间/note），失败一律 null；客户端按 config.ai 缓存
+- `todos.ts` — 待办建单共用逻辑：createTodo（成员校验+落库+动态+指派通知）、assertAssigneesAreMembers/todoAssignBody/todoLink（HTTP 路由与 QQ 录单共用）
 - `workModules.ts` — buildSheet 任务单生成、moduleJson 序列化
 
 ### 测试 `tests/`（vitest + supertest + mongodb-memory-server，打真实路由）
 - `setup.ts` / `helpers.ts` — 内存 Mongo 基建 / 造号工具（createSuperAdmin/registerUser）
-- 每域一个 `*.test.ts`：auth/admin/me/projects/invites/todos/todo-complete/todo-updates/template/finance/materials/files/physical/accounts/announcements/dashboard/onsite/workModules/stageRundowns/stageExecution/stageSignups/customTools/open/lostFound/notifications/push/cron/trial/onboarding/health
+- 每域一个 `*.test.ts`：auth/admin/me/projects/invites/todos/todo-complete/todo-updates/template/finance/materials/files/physical/accounts/announcements/dashboard/onsite/workModules/stageRundowns/stageExecution/stageSignups/customTools/open/lostFound/notifications/push/cron/trial/onboarding/qq/qq-todo/health
 
 ## 前端 `frontend/`
 
