@@ -21,6 +21,7 @@ import { onsiteRouter } from './routes/onsite';
 import { openRouter } from './routes/open';
 import { projectsRouter } from './routes/projects';
 import { pushRouter } from './routes/push';
+import { qqWebhookRouter } from './routes/qqWebhook';
 import { physicalRouter } from './routes/physical';
 import { risksRouter } from './routes/risks';
 import { stagesRouter } from './routes/stages';
@@ -33,6 +34,8 @@ import { workSheetRouter } from './routes/workSheet';
 export const app = express();
 app.set('trust proxy', 1); // nginx 单跳代理，取真实客户端 IP 供限流
 app.use(helmet({ contentSecurityPolicy: false })); // CSP 由 nginx 对静态页下发；API 不需要
+// QQ webhook 必须在 json() 之前：验签需要原始请求体字节，路由内用 raw() 自取
+app.use('/api/qq', qqWebhookRouter);
 app.use(express.json({ limit: '2mb' }));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));

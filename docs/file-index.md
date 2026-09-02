@@ -17,7 +17,7 @@
 |---|---|---|---|
 | 认证/注册/会话 | routes/auth.ts、middleware/auth.ts、services/session.ts、utils/jwt.ts、models/{User,RefreshToken,InviteCode}.ts | pages/{Login,Register}.tsx、auth.tsx、api/client.ts | tests/auth.test.ts |
 | 项目/成员/角色/邀请 | routes/projects.ts、routes/invites.ts、models/{Project,Membership,ProjectInvite}.ts、services/permissions.ts | pages/{Projects,ProjectHome,InviteAccept}.tsx、project/{MembersTab,RolesTab,SettingsTab}.tsx | tests/{projects,invites}.test.ts |
-| 待办（含模板/进度） | routes/todos.ts、models/{Todo,ReminderLog}.ts、services/template.ts | project/{TodosTab,TodoFormDialog,TodoActionSheet}.tsx | tests/{todos,todo-complete,todo-updates,template}.test.ts |
+| 待办（含模板/进度） | routes/todos.ts、models/{Todo,ReminderLog}.ts、services/{template,todos}.ts | project/{TodosTab,TodoFormDialog,TodoActionSheet}.tsx | tests/{todos,todo-complete,todo-updates,template}.test.ts |
 | 财务 | routes/finance.ts、models/Transaction.ts、services/finance.ts | project/FinanceTab.tsx | tests/finance.test.ts |
 | 物料/资料库/文件 | routes/{materials,files}.ts、models/{Resource,ResourceType,ResourceVersion,File}.ts、services/{preview,storage}.ts、middleware/upload.ts | project/MaterialsTab.tsx、components/{AuthImg,AuthMedia}.tsx | tests/{materials,files}.test.ts |
 | 实物/物资台账 | routes/physical.ts、models/Physical{Category,Item,ItemLog}.ts | project/PhysicalTab.tsx | tests/physical.test.ts |
@@ -30,7 +30,8 @@
 | 失物招领/公开查找页 | routes/lostFound.ts、models/{LostFoundItem,LostFoundShare}.ts、services/permissions.ts（迁移） | project/tools/LostFound*.tsx、pages/PublicLostFound.tsx、pages/OnsitePage.tsx（现场录入入口） | tests/lostFound.test.ts |
 | 自定义工具/OpenAPI（API 密钥） | routes/{customTools,open}.ts、models/{CustomTool,ApiKey}.ts、middleware/auth.ts（anonk_ 分流 + rejectApiKey 围栏）、middleware/projectAccess.ts（项目绑定 + scopes 收窄）、utils/jwt.ts（kind 隔离 + tool-launch） | project/ToolsTab.tsx、project/tools/{CustomToolEmbed,CustomToolDialog}.tsx、lib/toolLaunch.ts（启动令牌 postMessage 握手投递）、components/ApiKeysCard.tsx（Me 页）、lib/permissions.ts（共享权限清单） | tests/{customTools,open}.test.ts |
 | 里程碑 | routes/milestones.ts、models/Milestone.ts | project/MilestoneSection.tsx | — |
-| 通知（邮件+WebPush+QQ）/ cron | services/{notifications,mailer,webpush,qqApi,qqbot,qqGateway}.ts、routes/{push,cron}.ts、models/{PushSubscription,ReminderLog,WeeklyReportLog,QQBindCode}.ts、routes/{me,projects}.ts（qq-bind-code/qq-binding 端点） | lib/push.ts、components/{PushBanner,PushSettingsCard,QqBindCard}.tsx、project/SettingsTab.tsx（QQ 群通知卡）、scripts/patch-sw.mjs | tests/{notifications,push,cron,qq}.test.ts |
+| 通知（邮件+WebPush+QQ）/ cron | services/{notifications,mailer,webpush,qqApi,qqbot,qqEvents,qqWebhook}.ts、routes/{push,cron,qqWebhook}.ts、models/{PushSubscription,ReminderLog,WeeklyReportLog,QQBindCode}.ts、routes/{me,projects}.ts（qq-bind-code/qq-binding 端点） | lib/push.ts、components/{PushBanner,PushSettingsCard,QqBindCard}.tsx、project/SettingsTab.tsx（QQ 群通知卡）、scripts/patch-sw.mjs | tests/{notifications,push,cron,qq,qq-webhook}.test.ts |
+| QQ 群 AI 录单 | services/{qqTodo,ai,todos}.ts、qqEvents.ts（群@分发）、models/{User,Project}.ts（qqMemberIds/qqUnionOpenId/qqGroupOpenId）、config.ts（ai 块，AI_API_KEY 未配静默禁用） | —（无界面，群消息入口） | tests/qq-todo.test.ts |
 | PWA 安装入口 | —（纯前端） | lib/pwaInstall.ts（事件捕获/状态）、components/PwaInstallGuide.tsx（指引弹层）、pages/ProjectHome.tsx（「更多」Sheet 行） | .walkthrough/pwa-install.mjs（走查） |
 | 试用模式 | services/trial.ts、models/TrialSession.ts、services/demoSeed.ts | components/TrialBanner.tsx | tests/trial.test.ts |
 | 纯前端演示站 | —（mock 后端契约） | demo/ 全目录、components/{DemoBadge,DemoBanner}.tsx、vite.config.ts | — |
@@ -38,7 +39,7 @@
 | 操作日志/动态 | models/Activity.ts、services/activity.ts、routes/activities.ts | —（暂未暴露界面） | — |
 | 可见范围（visibility） | services/visibility.ts、models/ResourceType.ts（visibilitySchema 共用子文档） | project/VisibilityPicker.tsx | 散见于各域测试 |
 | 个人中心/超管 | routes/{me,admin}.ts | pages/{Me,Admin}.tsx | tests/{me,admin}.test.ts |
-| 边缘部署/运维 | worker/src/index.js、wrangler.toml、docker-compose.prod.yml、frontend/nginx.conf、前后端 Dockerfile | — | .github/workflows/dependency-scan.yml |
+| 边缘部署/运维 | worker/src/index.js（含 QQ webhook 边缘验签/即时 ACK）、wrangler.toml、docker-compose.prod.yml、frontend/nginx.conf、前后端 Dockerfile | — | .github/workflows/dependency-scan.yml |
 
 ## 后端 `backend/`
 
@@ -58,10 +59,11 @@
 - `scripts/check-openapi-coverage.ts` — OpenAPI 覆盖率校验：双向比对 app.ts 挂载表与 `docs/openapi.yaml`（`--list` 打印全部操作清单；新增 app.use 时同步脚本内挂载表）
 
 ### 路由挂载（app.ts）
-- 顶级：`/api/auth`(限流 50/15min)、`/api/admin`、`/api/me`、`/api/open`、`/api/push`、`/api/invites`、`/api/files`、`/api/cron`、`/api/projects`、`/api/public/lostfound` 与 `/api/public/rundown-screen`(免登录,限流 300/min)
+- 顶级：`/api/qq`(webhook 回调，全局 json() 前挂载取原始 body)、`/api/auth`(限流 50/15min)、`/api/admin`、`/api/me`、`/api/open`、`/api/push`、`/api/invites`、`/api/files`、`/api/cron`、`/api/projects`、`/api/public/lostfound` 与 `/api/public/rundown-screen`(免登录,限流 300/min)
 - 项目域 `/api/projects/:id/`：`files` `todos` `work-modules` `work-sheet` `finance` `materials` `physical` `accounts` `dashboard` `onsite` `risks` `announcements` `activities` `stages` `stage-rundowns` `stage-signups` `custom-tools` `lostfound` `milestones`
 
-### 路由 `src/routes/`（27 个，一文件一业务域）
+### 路由 `src/routes/`（28 个，一文件一业务域）
+- `qqWebhook.ts` — POST /api/qq/webhook：QQ 事件回调（op13 地址验证签名回包、op0 验签+去重+异步分发 handleQQEvent；须在全局 json() 前挂载取原始 body）
 - `auth.ts` — POST register/login/refresh/logout，JWT+refresh 轮换；/login 内嵌试用入口（trialLogin）
 - `admin.ts` — 超管邀请码 POST/GET /invite-codes
 - `me.ts` — 个人资料 GET/PATCH /（GET 响应含 qq:{enabled,bound}）、POST /onboarded、QQ 绑定 POST /qq-bind-code、DELETE /qq-binding
@@ -91,7 +93,7 @@
 - `cron.ts` — CRON_SECRET 鉴权：POST /reminders、POST /weekly-report
 
 ### 模型 `src/models/`（36 个，Mongoose，`models.X ?? model(...)` 幂等注册）
-- `User.ts` — 用户：email/name/passwordHash/isSuperAdmin/contacts/qqOpenId（QQ 单聊投递目标，publicUser 不导出）；导出 publicUser() 脱敏
+- `User.ts` — 用户：email/name/passwordHash/isSuperAdmin/contacts/qqOpenId（QQ 单聊投递目标，publicUser 不导出）/qqUnionOpenId/qqMemberIds（群维度 member_openid 对照表，群@指派解析用）；导出 publicUser() 脱敏
 - `RefreshToken.ts` — 会话：tokenHash(sha256 唯一)、expiresAt
 - `InviteCode.ts` — 注册邀请码：code/createdBy/usedBy/usedAt
 - `Project.ts` — 项目：name/status/stages/roles/ticketTypes/qqGroupOpenId（QQ 群投递目标）；导出默认阶段
@@ -138,12 +140,16 @@
 - `webpush.ts` — webpushChannel：VAPID 推送、410 清除失效订阅
 - `qqApi.ts` — QQ 传输层：getAppAccessToken 缓存单飞、C2C/群消息发送（msg_type=0，被动回复 msg_id/event_id）
 - `qqbot.ts` — QQ 绑定码生成/消费（单码、TTL、碰撞重试）+ qqChannel（群精选 7 类 + 单聊全量，全败 throw）
-- `qqGateway.ts` — QQ WebSocket 网关：Identify/Resume/心跳/事件去重/退避重连；handleQQEvent 绑定与解绑事件分发（导出供单测）
+- `qqEvents.ts` — QQ 事件分发 handleQQEvent（webhook 路由与单测共用）：绑定（项目码 + 群内个人码）/解绑/群@任务消息 AI 录单分发（含全量 GROUP_MESSAGE_CREATE 按 bot 提及过滤）
+- `qqWebhook.ts` — QQ webhook 验签：Ed25519（appSecret 倍增取 32 字节 seed）op13 回包签名 / 事件回调验签（timestamp+rawBody）；事件 id 去重（500 条 FIFO）
+- `qqTodo.ts` — QQ 群 AI 录单：群@任务消息 → parseTask 解析 → createTodo 建单；@成员三层身份对照（member_openid→union_openid→昵称唯一）；msg_id 被动回复建单结果
+- `ai.ts` — AI 待办解析（OpenAI 兼容 SDK，默认 DeepSeek deepseek-v4-flash）：parseTask 文本→结构化待办（isTask/title/三个时间/note），失败一律 null；客户端按 config.ai 缓存
+- `todos.ts` — 待办建单共用逻辑：createTodo（成员校验+落库+动态+指派通知）、assertAssigneesAreMembers/todoAssignBody/todoLink（HTTP 路由与 QQ 录单共用）
 - `workModules.ts` — buildSheet 任务单生成、moduleJson 序列化
 
 ### 测试 `tests/`（vitest + supertest + mongodb-memory-server，打真实路由）
 - `setup.ts` / `helpers.ts` — 内存 Mongo 基建 / 造号工具（createSuperAdmin/registerUser）
-- 每域一个 `*.test.ts`：auth/admin/me/projects/invites/todos/todo-complete/todo-updates/template/finance/materials/files/physical/accounts/announcements/dashboard/onsite/workModules/stageRundowns/stageExecution/stageSignups/customTools/open/lostFound/notifications/push/cron/trial/onboarding/health
+- 每域一个 `*.test.ts`：auth/admin/me/projects/invites/todos/todo-complete/todo-updates/template/finance/materials/files/physical/accounts/announcements/dashboard/onsite/workModules/stageRundowns/stageExecution/stageSignups/customTools/open/lostFound/notifications/push/cron/trial/onboarding/qq/qq-todo/qq-webhook/health
 
 ## 前端 `frontend/`
 
@@ -232,7 +238,7 @@
 - `Dockerfile` — 两阶段：构建 dist → nginx-unprivileged 托管
 
 ## 边缘与部署
-- `worker/src/index.js` — Cloudflare Worker 入口：/api/* 反代 ORIGIN（改写 X-Forwarded-For），静态走 ASSETS + 安全头
+- `worker/src/index.js` — Cloudflare Worker 入口：/api/* 反代 ORIGIN（改写 X-Forwarded-For），静态走 ASSETS + 安全头；QQ webhook `/api/qq/webhook` op13 验证在边缘签名应答、op0 事件边缘即时回 `{"opcode":12}` 后 waitUntil 回源处理（secret 存 Worker secret `QQ_BOT_APP_SECRET`），其余帧回源
 - `worker/wrangler.toml` — ORIGIN/ASSETS 绑定、SPA 回退、run_worker_first
 - `docker-compose.prod.yml` — 生产全栈：postgres + ferretdb + minio + backend + frontend
 - `docker-compose.yml` — 开发：仅 mongo:7

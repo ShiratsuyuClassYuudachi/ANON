@@ -10,6 +10,10 @@ export interface IUser {
   onboardedAt: Date | null;
   /** QQ 开放平台 C2C user_openid（QQ 通知渠道投递目标；publicUser 不导出） */
   qqOpenId?: string;
+  /** QQ 开放平台跨场景统一 openid（C2C 绑定时若事件携带则记录；可能为空） */
+  qqUnionOpenId?: string;
+  /** QQ 群成员 openid 对照表：群内「绑定 XXXXXX」个人绑定写入，@用户 指派解析用 */
+  qqMemberIds: { groupOpenId: string; memberOpenId: string }[];
 }
 
 export type UserDoc = HydratedDocument<IUser>;
@@ -24,6 +28,8 @@ const userSchema = new Schema<IUser>(
     inviteCodeId: { type: Schema.Types.ObjectId, ref: 'InviteCode' },
     onboardedAt: { type: Date, default: null },
     qqOpenId: String,
+    qqUnionOpenId: String,
+    qqMemberIds: { type: [{ groupOpenId: String, memberOpenId: String, _id: false }], default: [] },
   },
   { timestamps: true },
 );

@@ -3,13 +3,13 @@ import { authRequired } from '../middleware/auth';
 import { loadMembership, requirePermission } from '../middleware/projectAccess';
 import { upload } from '../middleware/upload';
 import { File } from '../models/File';
-import { Membership } from '../models/Membership';
 import { Todo, type TodoDoc } from '../models/Todo';
 import { User } from '../models/User';
 import { logActivity } from '../services/activity';
 import { notify } from '../services/notifications';
 import { persistUploads } from '../services/storage';
 import { applyTemplate, buildTemplate } from '../services/template';
+import { assertAssigneesAreMembers, createTodo, todoAssignBody, todoLink } from '../services/todos';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
 
@@ -72,27 +72,6 @@ async function todoJson(t: TodoDoc) {
   };
 }
 
-async function assertAssigneesAreMembers(projectId: unknown, assigneeIds: string[]) {
-  const count = await Membership.countDocuments({
-    projectId,
-    userId: { $in: assigneeIds },
-  });
-  if (count !== new Set(assigneeIds).size) {
-    throw new AppError(400, 'bad_request', '指派人必须是项目成员');
-  }
-}
-
-function todoAssignBody(todo: TodoDoc): string {
-  const parts = [`待办「${todo.title}」`];
-  if (todo.dueAt) parts.push(`截止 ${todo.dueAt.toISOString()}`);
-  if (todo.nodeAt) parts.push(`节点 ${todo.nodeAt.toISOString()}`);
-  return parts.join('，');
-}
-
-function todoLink(projectId: unknown): string {
-  return `/p/${String(projectId)}?tab=todos`;
-}
-
 function parseDate(v: unknown): Date | undefined {
   if (!v) return undefined;
   const d = new Date(String(v));
@@ -121,32 +100,18 @@ todosRouter.post(
   ah(async (req, res) => {
     const { title, category, assigneeIds, nodeAt, dueAt, remindAt, note } = req.body ?? {};
     if (!title || !String(title).trim()) throw new AppError(400, 'bad_request', '标题必填');
-    const assignees: string[] = Array.isArray(assigneeIds) ? assigneeIds.map(String) : [];
-    await assertAssigneesAreMembers(req.project!._id, assignees);
-    const todo = await Todo.create({
+    const todo = await createTodo({
       projectId: req.project!._id,
       title: String(title).trim(),
       category: String(category ?? ''),
-      assigneeIds: assignees,
+      assigneeIds: Array.isArray(assigneeIds) ? assigneeIds.map(String) : [],
       nodeAt: parseDate(nodeAt),
       dueAt: parseDate(dueAt),
       remindAt: parseDate(remindAt),
       note: String(note ?? ''),
-      createdBy: req.userId,
+      createdBy: req.userId!,
+      actorName: req.user!.name,
     });
-    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'todo:create', message: `${req.user!.name}创建了待办「${todo.title}」`, sourceType: 'todo', sourceId: todo._id });
-    if (assignees.length) {
-      notify({
-        projectId: req.project!._id,
-        type: 'todo:assigned',
-        title: `你被指派了待办：${todo.title}`,
-        body: todoAssignBody(todo),
-        link: todoLink(req.project!._id),
-        metadata: { todoId: todo._id.toString() },
-        recipients: assignees,
-        actorId: req.userId!,
-      });
-    }
     res.status(201).json({ todo: await todoJson(todo) });
   }),
 );

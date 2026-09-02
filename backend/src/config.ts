@@ -42,4 +42,10 @@ export const config = {
     appSecret: process.env.QQ_BOT_APP_SECRET ?? '',
     sandbox: process.env.QQ_BOT_SANDBOX === 'true',
   },
+  // AI 待办解析（OpenAI 兼容接口，默认 DeepSeek）：apiKey 为空时 QQ 群 AI 录单静默禁用
+  ai: {
+    apiKey: process.env.AI_API_KEY ?? '',
+    baseUrl: process.env.AI_BASE_URL || 'https://api.deepseek.com',
+    model: process.env.AI_MODEL || 'deepseek-v4-flash',
+  },
 };

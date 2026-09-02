@@ -61,6 +61,10 @@ services:
       QQ_BOT_APP_ID: ${QQ_BOT_APP_ID:-}
       QQ_BOT_APP_SECRET: ${QQ_BOT_APP_SECRET:-}
       QQ_BOT_SANDBOX: ${QQ_BOT_SANDBOX:-}
+      # AI 待办解析（可选）：OpenAI 兼容接口，默认 DeepSeek；未配置时群 AI 录单静默禁用
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_BASE_URL: ${AI_BASE_URL:-}
+      AI_MODEL: ${AI_MODEL:-}
       # 前端公开地址（可选）：QQ 通知消息末尾附「查看」链接时用作基座
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
       PLATFORM_CRYPTO_KEY: ${PLATFORM_CRYPTO_KEY:-}

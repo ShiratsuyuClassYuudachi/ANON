@@ -34,6 +34,7 @@ tags:
   - name: 失物招领
   - name: 自定义工具
   - name: OpenAPI 密钥
+  - name: QQ 机器人
 paths:
   /api/health:
     get:
@@ -2948,6 +2949,63 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
         '503':
           description: 未配置 CRON_SECRET（cron_disabled）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /api/qq/webhook:
+    post:
+      tags: [QQ 机器人]
+      summary: QQ 开放平台事件回调
+      description: >-
+        QQ 机器人 webhook 入口（管理端配置回调地址，仅支持 443/8443/80/8080 端口）。
+        op=13 为回调地址验证：对 event_ts+plain_token 以 appSecret 派生的 Ed25519 私钥签名返回；
+        op=0 为事件分发：按 X-Signature-Ed25519/X-Signature-Timestamp 头验签（timestamp+原始 body），
+        验签通过且未重复后立即返回 200，事件异步处理（绑定/解绑/群@ AI 录单）。
+      security: []
+      parameters:
+        - name: X-Signature-Ed25519
+          in: header
+          required: false
+          schema: { type: string }
+          description: 事件回调签名（hex，op=13 验证请求无此头）
+        - name: X-Signature-Timestamp
+          in: header
+          required: false
+          schema: { type: string }
+          description: 签名时间戳
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                op: { type: integer, description: '13=回调地址验证，0=事件分发' }
+                t: { type: string, description: 事件名（op=0 时），如 GROUP_AT_MESSAGE_CREATE }
+                id: { type: string, description: 事件帧 id }
+                d: { type: object, description: 事件负载 }
+      responses:
+        '200':
+          description: 回调地址验证回包（op=13）或事件已接收（op=0，含去重命中）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  plain_token: { type: string, description: 仅 op=13 回包 }
+                  signature: { type: string, description: 仅 op=13 回包，Ed25519 签名 hex }
+        '400':
+          description: body 非 JSON 或缺少 plain_token/event_ts（bad_request）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: 签名校验失败（invalid_signature）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: QQ 未配置（qq_disabled）
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }

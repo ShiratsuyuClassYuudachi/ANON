@@ -539,15 +539,25 @@ interface RiskItem {
 
 ## QQ 机器人通知
 
-配置 `QQ_BOT_APP_ID` / `QQ_BOT_APP_SECRET`（QQ 开放平台 Bot API v2，可选 `QQ_BOT_SANDBOX=true` 走沙箱）后启用第三通知渠道；未配置时静默禁用。事件接收走 WebSocket 网关（出站连接，无需公网回调地址），仅用于绑定流程与解绑清理。
+配置 `QQ_BOT_APP_ID` / `QQ_BOT_APP_SECRET`（QQ 开放平台 Bot API v2，可选 `QQ_BOT_SANDBOX=true` 走沙箱）后启用第三通知渠道；未配置时静默禁用。事件接收走 **webhook 回调**（下节），覆盖绑定流程、解绑清理与群@ AI 录单。
 
 - **个人单聊**：成员在「个人资料」页生成绑定码，QQ 私聊机器人发送「绑定 XXXXXX」；绑定后收到全部发给自己的通知。QQ 侧删除好友或站内解绑即解除。
 - **项目群**：管理者在项目「设置」页生成绑定码，机器人拉进群后 @机器人 发送「绑定 XXXXXX」；群里只收精选类型（里程碑临近、待办节点/到期提醒、重要/紧急公告、新风险、现场异常、周报）。
+- **群@ AI 录单**：已绑定项目的群里，成员 @机器人 直接发任务描述（如「周五前把海报送到印刷店」），AI（OpenAI 兼容接口，`AI_API_KEY`/`AI_BASE_URL`/`AI_MODEL`，默认 DeepSeek `deepseek-v4-flash`）解析为待办自动建单；@ 的群成员经三层身份对照（群 member_openid → union_openid → 昵称唯一匹配）映射为项目成员自动指派。成员在群里发「绑定 XXXXXX」（个人绑定码）可写入群 openid 对照表，让 @ 指派稳定命中。未配置 `AI_API_KEY` 时该功能静默禁用。
 - 通知为纯文本（`msg_type=0`），配置 `PUBLIC_BASE_URL` 后消息末尾附「查看」链接；绑定确认走被动回复（不占主动消息额度）。
 - 投递韧性：单目标失败仅记日志；有目标且全部失败时本次投递视为失败（cron 不写去重标记，下轮重试）。
-- 管理端前提：机器人需勾选「单聊/群聊消息事件」订阅（否则网关收不到事件）；群主动消息需单独开通「主动消息」权限（开通有数分钟生效延迟）。
+- 管理端前提：机器人需勾选「单聊/群聊消息事件」订阅并**配置 webhook 回调地址后发布**；群主动消息需单独开通「主动消息」权限（开通有数分钟生效延迟）。
 
 绑定/解绑接口见「个人资料」与「项目 · QQ 群通知」节。
+
+### POST /api/qq/webhook（公开路径，Ed25519 验签）
+
+QQ 开放平台事件回调入口。管理端配置回调地址 `https://<域名>/api/qq/webhook`（仅支持 443/8443/80/8080 端口），配置时平台发送 op=13 验证请求，服务端以 appSecret 派生的 Ed25519 私钥对 `event_ts + plain_token` 签名回包。
+事件帧（op=0）逐请求验签：`X-Signature-Ed25519`（hex）+ `X-Signature-Timestamp` 头，签名体为 `timestamp + 原始 body`；验签通过且事件未重复（消息事件按 `d.id`、其余按帧 `id` 去重）后立即返回 200，业务处理异步进行（回包窗口短，AI 解析最长 30s+）。
+
+请求：`{ op: 13|0, t?: string（事件名）, id?: string（帧 id）, d?: object }`
+响应 200：op=13 时 `{ plain_token: string, signature: string }`；op=0 时 `{ opcode: 12 }`（HTTP Callback ACK）
+错误：400 `bad_request`（body 非 JSON / 缺 plain_token/event_ts）、401 `invalid_signature`、404 `qq_disabled`（QQ 未配置）
 
 ---
 
