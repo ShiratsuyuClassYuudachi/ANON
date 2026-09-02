@@ -556,7 +556,7 @@ QQ 开放平台事件回调入口。管理端配置回调地址 `https://<域名
 事件帧（op=0）逐请求验签：`X-Signature-Ed25519`（hex）+ `X-Signature-Timestamp` 头，签名体为 `timestamp + 原始 body`；验签通过且事件未重复（消息事件按 `d.id`、其余按帧 `id` 去重）后立即返回 200，业务处理异步进行（回包窗口短，AI 解析最长 30s+）。
 
 请求：`{ op: 13|0, t?: string（事件名）, id?: string（帧 id）, d?: object }`
-响应 200：op=13 时 `{ plain_token: string, signature: string }`；op=0 时 `{}`
+响应 200：op=13 时 `{ plain_token: string, signature: string }`；op=0 时 `{ opcode: 12 }`（HTTP Callback ACK）
 错误：400 `bad_request`（body 非 JSON / 缺 plain_token/event_ts）、401 `invalid_signature`、404 `qq_disabled`（QQ 未配置）
 
 ---

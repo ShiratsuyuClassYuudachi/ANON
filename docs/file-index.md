@@ -140,7 +140,7 @@
 - `webpush.ts` — webpushChannel：VAPID 推送、410 清除失效订阅
 - `qqApi.ts` — QQ 传输层：getAppAccessToken 缓存单飞、C2C/群消息发送（msg_type=0，被动回复 msg_id/event_id）
 - `qqbot.ts` — QQ 绑定码生成/消费（单码、TTL、碰撞重试）+ qqChannel（群精选 7 类 + 单聊全量，全败 throw）
-- `qqEvents.ts` — QQ 事件分发 handleQQEvent（webhook 路由与单测共用）：绑定（项目码 + 群内个人码）/解绑/群@任务消息 AI 录单分发
+- `qqEvents.ts` — QQ 事件分发 handleQQEvent（webhook 路由与单测共用）：绑定（项目码 + 群内个人码）/解绑/群@任务消息 AI 录单分发（含全量 GROUP_MESSAGE_CREATE 按 bot 提及过滤）
 - `qqWebhook.ts` — QQ webhook 验签：Ed25519（appSecret 倍增取 32 字节 seed）op13 回包签名 / 事件回调验签（timestamp+rawBody）；事件 id 去重（500 条 FIFO）
 - `qqTodo.ts` — QQ 群 AI 录单：群@任务消息 → parseTask 解析 → createTodo 建单；@成员三层身份对照（member_openid→union_openid→昵称唯一）；msg_id 被动回复建单结果
 - `ai.ts` — AI 待办解析（OpenAI 兼容 SDK，默认 DeepSeek deepseek-v4-flash）：parseTask 文本→结构化待办（isTask/title/三个时间/note），失败一律 null；客户端按 config.ai 缓存
