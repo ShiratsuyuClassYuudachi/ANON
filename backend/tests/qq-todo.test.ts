@@ -28,9 +28,10 @@ vi.mock('../src/services/ai', async (importOriginal) => {
 });
 
 import { parseTask } from '../src/services/ai';
-import { sendGroupMessage } from '../src/services/qqApi';
+import { sendC2CMessage, sendGroupMessage } from '../src/services/qqApi';
 const parseTaskMock = vi.mocked(parseTask);
 const sendGroupMock = vi.mocked(sendGroupMessage);
+const sendC2CMock = vi.mocked(sendC2CMessage);
 
 const GROUP = 'grp-ai-1';
 const DEFAULT_PARSED = {
@@ -48,6 +49,7 @@ let projectId: string;
 
 beforeEach(async () => {
   sendGroupMock.mockClear();
+  sendC2CMock.mockClear();
   parseTaskMock.mockReset();
   parseTaskMock.mockResolvedValue(DEFAULT_PARSED);
   config.ai.apiKey = 'test-key';
@@ -82,6 +84,15 @@ function groupTaskEvent(over: Record<string, unknown> = {}) {
     group_openid: GROUP,
     content: '周五前把海报送到印刷店',
     author: { member_openid: 'member-sender', username: '群友甲' },
+    ...over,
+  };
+}
+
+function c2cTaskEvent(over: Record<string, unknown> = {}) {
+  return {
+    id: 'cmsg-1',
+    content: '周五前把海报送到印刷店',
+    author: { user_openid: 'c2c-staff' },
     ...over,
   };
 }
@@ -287,5 +298,171 @@ describe('QQ 绑定扩展字段', () => {
     const u = (await User.findById(staff.user.id).lean())!;
     expect(u.qqOpenId).toBe('qq-open-u1');
     expect(u.qqUnionOpenId).toBe('union-u1');
+  });
+});
+
+describe('QQ 单聊 AI 录单', () => {
+  // 第二项目并拉 staff 入项；startDate 控制序号顺序（早者序号 1：第二活动 < 测试活动）
+  async function setupTwoProjects() {
+    await User.updateOne({ _id: staff.user.id }, { qqOpenId: 'c2c-staff' });
+    const p2 = await request(app)
+      .post('/api/projects')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ name: '第二活动' });
+    const project2 = p2.body.project.id as string;
+    const inv2 = await request(app)
+      .post(`/api/projects/${project2}/invites`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ roleName: '一般staff' });
+    await request(app)
+      .post(`/api/invites/${inv2.body.token}/accept`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    await Project.updateOne({ _id: projectId }, { startDate: new Date('2026-10-01') });
+    await Project.updateOne({ _id: project2 }, { startDate: new Date('2026-09-01') });
+    return project2;
+  }
+
+  it('未绑定发送者 → 回复绑定引导，不解析不落库', async () => {
+    await handleQQEvent('C2C_MESSAGE_CREATE', c2cTaskEvent());
+
+    expect(sendC2CMock).toHaveBeenCalledTimes(1);
+    const [to, text, opts] = sendC2CMock.mock.calls[0];
+    expect(to).toBe('c2c-staff');
+    expect(text).toContain('绑定 XXXXXX');
+    expect(opts).toEqual({ msgId: 'cmsg-1' });
+    expect(parseTaskMock).not.toHaveBeenCalled();
+    expect(await Todo.countDocuments()).toBe(0);
+  });
+
+  it('绑定但无进行中活动 → 回复无活动提示，不落库', async () => {
+    await InviteCode.create({ code: 'C2', createdBy: owner.user.id });
+    const outsider = await registerUser('C2', 'o@example.com', 'Outsider');
+    await User.updateOne({ _id: outsider.user.id }, { qqOpenId: 'c2c-outsider' });
+
+    await handleQQEvent('C2C_MESSAGE_CREATE', c2cTaskEvent({ author: { user_openid: 'c2c-outsider' } }));
+
+    expect(sendC2CMock).toHaveBeenCalledTimes(1);
+    expect(sendC2CMock.mock.calls[0][1]).toContain('没有进行中的活动');
+    expect(parseTaskMock).not.toHaveBeenCalled();
+    expect(await Todo.countDocuments()).toBe(0);
+  });
+
+  it('恰好一个进行中活动 → 直接建单：createdBy=发送者、无指派、回复含项目名', async () => {
+    await User.updateOne({ _id: staff.user.id }, { qqOpenId: 'c2c-staff' });
+
+    await handleQQEvent('C2C_MESSAGE_CREATE', c2cTaskEvent());
+
+    const todo = await Todo.findOne({ projectId }).lean();
+    expect(todo).toBeTruthy();
+    expect(todo!.title).toBe('把海报送到印刷店');
+    expect(todo!.dueAt?.toISOString()).toBe('2026-09-05T10:00:00.000Z');
+    expect(todo!.assigneeIds).toEqual([]);
+    expect(todo!.createdBy.toString()).toBe(staff.user.id);
+    const text = sendC2CMock.mock.calls[0][1];
+    expect(text).toContain('已创建待办「把海报送到印刷店」');
+    expect(text).toContain('到活动「QQ AI 录单测试活动」');
+    expect(text).toContain('截止：2026-09-05 18:00');
+    await vi.waitFor(async () => {
+      const act = await Activity.findOne({ type: 'todo:create', projectId }).lean();
+      expect(act?.message).toContain('（QQ 单聊）');
+      expect(act?.message).toContain('Staff');
+    });
+  });
+
+  it('多个进行中活动 → 回复序号列表（startDate 早者在前），回复序号建到所选活动，pending 消费后失效', async () => {
+    const project2 = await setupTwoProjects();
+
+    await handleQQEvent('C2C_MESSAGE_CREATE', c2cTaskEvent());
+
+    expect(await Todo.countDocuments()).toBe(0);
+    expect(parseTaskMock).not.toHaveBeenCalled();
+    const listText = sendC2CMock.mock.calls[0][1];
+    expect(listText).toContain('回复序号选择');
+    expect(listText).toContain('1. 第二活动');
+    expect(listText).toContain('2. QQ AI 录单测试活动');
+
+    // 回复序号 2（新 msgId）→ 建到「QQ AI 录单测试活动」
+    await handleQQEvent('C2C_MESSAGE_CREATE', c2cTaskEvent({ id: 'cmsg-2', content: '2' }));
+
+    const todo = await Todo.findOne({ projectId }).lean();
+    expect(todo).toBeTruthy();
+    expect(todo!.createdBy.toString()).toBe(staff.user.id);
+    expect(await Todo.countDocuments({ projectId: project2 })).toBe(0);
+    expect(sendC2CMock.mock.calls[1][1]).toContain('到活动「QQ AI 录单测试活动」');
+    expect(sendC2CMock.mock.calls[1][2]).toEqual({ msgId: 'cmsg-2' });
+
+    // pending 已消费：再发 '2' → 提示没有待选择的活动
+    await handleQQEvent('C2C_MESSAGE_CREATE', c2cTaskEvent({ id: 'cmsg-3', content: '2' }));
+    expect(sendC2CMock.mock.calls[2][1]).toContain('没有待选择的活动');
+    expect(await Todo.countDocuments()).toBe(1);
+  });
+
+  it('回复 0 → 取消，不落库', async () => {
+    await setupTwoProjects();
+
+    await handleQQEvent('C2C_MESSAGE_CREATE', c2cTaskEvent());
+    await handleQQEvent('C2C_MESSAGE_CREATE', c2cTaskEvent({ id: 'cmsg-2', content: '0' }));
+
+    expect(sendC2CMock.mock.calls[1][1]).toContain('已取消');
+    expect(await Todo.countDocuments()).toBe(0);
+    expect(parseTaskMock).not.toHaveBeenCalled();
+  });
+
+  it('无效序号 → 提示序号无效且 pending 保留，重发合法序号成功建单', async () => {
+    const project2 = await setupTwoProjects();
+
+    await handleQQEvent('C2C_MESSAGE_CREATE', c2cTaskEvent());
+    await handleQQEvent('C2C_MESSAGE_CREATE', c2cTaskEvent({ id: 'cmsg-2', content: '9' }));
+
+    expect(sendC2CMock.mock.calls[1][1]).toContain('序号无效');
+    expect(sendC2CMock.mock.calls[1][1]).toContain('1-2');
+    expect(await Todo.countDocuments()).toBe(0);
+
+    // pending 保留：重发 '1' → 建到序号 1（startDate 早者 = 第二活动）
+    await handleQQEvent('C2C_MESSAGE_CREATE', c2cTaskEvent({ id: 'cmsg-3', content: '1' }));
+    const todo = await Todo.findOne({ projectId: project2 }).lean();
+    expect(todo).toBeTruthy();
+    expect(sendC2CMock.mock.calls[2][1]).toContain('到活动「第二活动」');
+  });
+
+  it('pending 过期（10 分钟 TTL）→ 序号回复提示没有待选择的活动', async () => {
+    await setupTwoProjects();
+
+    await handleQQEvent('C2C_MESSAGE_CREATE', c2cTaskEvent());
+    expect(sendC2CMock.mock.calls[0][1]).toContain('回复序号选择');
+
+    // 不用 fake timers（避免影响 mongoose 心跳），只前移 Date.now
+    const spy = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 11 * 60_000);
+    try {
+      await handleQQEvent('C2C_MESSAGE_CREATE', c2cTaskEvent({ id: 'cmsg-2', content: '1' }));
+      expect(sendC2CMock.mock.calls[1][1]).toContain('没有待选择的活动');
+      expect(await Todo.countDocuments()).toBe(0);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('AI 未配置 → 完全静默：不解析、不回复、不落库', async () => {
+    await User.updateOne({ _id: staff.user.id }, { qqOpenId: 'c2c-staff' });
+    config.ai.apiKey = '';
+    try {
+      await handleQQEvent('C2C_MESSAGE_CREATE', c2cTaskEvent());
+      expect(parseTaskMock).not.toHaveBeenCalled();
+      expect(sendC2CMock).not.toHaveBeenCalled();
+      expect(await Todo.countDocuments()).toBe(0);
+    } finally {
+      config.ai.apiKey = 'test-key';
+    }
+  });
+
+  it('绑定意图优先：「绑定 123456」→ 无效绑定码提示，不进入录单', async () => {
+    await User.updateOne({ _id: staff.user.id }, { qqOpenId: 'c2c-staff' });
+
+    await handleQQEvent('C2C_MESSAGE_CREATE', c2cTaskEvent({ content: '绑定 123456' }));
+
+    expect(sendC2CMock).toHaveBeenCalledTimes(1);
+    expect(sendC2CMock.mock.calls[0][1]).toContain('绑定码无效或已过期');
+    expect(parseTaskMock).not.toHaveBeenCalled();
+    expect(await Todo.countDocuments()).toBe(0);
   });
 });

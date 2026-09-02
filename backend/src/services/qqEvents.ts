@@ -3,11 +3,11 @@ import { User } from '../models/User';
 import { aiConfigured } from './ai';
 import { consumeBindCode } from './qqbot';
 import { sendC2CMessage, sendGroupMessage } from './qqApi';
-import { handleGroupTaskTodo } from './qqTodo';
+import { handleC2cTaskTodo, handleGroupTaskTodo } from './qqTodo';
 
 /**
  * QQ 事件分发：webhook 回调（routes/qqWebhook.ts）验签去重后调用 handleQQEvent。
- * 处理绑定流程、解绑清理、群@任务消息 AI 录单（不做自由对话）。
+ * 处理绑定流程、解绑清理、群@与单聊任务消息 AI 录单（不做自由对话）。
  * 事件帧（op/t/id）由 webhook 入口解析，本模块只关心 t + d。
  */
 
@@ -50,8 +50,13 @@ async function handleC2CMessage(d: C2CMessagePayload): Promise<void> {
   const content = (d.content ?? '').trim();
   const code = extractBindCode(content);
   if (!code) {
-    // 有绑定意图但码形不对 → 提示；其余消息忽略（不做对话）
-    if (content.includes('绑定') && d.id) await sendC2CMessage(openid, INVALID_BIND_HINT, { msgId: d.id });
+    // 有绑定意图但码形不对 → 提示（绑定意图永远优先于录单）
+    if (content.includes('绑定') && d.id) {
+      await sendC2CMessage(openid, INVALID_BIND_HINT, { msgId: d.id });
+    } else if (aiConfigured() && d.id) {
+      // 任务消息：AI 已配置时进入单聊录单；否则静默忽略（渠道禁用语义，与群录单一致）
+      await handleC2cTaskTodo(d);
+    }
     return;
   }
   const bind = await consumeBindCode(code, 'user');
