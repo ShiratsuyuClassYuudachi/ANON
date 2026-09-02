@@ -181,7 +181,7 @@ function SignupItemRow({
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium">{item.name}</span>
           {dup && (
-            <Badge variant="outline" className="border-amber-500/50 text-amber-600 dark:text-amber-400">
+            <Badge variant="warning-soft">
               撞名
             </Badge>
           )}
@@ -203,7 +203,7 @@ function SignupItemRow({
                   variant="outline"
                   className={
                     r.decision === 'approve'
-                      ? 'border-green-600/40 text-green-600 dark:text-green-400'
+                      ? 'border-success/40 text-success'
                       : 'border-destructive/40 text-destructive'
                   }
                 >
@@ -228,7 +228,7 @@ function SignupItemRow({
       label: '通过',
       ariaLabel: `拍板通过 ${item.name}`,
       icon: <Check className="size-5" />,
-      className: 'bg-green-600 text-white',
+      className: 'bg-success text-success-foreground',
       onClick: () => onStatus('approved'),
     },
     {
@@ -244,7 +244,7 @@ function SignupItemRow({
       label: '移除',
       ariaLabel: `移除 ${item.name}`,
       icon: <Trash2 className="size-5" />,
-      className: 'bg-zinc-500 text-white dark:bg-zinc-600',
+      className: 'bg-muted-foreground text-background',
       onClick: onDelete,
     },
   ];
@@ -549,7 +549,7 @@ export default function StageSignupTool({ project, myPermissions }: Props) {
               <p className="text-sm">
                 选中 {checkedItems.length} 个 · 合计 {selectedTotal} / 可用 {availableMin} 分钟
                 {remaining >= 0 ? (
-                  <span className="ml-2 text-green-600 dark:text-green-400">剩余 {remaining} 分钟</span>
+                  <span className="ml-2 text-success">剩余 {remaining} 分钟</span>
                 ) : (
                   <span className="ml-2 text-destructive">超支 {-remaining} 分钟</span>
                 )}

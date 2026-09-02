@@ -115,7 +115,7 @@ export function StageManager({ project, myPermissions, onChanged }: Props) {
           {stages.map((s, idx) => (
             <div key={s.id} className="flex flex-wrap items-center gap-2 rounded-lg border p-2.5">
               {s.completedAt ? (
-                <Check className="size-4 shrink-0 text-green-600 dark:text-green-400" />
+                <Check className="size-4 shrink-0 text-success" />
               ) : (
                 <Circle className="size-4 shrink-0 text-muted-foreground" />
               )}

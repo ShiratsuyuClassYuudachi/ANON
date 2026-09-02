@@ -244,7 +244,7 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
                 { label: '门票收入', value: yuan(summary.ticketIncomeCents), cls: '', sub: breakdown },
                 { label: '记账收入', value: yuan(summary.incomeCents), cls: '', sub: '' },
                 { label: '总支出', value: yuan(summary.expenseCents), cls: '', sub: '' },
-                { label: '盈亏', value: signed(summary.profitCents), cls: summary.profitCents < 0 ? 'text-destructive' : 'text-green-600 dark:text-green-400', sub: '' },
+                { label: '盈亏', value: signed(summary.profitCents), cls: summary.profitCents < 0 ? 'text-destructive' : 'text-success', sub: '' },
               ].map((s) => (
                 <Card key={s.label}>
                   <CardContent className="p-3">
@@ -299,7 +299,7 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-2">
                 {t.type === 'income' ? (
-                  <Badge variant="outline" className="border-green-500 text-green-600 dark:text-green-400">收入</Badge>
+                  <Badge variant="success-soft">收入</Badge>
                 ) : (
                   <Badge variant="destructive">支出</Badge>
                 )}
@@ -489,13 +489,11 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="entry-files">凭证</Label>
-            {/* shadcn Input 不转发 ref（React 18），文件选择用原生 input 加 Input 同款类名 */}
-            <input
+            <Input
               id="entry-files"
               type="file"
               multiple
               onChange={(e) => setFiles(e.target.files)}
-              className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground dark:bg-input/30"
             />
           </div>
           <Button type="submit" className="w-full">保存账目</Button>

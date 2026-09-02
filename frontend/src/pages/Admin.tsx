@@ -83,7 +83,7 @@ export default function Admin() {
               {c.used ? (
                 <Badge variant="secondary">已使用</Badge>
               ) : (
-                <Badge variant="outline" className="border-green-600 text-green-600">
+                <Badge variant="outline" className="border-success text-success">
                   可用
                 </Badge>
               )}

@@ -1,4 +1,4 @@
-import { ClipboardList, MoreHorizontal, Pencil, Plus, Printer, Trash2, Users } from 'lucide-react';
+import { Check, ClipboardList, MoreHorizontal, Pencil, Plus, Printer, Trash2, Users } from 'lucide-react';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -164,7 +164,7 @@ export default function WorkTab({ project, members, myPermissions }: Props) {
                   {m.description && <p className="text-sm">{m.description}</p>}
                 </div>
                 {a.confirmedAt ? (
-                  <Badge variant="outline" className="shrink-0 border-green-500 text-green-600 dark:text-green-400">
+                  <Badge variant="success-soft" className="shrink-0">
                     已确认 {fmtLocal(a.confirmedAt)}
                   </Badge>
                 ) : (
@@ -220,10 +220,9 @@ export default function WorkTab({ project, members, myPermissions }: Props) {
                         {m.assignees.map((a) => (
                           <Badge
                             key={a.userId}
-                            variant={a.confirmedAt ? 'default' : 'outline'}
-                            className={a.confirmedAt ? 'bg-green-600 hover:bg-green-600' : ''}
+                            variant={a.confirmedAt ? 'success' : 'outline'}
                           >
-                            {a.name}{a.confirmedAt ? ' ✓' : ''}
+                            {a.confirmedAt && <Check />}{a.name}
                           </Badge>
                         ))}
                       </div>

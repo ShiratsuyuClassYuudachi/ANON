@@ -14,10 +14,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { FormOverlay } from '@/components/FormOverlay';
 
 const HEALTH_DOT: Record<HealthStatus, string> = {
-  normal: 'bg-green-500',
-  attention: 'bg-yellow-500',
-  at_risk: 'bg-orange-500',
-  critical: 'bg-red-500',
+  normal: 'bg-success',
+  attention: 'bg-warning',
+  at_risk: 'bg-warning',
+  critical: 'bg-destructive',
 };
 
 export default function Projects() {

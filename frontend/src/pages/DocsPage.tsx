@@ -29,7 +29,7 @@ function Hi({ text, q }: { text: string; q: string }) {
   return (
     <>
       {text.slice(0, i)}
-      <mark className="rounded-sm bg-yellow-200 px-0.5 dark:bg-yellow-500/40">{text.slice(i, i + q.length)}</mark>
+      <mark className="rounded-sm bg-warning-soft px-0.5 text-warning-soft-foreground">{text.slice(i, i + q.length)}</mark>
       {text.slice(i + q.length)}
     </>
   );

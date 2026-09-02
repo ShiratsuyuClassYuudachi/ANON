@@ -36,6 +36,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { ListRow } from '@/components/ui/list-row';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -212,13 +213,13 @@ function ResourceCard({
           </div>
         )}
         {canManage && showVis && (
-          <div className="space-y-2 rounded-lg border p-3">
+          <ListRow className="space-y-2">
             <VisibilityPicker members={members} roles={roles} value={visDraft} onChange={setVisDraft} />
             <div className="flex gap-2">
               <Button size="sm" onClick={saveVisibility}>保存</Button>
               <Button size="sm" variant="ghost" onClick={() => setShowVis(false)}>取消</Button>
             </div>
-          </div>
+          </ListRow>
         )}
       </CardContent>
 
@@ -244,12 +245,10 @@ function ResourceCard({
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label htmlFor={`upload-file-${resource.id}`}>文件</Label>
-            {/* shadcn Input 不转发 ref（React 18），文件选择用原生 input 加 Input 同款类名 */}
-            <input
+            <Input
               id={`upload-file-${resource.id}`}
               type="file"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground dark:bg-input/30"
             />
           </div>
           <div className="space-y-1.5">
@@ -447,13 +446,13 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
                   </Button>
                 </div>
                 {typeVisFor === t.id && (
-                  <div className="space-y-2 rounded-lg border p-3">
+                  <ListRow className="space-y-2">
                     <VisibilityPicker members={members} roles={roles} value={typeVisDraft} onChange={setTypeVisDraft} />
                     <div className="flex gap-2">
                       <Button size="sm" onClick={() => saveTypeVisibility(t)}>保存</Button>
                       <Button size="sm" variant="ghost" onClick={() => setTypeVisFor(null)}>取消</Button>
                     </div>
-                  </div>
+                  </ListRow>
                 )}
               </div>
             ))}
@@ -492,10 +491,9 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
               />
               <div className="space-y-1.5">
                 <Label>初始版本文件（可选）</Label>
-                <input
+                <Input
                   type="file"
                   onChange={(e) => setResFile(e.target.files?.[0] ?? null)}
-                  className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground dark:bg-input/30"
                 />
               </div>
               {resFile && (
