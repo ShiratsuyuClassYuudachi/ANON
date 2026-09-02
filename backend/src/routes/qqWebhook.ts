@@ -48,10 +48,11 @@ qqWebhookRouter.post('/webhook', raw({ type: () => true }), (req, res) => {
     return;
   }
 
-  // 消息事件按 d.id 去重（同一 msg_id 可能重复推送），其余按帧 id
   const msgId = typeof dObj?.id === 'string' ? dObj.id : undefined;
-  const dedupKey = frame.t === 'C2C_MESSAGE_CREATE' || frame.t === 'GROUP_AT_MESSAGE_CREATE' ? msgId : frame.id;
+  // 消息类事件按消息 id 去重：同一消息的 GROUP_MESSAGE_CREATE/GROUP_AT 双投递（全量+@ 同时订阅时）只处理一次
+  const dedupKey = frame.t === 'C2C_MESSAGE_CREATE' || frame.t === 'GROUP_AT_MESSAGE_CREATE' || frame.t === 'GROUP_MESSAGE_CREATE' ? msgId : frame.id;
   const dup = dedupKey ? isDuplicate(dedupKey) : false;
+  console.log(`[qq] webhook op0: t=${frame.t ?? '?'} msgId=${dedupKey ?? '?'} dup=${dup} len=${typeof dObj?.content === 'string' ? dObj.content.length : -1}`);
 
   // op 12 HTTP Callback ACK：webhook 模式标准回包（官方 opcode 表）；先回包再异步处理（AI 解析最长 30s+）
   res.json({ opcode: 12 });

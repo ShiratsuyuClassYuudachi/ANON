@@ -114,6 +114,38 @@ describe('QQ 群 AI 录单', () => {
     expect(text).toContain('指派：Staff');
     expect(text).toContain('截止：2026-09-05 18:00');
   });
+  it('全量群消息（GROUP_MESSAGE_CREATE）@机器人 → 同样建单，机器人自身不进指派', async () => {
+    await Project.updateOne({ _id: projectId }, { qqGroupOpenId: GROUP });
+    await User.updateOne(
+      { _id: staff.user.id },
+      { qqMemberIds: [{ groupOpenId: GROUP, memberOpenId: 'member-staff' }] },
+    );
+
+    await handleQQEvent('GROUP_MESSAGE_CREATE', groupTaskEvent({
+      mentions: [
+        { username: 'ANON机器人', bot: true },
+        { member_openid: 'member-staff', username: 'StaffQQ' },
+      ],
+    }));
+
+    const todo = await Todo.findOne({ projectId }).lean();
+    expect(todo).toBeTruthy();
+    expect(todo!.assigneeIds.map(String)).toEqual([staff.user.id]);
+    expect(sendGroupMock).toHaveBeenCalledTimes(1);
+    expect(sendGroupMock.mock.calls[0][1]).not.toContain('未识别成员');
+  });
+
+  it('全量群消息未 @ 机器人 → 静默忽略', async () => {
+    await Project.updateOne({ _id: projectId }, { qqGroupOpenId: GROUP });
+
+    await handleQQEvent('GROUP_MESSAGE_CREATE', groupTaskEvent({
+      mentions: [{ member_openid: 'member-staff', username: '群友乙' }],
+    }));
+
+    expect(await Todo.findOne({ projectId }).lean()).toBeNull();
+    expect(parseTaskMock).not.toHaveBeenCalled();
+    expect(sendGroupMock).not.toHaveBeenCalled();
+  });
 
   it('发送者已群内绑定 → createdBy=该用户，活动动态含（QQ 群）', async () => {
     await Project.updateOne({ _id: projectId }, { qqGroupOpenId: GROUP });

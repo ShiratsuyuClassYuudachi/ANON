@@ -27,7 +27,7 @@ interface GroupAtMessagePayload {
   group_openid?: string;
   content?: string;
   author?: { member_openid?: string; union_openid?: string; username?: string };
-  mentions?: { member_openid?: string; union_openid?: string; username?: string }[];
+  mentions?: { member_openid?: string; union_openid?: string; username?: string; bot?: boolean }[];
 }
 interface OpenidPayload {
   openid?: string;
@@ -129,6 +129,12 @@ export async function handleQQEvent(t: string, d: unknown, eventId?: string): Pr
       case 'GROUP_AT_MESSAGE_CREATE':
         await handleGroupAtMessage((d ?? {}) as GroupAtMessagePayload);
         break;
+      case 'GROUP_MESSAGE_CREATE': {
+        // 全量群消息（与 GROUP_AT_MESSAGE_CREATE 字段一致）：仅当 mentions 含 bot=true（即 @ 了机器人）才按群@消息处理
+        const payload = (d ?? {}) as GroupAtMessagePayload;
+        if (payload.mentions?.some((m) => m.bot)) await handleGroupAtMessage(payload);
+        break;
+      }
       case 'FRIEND_ADD': {
         const { openid } = (d ?? {}) as OpenidPayload;
         if (openid) await sendC2CMessage(openid, FRIEND_GUIDE, { eventId });

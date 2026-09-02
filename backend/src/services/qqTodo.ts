@@ -20,7 +20,7 @@ interface GroupTaskPayload {
   group_openid?: string;
   content?: string;
   author?: { member_openid?: string; union_openid?: string; username?: string };
-  mentions?: { member_openid?: string; union_openid?: string; username?: string }[];
+  mentions?: { member_openid?: string; union_openid?: string; username?: string; bot?: boolean }[];
 }
 
 type MemberUser = Pick<IUser, 'name' | 'qqUnionOpenId' | 'qqMemberIds'> & { _id: Types.ObjectId };
@@ -102,10 +102,11 @@ export async function handleGroupTaskTodo(d: GroupTaskPayload): Promise<void> {
     const remindAt = toDate(parsed.remindAt);
 
     // mentions → assigneeIds（按 userId 去重）；未命中收集昵称。整体缺省合法，照常建单
+    // 全量模式（GROUP_MESSAGE_CREATE）的 mentions 可能含机器人自己（bot=true）：剔除，不参与指派
     const assigneeIds: string[] = [];
     const assigneeNames: string[] = [];
     const unmatched: string[] = [];
-    for (const m of d.mentions ?? []) {
+    for (const m of (d.mentions ?? []).filter((x) => !x.bot)) {
       const hit = resolveIdentity(m);
       if (hit) {
         const uid = hit._id.toString();
