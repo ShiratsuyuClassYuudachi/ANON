@@ -27,6 +27,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { ListRow } from '@/components/ui/list-row';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -78,11 +79,11 @@ function QtyProgress({ onHand, planned }: { onHand: number; planned: number }) {
     <div className="mt-2 flex items-center gap-2">
       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
         <div
-          className={cn('h-full transition-all', done ? 'bg-emerald-500' : 'bg-primary')}
+          className={cn('h-full transition-all', done ? 'bg-success' : 'bg-primary')}
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className={cn('w-10 text-right text-xs', done ? 'text-emerald-600' : 'text-muted-foreground')}>{pct}%</span>
+      <span className={cn('w-10 text-right text-xs', done ? 'text-success' : 'text-muted-foreground')}>{pct}%</span>
     </div>
   );
 }
@@ -324,7 +325,7 @@ export default function PhysicalTab({ project, members, myPermissions }: Props) 
               <div className="mt-3 flex items-center gap-2">
                 <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
                   <div
-                    className={cn('h-full transition-all', totalPct >= 100 ? 'bg-emerald-500' : 'bg-primary')}
+                    className={cn('h-full transition-all', totalPct >= 100 ? 'bg-success' : 'bg-primary')}
                     style={{ width: `${totalPct}%` }}
                   />
                 </div>
@@ -471,7 +472,7 @@ export default function PhysicalTab({ project, members, myPermissions }: Props) 
           ) : (
             <div className="space-y-2">
               {visible.map((it) => (
-                <div key={it.id} className="rounded-lg border p-3">
+                <ListRow key={it.id}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
@@ -504,7 +505,7 @@ export default function PhysicalTab({ project, members, myPermissions }: Props) 
                     {it.tags.map((t) => <Badge key={t} variant="outline" className="text-[10px]">{t}</Badge>)}
                   </div>
                   {it.note && <p className="mt-1.5 text-xs text-muted-foreground">备注：{it.note}</p>}
-                </div>
+                </ListRow>
               ))}
             </div>
           )}

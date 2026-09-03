@@ -49,7 +49,7 @@ export function eventCountdown(startDate: string | null, endDate: string | null)
       count: days,
       unit: '天后开展',
       text: `距开展还有 ${days} 天`,
-      cls: urgent ? 'text-orange-600 dark:text-orange-400' : 'text-foreground',
+      cls: urgent ? 'text-warning' : 'text-foreground',
     };
   }
   if (msToStart > 0) {
@@ -59,7 +59,7 @@ export function eventCountdown(startDate: string | null, endDate: string | null)
       count: hours,
       unit: '小时后开展',
       text: hours <= 24 ? `距开展还有 ${hours} 小时` : '今天开展',
-      cls: 'text-orange-600 dark:text-orange-400',
+      cls: 'text-warning',
     };
   }
   if (now <= end) {

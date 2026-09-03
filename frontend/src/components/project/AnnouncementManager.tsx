@@ -23,6 +23,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
+import { ListRow } from '@/components/ui/list-row';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -195,7 +196,7 @@ export function AnnouncementManager({ projectId, members, roles, open, onOpenCha
                 const badge = TYPE_BADGE[a.type] ?? TYPE_BADGE.normal;
                 const expired = a.expiresAt !== null && new Date(a.expiresAt).getTime() <= Date.now();
                 return (
-                  <div key={a.id} className="rounded-lg border p-3">
+                  <ListRow key={a.id}>
                     <div className="flex flex-wrap items-center gap-2">
                       {a.isPinned && <Pin className="size-3.5 shrink-0 text-muted-foreground" />}
                       <Badge variant={badge.variant} className="shrink-0">{badge.label}</Badge>
@@ -223,7 +224,7 @@ export function AnnouncementManager({ projectId, members, roles, open, onOpenCha
                           <span> · 将于 {fmtLocal(a.expiresAt)} 过期</span>
                         ))}
                     </p>
-                  </div>
+                  </ListRow>
                 );
               })}
               {items.length < total && (

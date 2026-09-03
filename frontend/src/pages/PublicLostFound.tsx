@@ -5,6 +5,7 @@ import { api } from '../api/client';
 import { fmtLocal } from '../lib/datetime';
 import { ModeToggle } from '../theme';
 import type { PublicLostFoundItem, PublicLostFoundResponse } from '../types';
+import Logo from '../components/Logo';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -58,7 +59,7 @@ export default function PublicLostFound() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-dvh bg-background">
       <div className="fixed right-3 top-3 z-50">
         <ModeToggle />
       </div>
@@ -80,8 +81,9 @@ export default function PublicLostFound() {
         ) : (
           <>
             <div className="space-y-1 text-center">
+              <div className="flex justify-center pb-2"><Logo /></div>
               <p className="text-sm text-muted-foreground">{data.projectName}</p>
-              <h1 className="text-2xl font-semibold">失物招领</h1>
+              <h1 className="text-2xl font-semibold tracking-tight">失物招领</h1>
               <p className="text-sm text-muted-foreground">发现疑似自己的物品？请联系现场工作人员核对认领</p>
             </div>
 
@@ -120,7 +122,7 @@ export default function PublicLostFound() {
             ) : (
               <div className="grid gap-3 sm:grid-cols-2">
                 {data.items.map((it: PublicLostFoundItem) => (
-                  <Card key={it.id} className="overflow-hidden">
+                  <Card key={it.id} className="gap-0 overflow-hidden py-0">
                     {it.hasPhoto && (
                       <img
                         src={`/api/public/lostfound/${token}/items/${it.id}/photo`}
@@ -132,9 +134,9 @@ export default function PublicLostFound() {
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{it.name}</span>
                         {it.status === 'pending' ? (
-                          <Badge variant="outline" className="border-amber-500 text-amber-600 dark:text-amber-400">待认领</Badge>
+                          <Badge variant="warning-soft">待认领</Badge>
                         ) : (
-                          <Badge className="bg-green-600 text-white hover:bg-green-600">已认领</Badge>
+                          <Badge variant="success">已认领</Badge>
                         )}
                       </div>
                       {it.note && <p className="text-sm text-muted-foreground">{it.note}</p>}

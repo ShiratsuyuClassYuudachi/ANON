@@ -45,6 +45,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { ListRow } from '@/components/ui/list-row';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -68,16 +69,16 @@ const STATUS_MAP: Record<string, { label: string; variant: 'default' | 'secondar
 };
 
 const HEALTH_MAP: Record<HealthStatus, { label: string; cls: string }> = {
-  normal: { label: '正常', cls: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
-  attention: { label: '需关注', cls: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' },
-  at_risk: { label: '存在风险', cls: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' },
-  critical: { label: '严重异常', cls: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' },
+  normal: { label: '正常', cls: 'bg-success-soft text-success-soft-foreground' },
+  attention: { label: '需关注', cls: 'bg-warning-soft text-warning-soft-foreground' },
+  at_risk: { label: '存在风险', cls: 'bg-warning-soft text-warning-soft-foreground' },
+  critical: { label: '严重异常', cls: 'bg-destructive-soft text-destructive-soft-foreground' },
 };
 
 const LEVEL_MAP: Record<string, { icon: typeof Info; cls: string; border: string }> = {
-  critical: { icon: AlertTriangle, cls: 'text-red-600 dark:text-red-400', border: 'border-l-red-500' },
-  warning: { icon: AlertTriangle, cls: 'text-orange-600 dark:text-orange-400', border: 'border-l-orange-500' },
-  info: { icon: Info, cls: 'text-blue-600 dark:text-blue-400', border: 'border-l-blue-500' },
+  critical: { icon: AlertTriangle, cls: 'text-destructive', border: 'border-l-destructive' },
+  warning: { icon: AlertTriangle, cls: 'text-warning', border: 'border-l-warning' },
+  info: { icon: Info, cls: 'text-primary', border: 'border-l-primary' },
 };
 
 const CARD_DEFS: Record<string, { title: string }> = {
@@ -408,9 +409,9 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
             <p className="py-4 text-center text-sm text-muted-foreground">当前没有需要你处理的事项</p>
           ) : (
             myActions.items.map((item) => (
-              <div
+              <ListRow
                 key={item.id}
-                className="flex items-center gap-2 rounded-lg border p-3 transition-colors hover:bg-accent/50"
+                className="flex items-center gap-2 transition-colors hover:bg-accent/50"
               >
                 <button
                   onClick={() => onNavigate(item.sourceType === 'todo' ? 'todos' : 'work')}
@@ -449,7 +450,7 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
                     确认
                   </Button>
                 )}
-              </div>
+              </ListRow>
             ))
           )}
         </div>
@@ -469,7 +470,7 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
         <div className="space-y-2">
           {risks.risks.length === 0 ? (
             <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
-              <CheckCircle2 className="size-4 text-green-600 dark:text-green-400" />
+              <CheckCircle2 className="size-4 text-success" />
               当前未发现明显风险
             </div>
           ) : (
@@ -500,7 +501,7 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
                     const Icon = level.icon;
                     const ignorerName = members.find((m) => m.userId === risk.ignoredBy)?.name ?? '成员';
                     return (
-                      <div key={risk.id} className="flex items-start gap-2 rounded-lg border p-3 opacity-75">
+                      <ListRow key={risk.id} className="flex items-start gap-2 opacity-75">
                         <Icon className={`mt-0.5 size-4 shrink-0 ${level.cls}`} />
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium">{risk.title}</p>
@@ -520,7 +521,7 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
                         >
                           {restoringId === risk.id ? <Loader2 className="size-4 animate-spin" /> : <RotateCcw className="size-4" />}
                         </Button>
-                      </div>
+                      </ListRow>
                     );
                   })}
                 </div>
@@ -552,7 +553,7 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
           ) : (
           <div className="space-y-3">
             {announcements.items.map((a) => (
-              <div key={a.id} className={`rounded-lg border p-3 ${a.type === 'emergency' ? 'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950' : a.type === 'important' ? 'border-orange-300 bg-orange-50 dark:border-orange-800 dark:bg-orange-950' : ''}`}>
+              <ListRow key={a.id} className={a.type === 'emergency' ? 'border-destructive/40 bg-destructive-soft text-destructive-soft-foreground' : a.type === 'important' ? 'border-warning/40 bg-warning-soft text-warning-soft-foreground' : ''}>
                 <div className="flex items-start gap-2">
                   {a.isPinned && <Pin className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />}
                   <div className="min-w-0 flex-1">
@@ -575,7 +576,7 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
                     <Badge variant="secondary" className="shrink-0 text-xs">已确认</Badge>
                   )}
                 </div>
-              </div>
+              </ListRow>
             ))}
           </div>
           )}
@@ -618,7 +619,7 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
                       {item.sourceType === 'todo' && <ListTodo className="size-3.5 shrink-0 text-muted-foreground" />}
                       {item.sourceType === 'work' && <ClipboardList className="size-3.5 shrink-0 text-muted-foreground" />}
                       {item.sourceType === 'project' && <CalendarDays className="size-3.5 shrink-0 text-primary" />}
-                      {item.sourceType === 'milestone' && <Flag className="size-3.5 shrink-0 text-purple-600 dark:text-purple-400" />}
+                      {item.sourceType === 'milestone' && <Flag className="size-3.5 shrink-0 text-primary" />}
                       <span className="truncate">{item.title}</span>
                     </div>
                   ))}

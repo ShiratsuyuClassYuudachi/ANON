@@ -16,6 +16,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ListRow } from '@/components/ui/list-row';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { computeExecution, delayMin, overrunMin } from './rundownExecution';
 import { hhmm } from './rundownExport';
@@ -97,7 +98,7 @@ export default function ExecutionPanel({ projectId, rundown, canManage, onChange
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-lg">执行控制</CardTitle>
           {e.status === 'running' ? (
-            <Badge className="bg-green-600 text-white hover:bg-green-600">进行中</Badge>
+            <Badge variant="success">进行中</Badge>
           ) : e.status === 'finished' ? (
             <Badge variant="secondary">已结束</Badge>
           ) : (
@@ -120,7 +121,7 @@ export default function ExecutionPanel({ projectId, rundown, canManage, onChange
         {e.status === 'running' && (
           <>
             {current ? (
-              <div className="space-y-2 rounded-lg border p-3">
+              <ListRow className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-xl font-bold">{current.item.name}</p>
                   <span className="text-sm text-muted-foreground">
@@ -128,7 +129,7 @@ export default function ExecutionPanel({ projectId, rundown, canManage, onChange
                   </span>
                   {delay !== null && delay > 0 && <Badge variant="destructive">延误 +{delay} 分钟</Badge>}
                   {delay !== null && delay < 0 && (
-                    <Badge className="bg-green-600 text-white hover:bg-green-600">提前 {-delay} 分钟</Badge>
+                    <Badge variant="success">提前 {-delay} 分钟</Badge>
                   )}
                 </div>
                 <p className="text-sm text-muted-foreground">
@@ -142,14 +143,14 @@ export default function ExecutionPanel({ projectId, rundown, canManage, onChange
                 <p className="text-sm text-muted-foreground">
                   预计全场结束 {hhmm(execList[execList.length - 1].projectedEnd)}（随进度实时推算）
                 </p>
-              </div>
+              </ListRow>
             ) : (
               <p className="text-sm text-muted-foreground">推进中…</p>
             )}
 
             <div className="flex flex-wrap items-center gap-2">
               {e.shiftMin !== 0 && (
-                <span className="text-sm font-medium text-amber-600 dark:text-amber-400">
+                <span className="text-sm font-medium text-warning">
                   {e.shiftMin > 0 ? `顺延 +${e.shiftMin} 分钟` : `提前 ${-e.shiftMin} 分钟`}
                 </span>
               )}

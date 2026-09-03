@@ -6,6 +6,7 @@ import { decryptWithPassphrase, encryptWithPassphrase } from '../../crypto';
 import type { Member, PlatformAccountItem, ProjectDetail, Visibility } from '../../types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ListRow } from '@/components/ui/list-row';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -239,13 +240,13 @@ export default function AccountsTab({ project, members, myPermissions }: Props) 
               )
             )}
             {canManage && editingVisId === a.id && (
-              <div className="space-y-2 rounded-lg border p-3">
+              <ListRow className="space-y-2">
                 <VisibilityPicker members={members} roles={roles} value={visDraft} onChange={setVisDraft} />
                 <div className="flex gap-2">
                   <Button size="sm" onClick={() => saveVisibility(a.id)}>保存</Button>
                   <Button size="sm" variant="ghost" onClick={() => setEditingVisId(null)}>取消</Button>
                 </div>
-              </div>
+              </ListRow>
             )}
           </CardContent>
         </Card>

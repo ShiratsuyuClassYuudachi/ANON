@@ -200,9 +200,9 @@ export default function LostFoundTool({ project, myPermissions }: Props) {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{it.name}</span>
                     {it.status === 'pending' ? (
-                      <Badge variant="outline" className="border-amber-500 text-amber-600 dark:text-amber-400">待认领</Badge>
+                      <Badge variant="warning-soft">待认领</Badge>
                     ) : (
-                      <Badge className="bg-green-600 text-white hover:bg-green-600">已认领</Badge>
+                      <Badge variant="success">已认领</Badge>
                     )}
                   </div>
                   {it.note && <p className="text-sm text-muted-foreground">{it.note}</p>}

@@ -25,6 +25,7 @@ import LostFoundItemDialog from '../components/project/tools/LostFoundItemDialog
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ListRow } from '@/components/ui/list-row';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
@@ -201,8 +202,8 @@ export default function OnsitePage() {
       {data.emergency.map((a) => (
         <div
           key={a.id}
-          className={`flex items-start gap-2 rounded-lg px-4 py-3 text-white ${
-            a.type === 'emergency' ? 'bg-red-600' : 'bg-orange-500'
+          className={`flex items-start gap-2 rounded-lg px-4 py-3 ${
+            a.type === 'emergency' ? 'bg-destructive text-destructive-foreground' : 'bg-warning text-warning-foreground'
           }`}
         >
           {a.type === 'emergency' ? (
@@ -238,7 +239,7 @@ export default function OnsitePage() {
                 </p>
               </div>
               {my?.completedAt ? (
-                <Badge className="h-11 gap-1.5 bg-green-600 px-4 text-base text-white hover:bg-green-600">
+                <Badge variant="success" className="h-11 gap-1.5 px-4 text-base">
                   <CheckCircle2 className="size-5" /> 已完成
                 </Badge>
               ) : my?.checkedInAt ? (
@@ -288,7 +289,7 @@ export default function OnsitePage() {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-lg">
-            <AlertTriangle className="size-5 text-orange-500" /> 异常上报
+            <AlertTriangle className="size-5 text-warning" /> 异常上报
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -394,12 +395,11 @@ export default function OnsitePage() {
             <p className="py-2 text-center text-base text-muted-foreground">暂无异常记录</p>
           )}
           {sortedIncidents.map((inc) => (
-            <div key={inc.id} className="space-y-1 rounded-lg border p-3">
+            <ListRow key={inc.id} className="space-y-1">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-base font-medium">{CATEGORY_LABEL[inc.category] ?? inc.category}</p>
                 <Badge
-                  variant={inc.status === 'open' ? 'destructive' : 'secondary'}
-                  className={inc.status === 'resolved' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : ''}
+                  variant={inc.status === 'open' ? 'destructive' : 'success-soft'}
                 >
                   {inc.status === 'open' ? '待处理' : '已解决'}
                 </Badge>
@@ -409,7 +409,7 @@ export default function OnsitePage() {
                 {inc.reporter.name}
                 {inc.moduleName ? ` · ${inc.moduleName}` : ''} · {fmtLocal(inc.createdAt)}
               </p>
-            </div>
+            </ListRow>
           ))}
         </CardContent>
       </Card>
@@ -440,20 +440,20 @@ function RundownExecRow({
       ? Math.round((new Date(r.currentActualStart).getTime() - new Date(r.currentPlannedStart).getTime()) / 60_000)
       : null;
   return (
-    <div className="space-y-2 rounded-lg border p-3">
+    <ListRow className="space-y-2">
       <div className="flex items-center gap-2">
         <p className="font-medium">{r.name}</p>
         {running ? (
-          <Badge className="bg-green-600 text-white hover:bg-green-600">执行中</Badge>
+          <Badge variant="success">执行中</Badge>
         ) : (
           <Badge variant="secondary">未开始</Badge>
         )}
         {delay !== null && delay > 0 && <Badge variant="destructive">延误 +{delay} 分钟</Badge>}
         {delay !== null && delay < 0 && (
-          <Badge className="bg-green-600 text-white hover:bg-green-600">提前 {-delay} 分钟</Badge>
+          <Badge variant="success">提前 {-delay} 分钟</Badge>
         )}
         {running && r.shiftMin !== 0 && (
-          <Badge variant="outline" className="border-amber-500 text-amber-600 dark:text-amber-400">
+          <Badge variant="warning-soft">
             {r.shiftMin > 0 ? `顺延 +${r.shiftMin} 分钟` : `提前 ${-r.shiftMin} 分钟`}
           </Badge>
         )}
@@ -509,7 +509,7 @@ function RundownExecRow({
           )}
         </>
       )}
-    </div>
+    </ListRow>
   );
 }
 

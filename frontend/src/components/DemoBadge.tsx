@@ -3,7 +3,7 @@ export default function DemoBadge() {
   if (import.meta.env.VITE_DEMO !== 'true') return null;
   return (
     <div className="fixed bottom-3 right-3 z-50 print:hidden" title="数据为示例，修改保留于本会话，关闭标签页即还原">
-      <span className="rounded-full border border-amber-500/40 bg-amber-500/90 px-3 py-1 text-xs font-semibold text-white shadow">
+      <span className="rounded-full border border-warning/40 bg-warning/90 px-3 py-1 text-xs font-semibold text-warning-foreground shadow">
         演示环境
       </span>
     </div>

@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { ListRow } from '@/components/ui/list-row';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -104,9 +105,9 @@ export function MilestoneSection({ projectId, stages, myPermissions, collapsed =
         ) : (
           <div className="space-y-2">
             {items.map((m) => (
-              <div
+              <ListRow
                 key={m.id}
-                className="flex items-start gap-2 rounded-lg border p-3 transition-colors hover:bg-accent/50"
+                className="flex items-start gap-2 transition-colors hover:bg-accent/50"
               >
                 <span className="mt-0.5 w-12 shrink-0 text-xs font-medium tabular-nums text-muted-foreground">
                   {fmtLocal(m.date).slice(0, 5)}
@@ -121,11 +122,11 @@ export function MilestoneSection({ projectId, stages, myPermissions, collapsed =
                 </div>
                 {m.stageName && <Badge variant="outline" className="shrink-0 text-xs">{m.stageName}</Badge>}
                 {m.completedAt ? (
-                  <Check className="mt-0.5 size-4 shrink-0 text-green-600 dark:text-green-400" />
+                  <Check className="mt-0.5 size-4 shrink-0 text-success" />
                 ) : (
-                  <Flag className="mt-1 size-3.5 shrink-0 text-purple-600 dark:text-purple-400" />
+                  <Flag className="mt-1 size-3.5 shrink-0 text-primary" />
                 )}
-              </div>
+              </ListRow>
             ))}
           </div>
         )}

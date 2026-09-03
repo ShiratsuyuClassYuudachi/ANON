@@ -203,9 +203,9 @@ function SortableProgramRow({
               variant="secondary"
               className={`font-mono ${
                 livePushed
-                  ? 'border-amber-500 text-amber-600 dark:text-amber-400'
+                  ? 'border-warning text-warning'
                   : liveEarlier
-                    ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
+                    ? 'border-success text-success'
                     : ''
               }`}
             >
@@ -215,7 +215,7 @@ function SortableProgramRow({
             <span className="text-sm text-muted-foreground">{scheduled.durationMin} 分钟</span>
             {exec?.state === 'current' && <Badge>进行中</Badge>}
             {exec?.state === 'done' && (
-              <Badge className="bg-green-600 text-white hover:bg-green-600">已完成</Badge>
+              <Badge variant="success">已完成</Badge>
             )}
           </div>
           {exec?.state === 'done' && exec.actualStart && (
@@ -688,7 +688,7 @@ export default function StageRundownTool({ project, myPermissions }: Props) {
                   <div className="flex items-center gap-2">
                     <p className="font-medium">{r.name}</p>
                     {r.executionStatus === 'running' && (
-                      <Badge className="bg-green-600 text-white hover:bg-green-600">执行中</Badge>
+                      <Badge variant="success">执行中</Badge>
                     )}
                     {r.executionStatus === 'finished' && <Badge variant="secondary">已结束</Badge>}
                   </div>

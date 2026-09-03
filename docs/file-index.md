@@ -172,15 +172,15 @@
 - `src/lib/utils.ts` — cn() 类名合并
 
 ### 页面 `src/pages/`
-- `Login.tsx` / `Register.tsx` — 登录 / 邀请码注册（演示模式一键进入）
+- `Login.tsx` / `Register.tsx` — 登录 / 邀请码注册（演示模式一键进入；与 InviteAccept 共用 AuthShell 品牌壳）
 - `Projects.tsx` — 项目列表：健康度/阶段/倒计时卡片 + 新建
 - `ProjectHome.tsx` — 项目主页：10 个按权限过滤的 Tab + 现场模式入口；移动端底部导航「更多」Sheet（现场模式/溢出 Tab/「安装应用」PWA 入口，指引弹层挂 Sheet 外由本页持有）
 - `OnsitePage.tsx` — 现场模式：签到/完成/异常上报（离线入队）、舞台执行卡（Rundown 开始/推进/顺延，按 tools:manage 显隐）、失物登记入口（复用 LostFoundItemDialog，按 myPermissions 显隐）、30s 轮询
 - `WorkSheetPrint.tsx` — 任务单打印页（按人/全员）
 - `Me.tsx` — 个人资料/联系方式/推送设置/QQ 通知绑定（QqBindCard）/API 密钥（ApiKeysCard）/界面偏好
 - `Admin.tsx` — 超管邀请码管理
-- `InviteAccept.tsx` — 接受项目邀请
-- `PublicLostFound.tsx` — 失物招领免登录公开查找页（/lf/:token，搜索+状态筛选+照片）
+- `InviteAccept.tsx` — 接受项目邀请（AuthShell 壳，错误/信息/加载三态在壳内）
+- `PublicLostFound.tsx` — 失物招领免登录公开查找页（/lf/:token，搜索+状态筛选+照片；头部品牌行）
 - `RundownScreenPage.tsx` — 现场大屏免登录公开页（/screen/:token，强制深色投屏：当前节目/时钟/紧急公告位，10s 轮询）
 - `DocsPage.tsx` — 帮助中心：章节切换/全文搜索/截图缩放
 
@@ -195,10 +195,11 @@
 - `QqBindCard.tsx` — Me 页 QQ 通知卡：未启用提示 / 生成绑定码（大字码+指引）/ 已绑定+解绑
 - `PwaInstallGuide.tsx` — PWA 手动安装指引弹层（iOS 分享路径 / 浏览器菜单路径两版；由 ProjectHome 挂在「更多」Sheet 外）
 - `ApiKeysCard.tsx` — Me 页 API 密钥卡：自助生成（项目+实有权限点+30 天/永久）、一次性原文展示复制、列表与撤销
-- `Toaster.tsx` — sonner 封装；`Logo.tsx` — 品牌标识（应用图标 /icons/icon-192.png + ANON 字样，顶栏/登录/注册共用）
+- `Toaster.tsx` — sonner 封装；`Logo.tsx` — 品牌标识（应用图标 /icons/icon-192.png + ANON 字样，size/wordmarkClassName props，顶栏/AuthShell/公开页共用）
+  `AuthShell.tsx` — 认证/邀请页共用壳：≥lg 左侧品牌区（bg-primary 随主题主色 + radial 高光）+ 右侧表单卡，<lg 紧凑品牌头；Login/Register/InviteAccept 接入
 - `help/content.ts` — HELP_CHAPTERS 帮助文案（11 章，UI 变化需同步并重生成截图）
 - `onboarding/OnboardingDialog.tsx` — 首登三页幻灯；`onboarding/tour.ts` — driver.js 分步高亮（data-tour 锚点）
-- `ui/*.tsx`（20 个）— shadcn/radix 基础组件封装；表单一律用 dialog.tsx（经 FormOverlay），sheet.tsx 仅限无输入纯操作面板
+- `ui/*.tsx`（21 个）— shadcn/radix 基础组件封装；表单一律用 dialog.tsx（经 FormOverlay），sheet.tsx 仅限无输入纯操作面板；badge.tsx 含 success/success-soft/warning/warning-soft 状态变体（语义令牌见 index.css），button.tsx 基础串含 active:scale-[0.98] 触感，input.tsx 原生支持 file: 样式（文件选择直接用 `<Input type="file">`）；list-row.tsx 为列表行共享容器（rounded-lg border p-3）
 
 ### 项目 Tab `src/components/project/`（挂在 ProjectHome，直调对应后端域）
 - `DashboardTab.tsx` — 仪表盘聚合（内嵌公告/里程碑/阶段卡）

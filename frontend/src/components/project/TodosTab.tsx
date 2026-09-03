@@ -325,14 +325,14 @@ export default function TodosTab({ project, members, myPermissions }: Props) {
                           <Circle className="size-4" />
                         </button>
                       ) : (
-                        <CheckCircle2 className="mt-0.5 size-8 shrink-0 p-1.5 text-green-600 dark:text-green-400" />
+                        <CheckCircle2 className="mt-0.5 size-8 shrink-0 p-1.5 text-success" />
                       )}
                       <div className="min-w-0 flex-1 space-y-1">
                         <p className={`font-medium ${t.status === 'done' ? 'text-muted-foreground line-through' : ''}`}>{t.title}</p>
                         <div className="flex flex-wrap gap-1.5">
                           {t.category && <Badge variant="secondary">{t.category}</Badge>}
                           {t.status === 'done' ? (
-                            <Badge variant="outline" className="border-green-500 text-green-600 dark:text-green-400">已完成</Badge>
+                            <Badge variant="success-soft">已完成</Badge>
                           ) : isOverdue(t) ? (
                             <Badge variant="destructive">已逾期</Badge>
                           ) : (
@@ -461,13 +461,11 @@ export default function TodosTab({ project, members, myPermissions }: Props) {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="import-file">模板文件（JSON）</Label>
-            {/* shadcn Input 不转发 ref（React 18），此处需 ref 读取文件，故用原生 input */}
-            <input
+            <Input
               id="import-file"
               type="file"
               accept="application/json"
               ref={importFile}
-              className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground dark:bg-input/30"
             />
           </div>
           <Button className="w-full" onClick={importTemplate}>导入模板生成待办</Button>
