@@ -1270,7 +1270,7 @@ paths:
     post:
       tags: [项目]
       summary: 生成项目 QQ 群绑定码
-      description: 需 project:manage 权限。生成 6 位数字一次性绑定码（10 分钟有效，同项目单一有效码——重复生成旧码作废）。随后把机器人拉进 QQ 群并 @机器人 发送「绑定 XXXXXX」完成关联；绑定后群里收到精选类型通知（里程碑临近/待办节点与到期提醒/重要紧急公告/新风险/现场异常/周报）。
+      description: 需 project:manage 权限。生成 6 位数字一次性绑定码（10 分钟有效，同项目单一有效码——重复生成旧码作废；绑定多个群时顺序生成绑定即可）。随后把机器人拉进 QQ 群并 @机器人 发送「绑定 XXXXXX」完成关联；一个群同一时刻只属于一个项目，绑到新项目自动从旧项目解除，同项目重复绑定同群将其类型配置重置为全选。绑定后群里收到订阅的精选类型通知（里程碑临近/待办节点与到期提醒/重要紧急公告/新风险/现场异常/周报，逐群可配）。
       parameters:
         - name: id
           in: path
@@ -1307,26 +1307,32 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
-  /api/projects/{id}/qq-binding:
+  /api/projects/{id}/qq-binding/{groupOpenId}:
     delete:
       tags: [项目]
-      summary: 解绑项目 QQ 群
-      description: 需 project:manage 权限。清除项目的 QQ 群绑定（幂等）。
+      summary: 按群解绑项目 QQ 群
+      description: 需 project:manage 权限。从项目的 qqGroups 中移除指定群（幂等，群不存在时返回原列表）。QQ 侧把机器人移出群（GROUP_DEL_ROBOT 事件）也会自动解绑。
       parameters:
         - name: id
           in: path
           required: true
           schema: { type: string }
+        - name: groupOpenId
+          in: path
+          required: true
+          schema: { type: string }
       responses:
         '200':
-          description: 解绑结果
+          description: 剩余绑定列表
           content:
             application/json:
               schema:
                 type: object
-                required: [qqGroupBound]
+                required: [qqGroups]
                 properties:
-                  qqGroupBound: { type: boolean, enum: [false] }
+                  qqGroups:
+                    type: array
+                    items: { $ref: '#/components/schemas/QqGroup' }
         '401':
           description: 未认证（unauthorized）
           content:
@@ -1339,6 +1345,62 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
         '404':
           description: 项目不存在（not_found）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    patch:
+      tags: [项目]
+      summary: 配置单个群的订阅消息类型
+      description: 需 project:manage 权限。types 去重后整体覆盖该群的订阅类型；每个值须为精选 7 类之一（milestone:approaching / todo:remind / todo:due / announcement:published / risk:new / incident:reported / weekly:report），空数组表示该群不接收任何群消息。
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: groupOpenId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [types]
+              properties:
+                types:
+                  type: array
+                  items: { type: string, enum: [milestone:approaching, todo:remind, todo:due, announcement:published, risk:new, incident:reported, weekly:report] }
+      responses:
+        '200':
+          description: 更新后的绑定列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [qqGroups]
+                properties:
+                  qqGroups:
+                    type: array
+                    items: { $ref: '#/components/schemas/QqGroup' }
+        '400':
+          description: 无效的通知类型（bad_request）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: 未认证（unauthorized）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403':
+          description: 禁止访问（forbidden / api_key_wrong_project）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: 项目不存在或该群未绑定（not_found）
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -7867,7 +7929,7 @@ components:
     ProjectDetail:
       description: 项目详情
       type: object
-      required: [id, name, description, status, startDate, endDate, location, timezone, currentStage, stages, roles, createdBy, qqGroupBound, qqEnabled]
+      required: [id, name, description, status, startDate, endDate, location, timezone, currentStage, stages, roles, createdBy, qqGroups, qqEnabled]
       properties:
         id: { type: string }
         name: { type: string }
@@ -7885,8 +7947,20 @@ components:
           type: array
           items: { $ref: '#/components/schemas/Role' }
         createdBy: { type: string }
-        qqGroupBound: { type: boolean, description: 项目是否已绑定 QQ 群（群 openid 不外泄） }
+        qqGroups:
+          type: array
+          description: 已绑定的 QQ 群列表（逐群订阅类型；空数组 = 未绑定）
+          items: { $ref: '#/components/schemas/QqGroup' }
         qqEnabled: { type: boolean, description: 部署是否配置了 QQ 机器人凭证 }
+    QqGroup:
+      type: object
+      required: [groupOpenId, types]
+      properties:
+        groupOpenId: { type: string, description: QQ 群 group_openid（项目成员可见，用于逐群配置/解绑寻址） }
+        types:
+          type: array
+          description: 订阅的精选消息类型（空数组 = 不接收任何群消息）
+          items: { type: string }
     StageItem:
       description: 项目阶段
       type: object
