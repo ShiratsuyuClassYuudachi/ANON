@@ -30,8 +30,8 @@
 | 失物招领/公开查找页 | routes/lostFound.ts、models/{LostFoundItem,LostFoundShare}.ts、services/permissions.ts（迁移） | project/tools/LostFound*.tsx、pages/PublicLostFound.tsx、pages/OnsitePage.tsx（现场录入入口） | tests/lostFound.test.ts |
 | 自定义工具/OpenAPI（API 密钥） | routes/{customTools,open}.ts、models/{CustomTool,ApiKey}.ts、middleware/auth.ts（anonk_ 分流 + rejectApiKey 围栏）、middleware/projectAccess.ts（项目绑定 + scopes 收窄）、utils/jwt.ts（kind 隔离 + tool-launch） | project/ToolsTab.tsx、project/tools/{CustomToolEmbed,CustomToolDialog}.tsx、lib/toolLaunch.ts（启动令牌 postMessage 握手投递）、components/ApiKeysCard.tsx（Me 页）、lib/permissions.ts（共享权限清单） | tests/{customTools,open}.test.ts |
 | 里程碑 | routes/milestones.ts、models/Milestone.ts | project/MilestoneSection.tsx | — |
-| 通知（邮件+WebPush+QQ）/ cron | services/{notifications,mailer,webpush,qqApi,qqbot,qqEvents,qqWebhook}.ts、routes/{push,cron,qqWebhook}.ts、models/{PushSubscription,ReminderLog,WeeklyReportLog,QQBindCode}.ts、routes/{me,projects}.ts（qq-bind-code/qq-binding 端点） | lib/push.ts、components/{PushBanner,PushSettingsCard,QqBindCard}.tsx、project/SettingsTab.tsx（QQ 群通知卡）、scripts/patch-sw.mjs | tests/{notifications,push,cron,qq,qq-webhook}.test.ts |
-| QQ AI 录单（群@ + 单聊） | services/{qqTodo,ai,todos}.ts、qqEvents.ts（群@ + 单聊分发）、models/{User,Project}.ts（qqMemberIds/qqUnionOpenId/qqGroupOpenId）、config.ts（ai 块，AI_API_KEY 未配静默禁用） | —（无界面，群/单聊消息入口） | tests/qq-todo.test.ts |
+| 通知（邮件+WebPush+QQ）/ cron | services/{notifications,mailer,webpush,qqApi,qqbot,qqEvents,qqWebhook}.ts、routes/{push,cron,qqWebhook}.ts、models/{PushSubscription,ReminderLog,WeeklyReportLog,QQBindCode}.ts、routes/{me,projects}.ts（qq-bind-code 与 qq-binding/:groupOpenId 端点） | lib/push.ts、components/{PushBanner,PushSettingsCard,QqBindCard}.tsx、project/SettingsTab.tsx（QQ 群通知卡：多群绑定/逐群类型勾选）、scripts/patch-sw.mjs | tests/{notifications,push,cron,qq,qq-webhook}.test.ts |
+| QQ AI 录单（群@ + 单聊） | services/{qqTodo,ai,todos}.ts、qqEvents.ts（群@ + 单聊分发）、models/{User,Project}.ts（qqMemberIds/qqUnionOpenId/qqGroups）、config.ts（ai 块，AI_API_KEY 未配静默禁用） | —（无界面，群/单聊消息入口） | tests/qq-todo.test.ts |
 | PWA 安装入口 | —（纯前端） | lib/pwaInstall.ts（事件捕获/状态）、components/PwaInstallGuide.tsx（指引弹层）、pages/ProjectHome.tsx（「更多」Sheet 行） | .walkthrough/pwa-install.mjs（走查） |
 | 试用模式 | services/trial.ts、models/TrialSession.ts、services/demoSeed.ts | components/TrialBanner.tsx | tests/trial.test.ts |
 | 纯前端演示站 | —（mock 后端契约） | demo/ 全目录、components/{DemoBadge,DemoBanner}.tsx、vite.config.ts | — |
@@ -67,7 +67,7 @@
 - `auth.ts` — POST register/login/refresh/logout，JWT+refresh 轮换；/login 内嵌试用入口（trialLogin）
 - `admin.ts` — 超管邀请码 POST/GET /invite-codes
 - `me.ts` — 个人资料 GET/PATCH /（GET 响应含 qq:{enabled,bound}）、POST /onboarded、QQ 绑定 POST /qq-bind-code、DELETE /qq-binding
-- `projects.ts` — 项目 CRUD + roles/members/invites 子资源 + QQ 群绑定 POST /:id/qq-bind-code、DELETE /:id/qq-binding（project:manage）
+- `projects.ts` — 项目 CRUD + roles/members/invites 子资源 + QQ 群绑定 POST /:id/qq-bind-code、DELETE/PATCH /:id/qq-binding/:groupOpenId（project:manage；PATCH 配置逐群订阅类型）
 - `invites.ts` — GET /:token 查询、POST /:token/accept
 - `todos.ts` — 待办 CRUD、模板 import/export、POST /:todoId/complete|updates
 - `finance.ts` — 账目 CRUD、PATCH /ticket、GET /export(CSV)
@@ -96,10 +96,10 @@
 - `User.ts` — 用户：email/name/passwordHash/isSuperAdmin/contacts/qqOpenId（QQ 单聊投递目标，publicUser 不导出）/qqUnionOpenId/qqMemberIds（群维度 member_openid 对照表，群@指派解析用）；导出 publicUser() 脱敏
 - `RefreshToken.ts` — 会话：tokenHash(sha256 唯一)、expiresAt
 - `InviteCode.ts` — 注册邀请码：code/createdBy/usedBy/usedAt
-- `Project.ts` — 项目：name/status/stages/roles/ticketTypes/qqGroupOpenId（QQ 群投递目标）；导出默认阶段
+- `Project.ts` — 项目：name/status/stages/roles/ticketTypes/qqGroups[{groupOpenId,types}]（QQ 多群投递目标，逐群订阅精选类型）；导出默认阶段
 - `Membership.ts` — 成员：projectId+userId+roleName（唯一索引）
 - `ProjectInvite.ts` — 项目邀请：token/roleName/expiresAt
-- `Todo.ts` — 待办：title/assigneeIds/dueAt/status
+- `Todo.ts` — 待办：title/assigneeIds/dueAt/status/qqSourceGroupOpenId（QQ 群@录单来源群，节点/到期提醒只回该群）
 - `ReminderLog.ts` — 提醒去重：todoId+kind+targetId（唯一；targetId 必填写入——FerretDB sparse 索引将缺失字段按 null 索引）
 - `QQBindCode.ts` — QQ 绑定码：code 唯一/kind(user|project)/userId|projectId/expiresAt（TTL 自动清理）
 - `Transaction.ts` — 财务：type/amountCents/payerUserId/splitAmong
@@ -139,10 +139,10 @@
 - `visibility.ts` — canSee/isVisible 可见范围判定
 - `webpush.ts` — webpushChannel：VAPID 推送、410 清除失效订阅
 - `qqApi.ts` — QQ 传输层：getAppAccessToken 缓存单飞、C2C/群消息发送（msg_type=0，被动回复 msg_id/event_id）
-- `qqbot.ts` — QQ 绑定码生成/消费（单码、TTL、碰撞重试）+ qqChannel（群精选 7 类 + 单聊全量，全败 throw）
-- `qqEvents.ts` — QQ 事件分发 handleQQEvent（webhook 路由与单测共用）：绑定（项目码 + 群内个人码）/解绑/群@任务消息 AI 录单分发（含全量 GROUP_MESSAGE_CREATE 按 bot 提及过滤）；C2C 单聊任务消息分发 handleC2cTaskTodo（绑定意图优先于录单，AI 未配置静默）
+- `qqbot.ts` — QQ 绑定码生成/消费（单码、TTL、碰撞重试）+ QQ_GROUP_TYPES/QQ_GROUP_TYPE_KEYS（群精选 7 类权威清单）+ qqChannel（逐群类型订阅过滤 + 来源群定向 + 单聊全量，全败 throw）+ migrateQQGroupBindings（启动迁移存量单群绑定，index.ts 挂接）
+- `qqEvents.ts` — QQ 事件分发 handleQQEvent（webhook 路由与单测共用）：绑定（项目码三步换绑——一个群同时只属一个项目，重复绑定重置全选 + 群内个人码）/解绑/群@任务消息 AI 录单分发（含全量 GROUP_MESSAGE_CREATE 按 bot 提及过滤）；C2C 单聊任务消息分发 handleC2cTaskTodo（绑定意图优先于录单，AI 未配置静默）
 - `qqWebhook.ts` — QQ webhook 验签：Ed25519（appSecret 倍增取 32 字节 seed）op13 回包签名 / 事件回调验签（timestamp+rawBody）；事件 id 去重（500 条 FIFO）
-- `qqTodo.ts` — QQ AI 录单：群@任务消息 → parseTask 解析 → createTodo 建单；@成员三层身份对照（member_openid→union_openid→昵称唯一）；msg_id 被动回复建单结果；单聊（C2C）录单 handleC2cTaskTodo：多「进行中」活动回序号列表选择归属（内存 pending 10min TTL，0 取消/越界重试/选中复核），单活动直达，C2C 无 mentions 不做指派
+- `qqTodo.ts` — QQ AI 录单：群@任务消息 → parseTask 解析 → createTodo 建单（记录 qqSourceGroupOpenId 来源群）；@成员三层身份对照（member_openid→union_openid→昵称唯一）；msg_id 被动回复建单结果；单聊（C2C）录单 handleC2cTaskTodo：多「进行中」活动回序号列表选择归属（内存 pending 10min TTL，0 取消/越界重试/选中复核），单活动直达，C2C 无 mentions 不做指派
 - `ai.ts` — AI 待办解析（OpenAI 兼容 SDK，默认 DeepSeek deepseek-v4-flash）：parseTask 文本→结构化待办（isTask/title/三个时间/note），失败一律 null；客户端按 config.ai 缓存
 - `todos.ts` — 待办建单共用逻辑：createTodo（成员校验+落库+动态+指派通知）、assertAssigneesAreMembers/todoAssignBody/todoLink（HTTP 路由与 QQ 录单共用）
 - `workModules.ts` — buildSheet 任务单生成、moduleJson 序列化
@@ -209,7 +209,7 @@
 - `PhysicalTab.tsx` — 实物分类/台账/状态/日志
 - `AccountsTab.tsx` — 平台账号增删/密码揭示
 - `MembersTab.tsx` / `RolesTab.tsx` — 成员邀请/角色权限
-- `SettingsTab.tsx` — 项目信息 + 阶段管理（StageManager）
+- `SettingsTab.tsx` — 项目信息 + 阶段管理（StageManager）+ QQ 群通知卡（QqGroupCard：多群列表、逐群 7 类勾选即时保存、绑定码生成）
 - `WorkTab.tsx` — 现场工作模块/确认/打印
 - `AnnouncementManager.tsx` — 公告发布/置顶/确认名单
 - `MilestoneSection.tsx` / `StageStepper.tsx` / `StageManager.tsx` — 里程碑卡 / 阶段进度条 / 阶段增删排序

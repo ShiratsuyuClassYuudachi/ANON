@@ -37,11 +37,15 @@ interface ProjectSummary {
   stageProgress: { completed: number; total: number };
   health: HealthStatus; todoCompletionRate: number; activeRiskCount: number;
 }
+interface QqGroup {
+  groupOpenId: string;   // QQ 群 group_openid（项目成员可见，用于逐群配置/解绑寻址）
+  types: string[];       // 订阅的精选消息类型（空数组 = 不接收任何群消息）
+}
 interface ProjectDetail {
   id: string; name: string; description: string; status: ProjectStatus;
   startDate: string|null; endDate: string|null; location: string; timezone: string;
   currentStage: string; stages: StageItem[]; roles: Role[]; createdBy: string;
-  qqGroupBound: boolean; // 是否已绑定 QQ 群（群 openid 不外泄）
+  qqGroups: { groupOpenId: string; types: string[] }[]; // 已绑定 QQ 群列表（逐群订阅的精选类型；空数组 = 未绑定）
   qqEnabled: boolean;    // 部署是否配置了 QQ 机器人凭证
 }
 interface TodoItem {
@@ -192,12 +196,18 @@ interface FileMeta { id: string; filename: string; mime: string; size: number }
 ### QQ 群通知
 
 - **POST /api/projects/:id/qq-bind-code**（需 `project:manage`）
-  生成项目 QQ 群绑定码（规则同个人绑定码）。把机器人拉进 QQ 群并 @机器人 发送「绑定 XXXXXX」完成关联；绑定后群里收到精选类型通知（里程碑临近、待办节点/到期提醒、重要/紧急公告、新风险、现场异常、每周周报；高频的指派/进度/完成/现场任务分配只发个人单聊不进群）。
+  生成项目 QQ 群绑定码（规则同个人绑定码；同项目同时只有一个有效码，多群顺序生成绑定即可）。把机器人拉进 QQ 群并 @机器人 发送「绑定 XXXXXX」完成关联；一个群同一时刻只属于一个项目，绑到新项目会自动从旧项目解除，同一项目重复绑定同群会将其类型配置重置为全选。
   响应 201：`{ code: string, expiresAt: string }`
   错误：503 `qq_disabled`
-- **DELETE /api/projects/:id/qq-binding**（需 `project:manage`）
-  解绑项目 QQ 群（幂等）。QQ 侧把机器人移出群（GROUP_DEL_ROBOT 事件）也会自动解绑。
-  响应 200：`{ qqGroupBound: false }`
+- **DELETE /api/projects/:id/qq-binding/:groupOpenId**（需 `project:manage`）
+  按群解绑（从 `qqGroups` 移除该群，幂等）。QQ 侧把机器人移出群（GROUP_DEL_ROBOT 事件）也会自动解绑。
+  响应 200：`{ qqGroups: QqGroup[] }`（解绑后的剩余绑定列表）
+- **PATCH /api/projects/:id/qq-binding/:groupOpenId**（需 `project:manage`）
+  配置单个群订阅的消息类型。请求体：`{ types: string[] }`，每个值须为精选 7 类之一（`milestone:approaching`、`todo:remind`、`todo:due`、`announcement:published`、`risk:new`、`incident:reported`、`weekly:report`），去重后整体覆盖；空数组 = 该群不接收任何群消息。
+  响应 200：`{ qqGroups: QqGroup[] }`
+  错误：400 `bad_request`（含非法类型）、404 `not_found`（该群未绑定）
+
+群里只收订阅的精选类型（高频的指派/进度/完成/现场任务分配只发个人单聊不进群）。群里 @机器人 创建的待办会记录来源群，其节点/到期提醒只回来源群（来源群未订阅该提醒类型或已解绑时不发任何群）；其余待办提醒发到全部订阅群。
 
 ### 项目阶段
 

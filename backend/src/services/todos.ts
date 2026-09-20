@@ -41,6 +41,8 @@ export async function createTodo(input: {
   createdBy: Types.ObjectId | string;
   /** logActivity 消息用 */
   actorName: string;
+  /** QQ 群@录单来源群 group_openid；节点/到期提醒只发该群 */
+  qqSourceGroupOpenId?: string;
 }): Promise<TodoDoc> {
   const assignees = input.assigneeIds ?? [];
   await assertAssigneesAreMembers(input.projectId, assignees);
@@ -54,6 +56,7 @@ export async function createTodo(input: {
     remindAt: input.remindAt,
     note: input.note ?? '',
     createdBy: input.createdBy,
+    qqSourceGroupOpenId: input.qqSourceGroupOpenId,
   });
   logActivity({
     projectId: input.projectId,

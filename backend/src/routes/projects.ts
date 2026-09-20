@@ -10,7 +10,7 @@ import { Todo } from '../models/Todo';
 import { User } from '../models/User';
 import { logActivity } from '../services/activity';
 import { ALL_PERMISSIONS, PRESET_ROLES } from '../services/permissions';
-import { createBindCode } from '../services/qqbot';
+import { createBindCode, QQ_GROUP_TYPE_KEYS } from '../services/qqbot';
 import { qqConfigured } from '../services/qqApi';
 import { computeHealth } from '../services/risk';
 import { ah } from '../utils/async';
@@ -35,7 +35,7 @@ function projectJson(p: InstanceType<typeof Project>) {
     stages: stages.map((s) => ({ id: s._id.toString(), name: s.name, order: s.order, completedAt: s.completedAt?.toISOString() ?? null, note: s.note ?? '' })),
     roles: p.roles,
     createdBy: p.createdBy.toString(),
-    qqGroupBound: Boolean(p.qqGroupOpenId),
+    qqGroups: (p.qqGroups ?? []).map((g) => ({ groupOpenId: g.groupOpenId, types: g.types })),
     qqEnabled: qqConfigured(),
   };
 }
@@ -284,10 +284,36 @@ projectsRouter.post(
 );
 
 projectsRouter.delete(
-  '/:id/qq-binding',
+  '/:id/qq-binding/:groupOpenId',
   ...requirePermission('project:manage'),
   ah(async (req, res) => {
-    await Project.updateOne({ _id: req.project!._id }, { $unset: { qqGroupOpenId: 1 } });
-    res.json({ qqGroupBound: false });
+    const updated = await Project.findByIdAndUpdate(
+      req.project!._id,
+      { $pull: { qqGroups: { groupOpenId: req.params.groupOpenId } } },
+      { new: true },
+    ).lean();
+    res.json({ qqGroups: updated?.qqGroups ?? [] });
+  }),
+);
+
+projectsRouter.patch(
+  '/:id/qq-binding/:groupOpenId',
+  ...requirePermission('project:manage'),
+  ah(async (req, res) => {
+    const { types } = req.body ?? {};
+    if (!Array.isArray(types) || types.some((t) => typeof t !== 'string' || !QQ_GROUP_TYPE_KEYS.includes(t))) {
+      throw new AppError(400, 'bad_request', '无效的通知类型');
+    }
+    // 读-改-写整数组：规避 FerretDB 位置操作符（$）不确定性（管理操作并发极低，可接受）
+    const project = await Project.findById(req.project!._id).lean();
+    const groups = project?.qqGroups ?? [];
+    if (!groups.some((g) => g.groupOpenId === req.params.groupOpenId)) {
+      throw new AppError(404, 'not_found', '该群未绑定');
+    }
+    const next = groups.map((g) =>
+      g.groupOpenId === req.params.groupOpenId ? { ...g, types: [...new Set(types)] } : g,
+    );
+    await Project.updateOne({ _id: req.project!._id }, { $set: { qqGroups: next } });
+    res.json({ qqGroups: next });
   }),
 );

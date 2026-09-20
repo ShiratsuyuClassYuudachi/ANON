@@ -99,7 +99,7 @@ function c2cTaskEvent(over: Record<string, unknown> = {}) {
 
 describe('QQ 群 AI 录单', () => {
   it('任务文本 + @已绑定成员 → 建单、指派、回复含标题与指派', async () => {
-    await Project.updateOne({ _id: projectId }, { qqGroupOpenId: GROUP });
+    await Project.updateOne({ _id: projectId }, { qqGroups: [{ groupOpenId: GROUP, types: [] }] });
     await User.updateOne(
       { _id: staff.user.id },
       { qqMemberIds: [{ groupOpenId: GROUP, memberOpenId: 'member-staff' }] },
@@ -116,6 +116,8 @@ describe('QQ 群 AI 录单', () => {
     expect(todo!.assigneeIds.map(String)).toEqual([staff.user.id]);
     // 发送者未绑定 → createdBy 回落项目创建者
     expect(todo!.createdBy.toString()).toBe(owner.user.id);
+    // 群@录单记录来源群：节点/到期提醒只回该群
+    expect(todo!.qqSourceGroupOpenId).toBe(GROUP);
 
     expect(sendGroupMock).toHaveBeenCalledTimes(1);
     const [to, text, opts] = sendGroupMock.mock.calls[0];
@@ -126,7 +128,7 @@ describe('QQ 群 AI 录单', () => {
     expect(text).toContain('截止：2026-09-05 18:00');
   });
   it('全量群消息（GROUP_MESSAGE_CREATE）@机器人 → 同样建单，机器人自身不进指派', async () => {
-    await Project.updateOne({ _id: projectId }, { qqGroupOpenId: GROUP });
+    await Project.updateOne({ _id: projectId }, { qqGroups: [{ groupOpenId: GROUP, types: [] }] });
     await User.updateOne(
       { _id: staff.user.id },
       { qqMemberIds: [{ groupOpenId: GROUP, memberOpenId: 'member-staff' }] },
@@ -147,7 +149,7 @@ describe('QQ 群 AI 录单', () => {
   });
 
   it('全量群消息未 @ 机器人 → 静默忽略', async () => {
-    await Project.updateOne({ _id: projectId }, { qqGroupOpenId: GROUP });
+    await Project.updateOne({ _id: projectId }, { qqGroups: [{ groupOpenId: GROUP, types: [] }] });
 
     await handleQQEvent('GROUP_MESSAGE_CREATE', groupTaskEvent({
       mentions: [{ member_openid: 'member-staff', username: '群友乙' }],
@@ -159,7 +161,7 @@ describe('QQ 群 AI 录单', () => {
   });
 
   it('发送者已群内绑定 → createdBy=该用户，活动动态含（QQ 群）', async () => {
-    await Project.updateOne({ _id: projectId }, { qqGroupOpenId: GROUP });
+    await Project.updateOne({ _id: projectId }, { qqGroups: [{ groupOpenId: GROUP, types: [] }] });
     await User.updateOne(
       { _id: staff.user.id },
       { qqMemberIds: [{ groupOpenId: GROUP, memberOpenId: 'member-sender' }] },
@@ -177,7 +179,7 @@ describe('QQ 群 AI 录单', () => {
   });
 
   it('mention 仅昵称唯一匹配 → 指派成功', async () => {
-    await Project.updateOne({ _id: projectId }, { qqGroupOpenId: GROUP });
+    await Project.updateOne({ _id: projectId }, { qqGroups: [{ groupOpenId: GROUP, types: [] }] });
 
     await handleQQEvent('GROUP_AT_MESSAGE_CREATE', groupTaskEvent({
       mentions: [{ username: 'Staff' }],
@@ -189,7 +191,7 @@ describe('QQ 群 AI 录单', () => {
   });
 
   it('mention 全部未命中 → 无指派，回复含未识别成员', async () => {
-    await Project.updateOne({ _id: projectId }, { qqGroupOpenId: GROUP });
+    await Project.updateOne({ _id: projectId }, { qqGroups: [{ groupOpenId: GROUP, types: [] }] });
 
     await handleQQEvent('GROUP_AT_MESSAGE_CREATE', groupTaskEvent({
       mentions: [{ member_openid: 'member-unknown', username: 'Nobody' }],
@@ -203,7 +205,7 @@ describe('QQ 群 AI 录单', () => {
   });
 
   it('parseTask 返回 null → 回复暂时不可用，不落库', async () => {
-    await Project.updateOne({ _id: projectId }, { qqGroupOpenId: GROUP });
+    await Project.updateOne({ _id: projectId }, { qqGroups: [{ groupOpenId: GROUP, types: [] }] });
     parseTaskMock.mockResolvedValue(null);
 
     await handleQQEvent('GROUP_AT_MESSAGE_CREATE', groupTaskEvent());
@@ -214,7 +216,7 @@ describe('QQ 群 AI 录单', () => {
   });
 
   it('parseTask 判 isTask=false → 回复未识别到任务内容，不落库', async () => {
-    await Project.updateOne({ _id: projectId }, { qqGroupOpenId: GROUP });
+    await Project.updateOne({ _id: projectId }, { qqGroups: [{ groupOpenId: GROUP, types: [] }] });
     parseTaskMock.mockResolvedValue({ isTask: false, title: '', note: '', dueAt: null, nodeAt: null, remindAt: null });
 
     await handleQQEvent('GROUP_AT_MESSAGE_CREATE', groupTaskEvent());
@@ -224,7 +226,7 @@ describe('QQ 群 AI 录单', () => {
   });
 
   it('无指派无时间 → 照常建单，回复恰为标题行 + 查看链接', async () => {
-    await Project.updateOne({ _id: projectId }, { qqGroupOpenId: GROUP });
+    await Project.updateOne({ _id: projectId }, { qqGroups: [{ groupOpenId: GROUP, types: [] }] });
     parseTaskMock.mockResolvedValue({ isTask: true, title: '买电池', note: '', dueAt: null, nodeAt: null, remindAt: null });
     config.publicBaseUrl = 'https://app.example.com';
     try {
@@ -255,7 +257,7 @@ describe('QQ 群 AI 录单', () => {
   });
 
   it('AI 未配置 → 静默忽略', async () => {
-    await Project.updateOne({ _id: projectId }, { qqGroupOpenId: GROUP });
+    await Project.updateOne({ _id: projectId }, { qqGroups: [{ groupOpenId: GROUP, types: [] }] });
     config.ai.apiKey = '';
     try {
       await handleQQEvent('GROUP_AT_MESSAGE_CREATE', groupTaskEvent());

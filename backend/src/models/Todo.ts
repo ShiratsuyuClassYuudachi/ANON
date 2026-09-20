@@ -22,6 +22,8 @@ export interface ITodo {
   completedBy?: Types.ObjectId;
   completionNote?: string;
   attachments: Types.ObjectId[];
+  /** QQ 群@录单来源群 group_openid；节点/到期提醒只发该群 */
+  qqSourceGroupOpenId?: string;
   updates: ITodoUpdate[];
 }
 
@@ -43,6 +45,7 @@ const schema = new Schema<ITodo>(
     completedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     completionNote: String,
     attachments: [{ type: Schema.Types.ObjectId, ref: 'File' }],
+    qqSourceGroupOpenId: String,
     updates: {
       type: [{
         _id: false,
