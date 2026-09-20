@@ -64,7 +64,7 @@ export async function handleGroupTaskTodo(d: GroupTaskPayload): Promise<void> {
   if (!groupOpenid || !msgId || !content) return;
   const reply = (text: string) => sendGroupMessage(groupOpenid, text, { msgId });
   try {
-    const project = await Project.findOne({ qqGroupOpenId: groupOpenid }).lean();
+    const project = await Project.findOne({ 'qqGroups.groupOpenId': groupOpenid }).lean();
     if (!project) return; // 未绑定群：绑定提示由网关侧处理，本流程不管
 
     // 项目成员名单一次加载，身份匹配与成员校验复用
@@ -138,6 +138,7 @@ export async function handleGroupTaskTodo(d: GroupTaskPayload): Promise<void> {
       note: parsed.note,
       createdBy,
       actorName,
+      qqSourceGroupOpenId: groupOpenid,
     });
 
     let text = `已创建待办「${todo.title}」`;

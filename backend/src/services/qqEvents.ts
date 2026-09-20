@@ -1,7 +1,7 @@
 import { Project } from '../models/Project';
 import { User } from '../models/User';
 import { aiConfigured } from './ai';
-import { consumeBindCode } from './qqbot';
+import { consumeBindCode, QQ_GROUP_TYPE_KEYS } from './qqbot';
 import { sendC2CMessage, sendGroupMessage } from './qqApi';
 import { handleC2cTaskTodo, handleGroupTaskTodo } from './qqTodo';
 
@@ -85,7 +85,20 @@ async function handleGroupAtMessage(d: GroupAtMessagePayload): Promise<void> {
     // 先项目绑定码，未命中再试群内个人绑定码（@用户 指派解析依赖 qqMemberIds 对照表）
     const bind = await consumeBindCode(code, 'project');
     if (bind?.projectId) {
-      const project = await Project.findByIdAndUpdate(bind.projectId, { qqGroupOpenId: groupOpenid }, { new: true }).lean();
+      // 一个群同一时刻只属于一个项目：先从其他项目移除，再（重置式）加入目标项目
+      await Project.updateMany(
+        { _id: { $ne: bind.projectId }, 'qqGroups.groupOpenId': groupOpenid },
+        { $pull: { qqGroups: { groupOpenId: groupOpenid } } },
+      );
+      await Project.updateOne(
+        { _id: bind.projectId },
+        { $pull: { qqGroups: { groupOpenId: groupOpenid } } },
+      );
+      const project = await Project.findByIdAndUpdate(
+        bind.projectId,
+        { $push: { qqGroups: { groupOpenId: groupOpenid, types: QQ_GROUP_TYPE_KEYS } } },
+        { new: true },
+      ).lean();
       if (d.id) {
         await sendGroupMessage(groupOpenid, `已绑定项目「${project?.name ?? ''}」，里程碑临近、待办到期等通知将发送到本群。@我 发送任务描述（如「周五前把海报送到印刷店」）可直接创建待办。`, { msgId: d.id });
       }
@@ -115,7 +128,7 @@ async function handleGroupAtMessage(d: GroupAtMessagePayload): Promise<void> {
     return;
   }
   // 任务消息：仅已绑定项目且 AI 已配置时处理；否则静默忽略（渠道禁用语义）
-  if (aiConfigured() && (await Project.exists({ qqGroupOpenId: groupOpenid }))) {
+  if (aiConfigured() && (await Project.exists({ 'qqGroups.groupOpenId': groupOpenid }))) {
     await handleGroupTaskTodo(d);
   }
 }
@@ -157,7 +170,7 @@ export async function handleQQEvent(t: string, d: unknown, eventId?: string): Pr
       }
       case 'GROUP_DEL_ROBOT': {
         const { group_openid: groupOpenid } = (d ?? {}) as GroupPayload;
-        if (groupOpenid) await Project.updateMany({ qqGroupOpenId: groupOpenid }, { $unset: { qqGroupOpenId: 1 } });
+        if (groupOpenid) await Project.updateMany({ 'qqGroups.groupOpenId': groupOpenid }, { $pull: { qqGroups: { groupOpenId: groupOpenid } } });
         break;
       }
       case 'C2C_MSG_REJECT':

@@ -7,7 +7,7 @@ import { Project } from '../src/models/Project';
 import { QQBindCode } from '../src/models/QQBindCode';
 import { User } from '../src/models/User';
 import { notify } from '../src/services/notifications';
-import { createBindCode } from '../src/services/qqbot';
+import { createBindCode, QQ_GROUP_TYPE_KEYS } from '../src/services/qqbot';
 import { handleQQEvent } from '../src/services/qqEvents';
 import { createSuperAdmin, registerUser } from './helpers';
 
@@ -108,7 +108,7 @@ describe('个人绑定码', () => {
 });
 
 describe('项目群绑定码', () => {
-  it('无 project:manage 权限 403；项目详情暴露 qqGroupBound/qqEnabled', async () => {
+  it('无 project:manage 权限 403；项目详情暴露 qqGroups/qqEnabled', async () => {
     const forbidden = await request(app)
       .post(`/api/projects/${projectId}/qq-bind-code`)
       .set('Authorization', `Bearer ${staff.token}`);
@@ -124,13 +124,23 @@ describe('项目群绑定码', () => {
       .get(`/api/projects/${projectId}`)
       .set('Authorization', `Bearer ${owner.token}`);
     expect(detail.body.project.qqEnabled).toBe(true);
-    expect(detail.body.project.qqGroupBound).toBe(false);
+    expect(detail.body.project.qqGroups).toEqual([]);
+
+    await Project.updateOne(
+      { _id: projectId },
+      { qqGroups: [{ groupOpenId: 'grp-1', types: QQ_GROUP_TYPE_KEYS }] },
+    );
+    const detail2 = await request(app)
+      .get(`/api/projects/${projectId}`)
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(detail2.body.project.qqGroups).toEqual([{ groupOpenId: 'grp-1', types: QQ_GROUP_TYPE_KEYS }]);
 
     const del = await request(app)
-      .delete(`/api/projects/${projectId}/qq-binding`)
+      .delete(`/api/projects/${projectId}/qq-binding/grp-1`)
       .set('Authorization', `Bearer ${owner.token}`);
     expect(del.status).toBe(200);
-    expect(del.body.qqGroupBound).toBe(false);
+    expect(del.body.qqGroups).toEqual([]);
+    expect((await Project.findById(projectId).lean())!.qqGroups).toEqual([]);
   });
 });
 
@@ -166,7 +176,7 @@ describe('QQ 事件绑定流程', () => {
     expect((await User.findById(staff.user.id).lean())!.qqOpenId).toBe('qq-open-1');
   });
 
-  it('群@「绑定 码」命中项目码 → qqGroupOpenId 落库 + 群内回复', async () => {
+  it('群@「绑定 码」命中项目码 → qqGroups 落库（订阅全量类型）+ 群内回复', async () => {
     const res = await request(app)
       .post(`/api/projects/${projectId}/qq-bind-code`)
       .set('Authorization', `Bearer ${owner.token}`);
@@ -178,7 +188,9 @@ describe('QQ 事件绑定流程', () => {
       author: { member_openid: 'member-1' },
       content: `绑定：${code}`,
     });
-    expect((await Project.findById(projectId).lean())!.qqGroupOpenId).toBe('grp-1');
+    expect((await Project.findById(projectId).lean())!.qqGroups).toEqual([
+      { groupOpenId: 'grp-1', types: QQ_GROUP_TYPE_KEYS },
+    ]);
     expect(sendGroupMock).toHaveBeenCalledTimes(1);
     const [to, text, opts] = sendGroupMock.mock.calls[0];
     expect(to).toBe('grp-1');
@@ -203,13 +215,13 @@ describe('QQ 事件绑定流程', () => {
 
   it('FRIEND_DEL / GROUP_DEL_ROBOT 清除对应绑定', async () => {
     await User.updateOne({ _id: staff.user.id }, { qqOpenId: 'qq-open-1' });
-    await Project.updateOne({ _id: projectId }, { qqGroupOpenId: 'grp-1' });
+    await Project.updateOne({ _id: projectId }, { qqGroups: [{ groupOpenId: 'grp-1', types: QQ_GROUP_TYPE_KEYS }] });
 
     await handleQQEvent('FRIEND_DEL', { openid: 'qq-open-1' });
     await handleQQEvent('GROUP_DEL_ROBOT', { group_openid: 'grp-1' });
 
     expect((await User.findById(staff.user.id).lean())!.qqOpenId).toBeUndefined();
-    expect((await Project.findById(projectId).lean())!.qqGroupOpenId).toBeUndefined();
+    expect((await Project.findById(projectId).lean())!.qqGroups).toEqual([]);
     expect(sendC2CMock).not.toHaveBeenCalled();
     expect(sendGroupMock).not.toHaveBeenCalled();
   });
@@ -218,7 +230,7 @@ describe('QQ 事件绑定流程', () => {
 describe('QQ 通知渠道', () => {
   it('todo:assigned 只发已绑定用户单聊、不发群', async () => {
     await User.updateOne({ _id: staff.user.id }, { qqOpenId: 'qq-open-staff' });
-    await Project.updateOne({ _id: projectId }, { qqGroupOpenId: 'grp-1' });
+    await Project.updateOne({ _id: projectId }, { qqGroups: [{ groupOpenId: 'grp-1', types: QQ_GROUP_TYPE_KEYS }] });
 
     const ok = await notify({
       projectId,
@@ -236,7 +248,7 @@ describe('QQ 通知渠道', () => {
 
   it('milestone:approaching 发群 + 管理者单聊；PUBLIC_BASE_URL 配置时附查看链接', async () => {
     await User.updateOne({ _id: owner.user.id }, { qqOpenId: 'qq-open-owner' });
-    await Project.updateOne({ _id: projectId }, { qqGroupOpenId: 'grp-1' });
+    await Project.updateOne({ _id: projectId }, { qqGroups: [{ groupOpenId: 'grp-1', types: QQ_GROUP_TYPE_KEYS }] });
     config.publicBaseUrl = 'https://app.example.com';
     try {
       const ok = await notify({
@@ -260,7 +272,7 @@ describe('QQ 通知渠道', () => {
 
   it('未配置凭证时静默成功：notify 返回 true、零发送、不阻塞去重标记', async () => {
     await User.updateOne({ _id: staff.user.id }, { qqOpenId: 'qq-open-staff' });
-    await Project.updateOne({ _id: projectId }, { qqGroupOpenId: 'grp-1' });
+    await Project.updateOne({ _id: projectId }, { qqGroups: [{ groupOpenId: 'grp-1', types: QQ_GROUP_TYPE_KEYS }] });
     config.qq.appId = '';
     try {
       const ok = await notify({
@@ -289,5 +301,179 @@ describe('QQ 通知渠道', () => {
       recipients: [staff.user.id],
     });
     expect(ok).toBe(false);
+  });
+});
+
+describe('多群绑定与投递', () => {
+  it('两个群先后绑定同一项目 → 群通知对两群各发一次', async () => {
+    for (const grp of ['grp-1', 'grp-2']) {
+      const res = await request(app)
+        .post(`/api/projects/${projectId}/qq-bind-code`)
+        .set('Authorization', `Bearer ${owner.token}`);
+      await handleQQEvent('GROUP_AT_MESSAGE_CREATE', {
+        id: `gmsg-${grp}`,
+        group_openid: grp,
+        author: { member_openid: 'member-1' },
+        content: `绑定：${res.body.code}`,
+      });
+    }
+    const project = (await Project.findById(projectId).lean())!;
+    expect(project.qqGroups.map((g) => g.groupOpenId).sort()).toEqual(['grp-1', 'grp-2']);
+
+    sendGroupMock.mockClear();
+    const ok = await notify({
+      projectId,
+      type: 'milestone:approaching',
+      title: '里程碑临近',
+      body: '定稿日还剩 2 天',
+      recipients: [owner.user.id],
+    });
+    expect(ok).toBe(true);
+    expect(sendGroupMock).toHaveBeenCalledTimes(2);
+    expect(sendGroupMock.mock.calls.map((c) => c[0]).sort()).toEqual(['grp-1', 'grp-2']);
+  });
+
+  it('群换绑：grp-1 先绑项目 A，再绑到项目 B → A 的数组被移除、仅 B 持有', async () => {
+    const p2 = await request(app)
+      .post('/api/projects')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ name: '第二个活动' });
+    const projectId2 = p2.body.project.id as string;
+
+    const bindTo = async (pid: string) => {
+      const res = await request(app)
+        .post(`/api/projects/${pid}/qq-bind-code`)
+        .set('Authorization', `Bearer ${owner.token}`);
+      await handleQQEvent('GROUP_AT_MESSAGE_CREATE', {
+        id: `gmsg-${pid}`,
+        group_openid: 'grp-1',
+        author: { member_openid: 'member-1' },
+        content: `绑定：${res.body.code}`,
+      });
+    };
+    await bindTo(projectId);
+    expect((await Project.findById(projectId).lean())!.qqGroups).toHaveLength(1);
+    await bindTo(projectId2);
+    expect((await Project.findById(projectId).lean())!.qqGroups).toEqual([]);
+    expect((await Project.findById(projectId2).lean())!.qqGroups).toEqual([
+      { groupOpenId: 'grp-1', types: QQ_GROUP_TYPE_KEYS },
+    ]);
+  });
+});
+
+describe('分群类型配置', () => {
+  beforeEach(async () => {
+    await Project.updateOne(
+      { _id: projectId },
+      { qqGroups: [{ groupOpenId: 'grp-1', types: QQ_GROUP_TYPE_KEYS }, { groupOpenId: 'grp-2', types: QQ_GROUP_TYPE_KEYS }] },
+    );
+  });
+
+  it('PATCH qq-binding 权限与校验：无 project:manage 403；非法类型 400；群未绑定 404；合法子集 200 回写', async () => {
+    const forbidden = await request(app)
+      .patch(`/api/projects/${projectId}/qq-binding/grp-1`)
+      .set('Authorization', `Bearer ${staff.token}`)
+      .send({ types: ['risk:new'] });
+    expect(forbidden.status).toBe(403);
+
+    const bad = await request(app)
+      .patch(`/api/projects/${projectId}/qq-binding/grp-1`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ types: ['risk:new', 'not:a-type'] });
+    expect(bad.status).toBe(400);
+    expect(bad.body.error.code).toBe('bad_request');
+
+    const missing = await request(app)
+      .patch(`/api/projects/${projectId}/qq-binding/grp-9`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ types: ['risk:new'] });
+    expect(missing.status).toBe(404);
+    expect(missing.body.error.code).toBe('not_found');
+
+    const ok = await request(app)
+      .patch(`/api/projects/${projectId}/qq-binding/grp-1`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ types: ['risk:new', 'incident:reported', 'risk:new'] });
+    expect(ok.status).toBe(200);
+    expect(ok.body.qqGroups).toHaveLength(2);
+    const grp1 = ok.body.qqGroups.find((g: { groupOpenId: string }) => g.groupOpenId === 'grp-1');
+    expect(grp1.types).toEqual(['risk:new', 'incident:reported']);
+    const stored = (await Project.findById(projectId).lean())!.qqGroups.find((g) => g.groupOpenId === 'grp-1')!;
+    expect(stored.types).toEqual(['risk:new', 'incident:reported']);
+  });
+
+  it('类型过滤：grp-1 只订阅 risk:new、grp-2 全选 → milestone 只发 grp-2，risk 两群都发', async () => {
+    await request(app)
+      .patch(`/api/projects/${projectId}/qq-binding/grp-1`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ types: ['risk:new'] });
+
+    const okMilestone = await notify({
+      projectId,
+      type: 'milestone:approaching',
+      title: 'T',
+      body: 'B',
+      recipients: [owner.user.id],
+    });
+    expect(okMilestone).toBe(true);
+    expect(sendGroupMock).toHaveBeenCalledTimes(1);
+    expect(sendGroupMock.mock.calls[0][0]).toBe('grp-2');
+
+    sendGroupMock.mockClear();
+    const okRisk = await notify({
+      projectId,
+      type: 'risk:new',
+      title: 'T',
+      body: 'B',
+      recipients: [owner.user.id],
+    });
+    expect(okRisk).toBe(true);
+    expect(sendGroupMock).toHaveBeenCalledTimes(2);
+    expect(sendGroupMock.mock.calls.map((c) => c[0]).sort()).toEqual(['grp-1', 'grp-2']);
+  });
+});
+
+describe('来源群定向', () => {
+  beforeEach(async () => {
+    await Project.updateOne(
+      { _id: projectId },
+      { qqGroups: [{ groupOpenId: 'grp-1', types: QQ_GROUP_TYPE_KEYS }, { groupOpenId: 'grp-2', types: QQ_GROUP_TYPE_KEYS }] },
+    );
+  });
+
+  const remind = (source?: string) =>
+    notify({
+      projectId,
+      type: 'todo:remind',
+      title: 'T',
+      body: 'B',
+      metadata: { todoId: 'x', ...(source ? { qqSourceGroupOpenId: source } : {}) },
+      recipients: [owner.user.id],
+    });
+
+  it('有来源群 → 只发来源群', async () => {
+    expect(await remind('grp-2')).toBe(true);
+    expect(sendGroupMock).toHaveBeenCalledTimes(1);
+    expect(sendGroupMock.mock.calls[0][0]).toBe('grp-2');
+  });
+
+  it('来源群已解绑 → 零群发送，notify 仍 true', async () => {
+    expect(await remind('grp-9')).toBe(true);
+    expect(sendGroupMock).not.toHaveBeenCalled();
+  });
+
+  it('来源群未订阅该类型 → 零群发送（类型过滤先于来源定向）', async () => {
+    await Project.updateOne(
+      { _id: projectId },
+      { 'qqGroups.1.types': ['risk:new'] },
+    );
+    expect(await remind('grp-2')).toBe(true);
+    expect(sendGroupMock).not.toHaveBeenCalled();
+  });
+
+  it('无来源群 → 订阅该类型的全部群都发', async () => {
+    expect(await remind()).toBe(true);
+    expect(sendGroupMock).toHaveBeenCalledTimes(2);
+    expect(sendGroupMock.mock.calls.map((c) => c[0]).sort()).toEqual(['grp-1', 'grp-2']);
   });
 });

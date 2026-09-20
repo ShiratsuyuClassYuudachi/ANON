@@ -21,6 +21,13 @@ export interface IStage {
 
 export type ProjectStatus = 'draft' | 'preparing' | 'active' | 'settling' | 'completed' | 'archived' | 'cancelled';
 
+export interface IQqGroup {
+  /** QQ 群 group_openid */
+  groupOpenId: string;
+  /** 订阅的群消息类型（NotificationType 中 7 类群精选类型的子集；空数组 = 不接收任何群消息） */
+  types: string[];
+}
+
 export interface IProject {
   name: string;
   description: string;
@@ -36,8 +43,8 @@ export interface IProject {
   ticketPriceCents: number;
   ticketCount: number;
   ticketTypes: ITicketType[];
-  /** QQ 群 group_openid（项目群通知投递目标） */
-  qqGroupOpenId?: string;
+  /** QQ 群通知绑定（可多群，逐群配置接收类型） */
+  qqGroups: IQqGroup[];
 }
 
 export type ProjectDoc = HydratedDocument<IProject>;
@@ -74,7 +81,14 @@ const schema = new Schema<IProject>(
     ticketPriceCents: { type: Number, default: 0 },
     ticketCount: { type: Number, default: 0 },
     ticketTypes: { type: [{ name: String, priceCents: Number, count: Number, _id: false }], default: [] },
-    qqGroupOpenId: String,
+    qqGroups: {
+      type: [{
+        _id: false,
+        groupOpenId: { type: String, required: true },
+        types: { type: [String], default: [] },
+      }],
+      default: [],
+    },
   },
   { timestamps: true },
 );

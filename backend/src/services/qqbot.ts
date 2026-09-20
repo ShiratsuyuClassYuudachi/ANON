@@ -51,6 +51,9 @@ export const QQ_GROUP_TYPES: Readonly<Partial<Record<NotificationType, true>>> =
   'weekly:report': true,
 };
 
+/** 7 类群精选类型 key 清单（绑定默认值/迁移/路由校验的单一来源，禁止各处另写字面量清单） */
+export const QQ_GROUP_TYPE_KEYS = Object.keys(QQ_GROUP_TYPES);
+
 export function formatQQText(payload: NotificationPayload): string {
   let text = `【${payload.title}】\n${payload.body}`;
   if (config.publicBaseUrl && payload.link) text += `\n查看：${config.publicBaseUrl}${payload.link}`;
@@ -58,8 +61,9 @@ export function formatQQText(payload: NotificationPayload): string {
 }
 
 /**
- * QQ 通知渠道：项目群（精选类型）+ 成员单聊。
- * 未配置凭证时静默跳过（与 webpush 未配置语义一致，不阻塞去重标记）；
+ * QQ 通知渠道：项目群（逐群类型订阅 + 来源群定向）+ 成员单聊。
+ * 群投递：先按类型过滤出订阅该类型的群，payload.metadata.qqSourceGroupOpenId 存在时再收窄到来源群；
+ * 来源群已解绑或未订阅该类型 → 零群目标。未配置凭证时静默跳过（与 webpush 未配置语义一致，不阻塞去重标记）；
  * 逐发送失败仅记日志，但有投递目标且全部失败时 throw——
  * notify 返回 false，cron 不写 ReminderLog，下轮重试（与「投递成功才去重」语义一致）。
  */
@@ -73,7 +77,13 @@ class QQChannel implements NotificationChannel {
 
     if (QQ_GROUP_TYPES[payload.type]) {
       const project = await Project.findById(payload.projectId).lean();
-      if (project?.qqGroupOpenId) tasks.push(sendGroupMessage(project.qqGroupOpenId, text));
+      const eligible = (project?.qqGroups ?? []).filter((g) => g.types.includes(payload.type));
+      const source = payload.metadata?.qqSourceGroupOpenId;
+      const targets =
+        typeof source === 'string' && source
+          ? eligible.filter((g) => g.groupOpenId === source)
+          : eligible;
+      for (const g of targets) tasks.push(sendGroupMessage(g.groupOpenId, text));
     }
     for (const r of recipients) {
       if (r.qqOpenId) tasks.push(sendC2CMessage(r.qqOpenId, text));
@@ -89,3 +99,20 @@ class QQChannel implements NotificationChannel {
 }
 
 export const qqChannel = new QQChannel();
+
+/** 启动迁移：存量单群绑定（qqGroupOpenId）搬入 qqGroups 数组并订阅全部 7 类；原生 collection 绕开 strict 丢旧字段 */
+export async function migrateQQGroupBindings(): Promise<void> {
+  const docs = await Project.collection
+    .find({ qqGroupOpenId: { $exists: true, $type: 'string' } })
+    .toArray();
+  for (const doc of docs) {
+    await Project.collection.updateOne(
+      { _id: doc._id },
+      {
+        $set: { qqGroups: [{ groupOpenId: doc.qqGroupOpenId, types: QQ_GROUP_TYPE_KEYS }] },
+        $unset: { qqGroupOpenId: '' },
+      },
+    );
+  }
+  if (docs.length > 0) console.log(`[qq] 迁移旧单群绑定 ${docs.length} 条`);
+}
