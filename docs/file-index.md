@@ -32,6 +32,7 @@
 | 里程碑 | routes/milestones.ts、models/Milestone.ts | project/MilestoneSection.tsx | — |
 | 通知（邮件+WebPush+QQ）/ cron | services/{notifications,mailer,webpush,qqApi,qqbot,qqEvents,qqWebhook}.ts、routes/{push,cron,qqWebhook}.ts、models/{PushSubscription,ReminderLog,WeeklyReportLog,QQBindCode}.ts、routes/{me,projects}.ts（qq-bind-code 与 qq-binding/:groupOpenId 端点） | lib/push.ts、components/{PushBanner,PushSettingsCard,QqBindCard}.tsx、project/SettingsTab.tsx（QQ 群通知卡：多群绑定/逐群类型勾选）、scripts/patch-sw.mjs | tests/{notifications,push,cron,qq,qq-webhook}.test.ts |
 | QQ AI 录单（群@ + 单聊） | services/{qqTodo,ai,todos}.ts、qqEvents.ts（群@ + 单聊分发）、models/{User,Project}.ts（qqMemberIds/qqUnionOpenId/qqGroups）、config.ts（ai 块，AI_API_KEY 未配静默禁用） | —（无界面，群/单聊消息入口） | tests/qq-todo.test.ts |
+| QQ 聊天记录导出 | services/qqChatExport.ts、qqCollectSession.ts（收集模式会话）、qqEvents.ts（102/103 + 收集标记分发）、models/File.ts（projectId 可空=个人文件）、routes/files.ts（个人文件权限分支） | pages/DownloadFile.tsx（/dl/:id 下载页） | tests/{qqExport,qqExportFailure,qqCollect,files}.test.ts |
 | PWA 安装入口 | —（纯前端） | lib/pwaInstall.ts（事件捕获/状态）、components/PwaInstallGuide.tsx（指引弹层）、pages/ProjectHome.tsx（「更多」Sheet 行） | .walkthrough/pwa-install.mjs（走查） |
 | 试用模式 | services/trial.ts、models/TrialSession.ts、services/demoSeed.ts | components/TrialBanner.tsx | tests/trial.test.ts |
 | 纯前端演示站 | —（mock 后端契约） | demo/ 全目录、components/{DemoBadge,DemoBanner}.tsx、vite.config.ts | — |
@@ -140,8 +141,10 @@
 - `webpush.ts` — webpushChannel：VAPID 推送、410 清除失效订阅
 - `qqApi.ts` — QQ 传输层：getAppAccessToken 缓存单飞、C2C/群消息发送（msg_type=0，被动回复 msg_id/event_id）
 - `qqbot.ts` — QQ 绑定码生成/消费（单码、TTL、碰撞重试）+ QQ_GROUP_TYPES/QQ_GROUP_TYPE_KEYS（群精选 7 类权威清单）+ qqChannel（逐群类型订阅过滤 + 来源群定向 + 单聊全量，全败 throw）+ migrateQQGroupBindings（启动迁移存量单群绑定，index.ts 挂接）
-- `qqEvents.ts` — QQ 事件分发 handleQQEvent（webhook 路由与单测共用）：绑定（项目码三步换绑——一个群同时只属一个项目，重复绑定重置全选 + 群内个人码）/解绑/群@任务消息 AI 录单分发（含全量 GROUP_MESSAGE_CREATE 按 bot 提及过滤）；C2C 单聊任务消息分发 handleC2cTaskTodo（绑定意图优先于录单，AI 未配置静默）
+- `qqEvents.ts` — QQ 事件分发 handleQQEvent（webhook 路由与单测共用）：绑定（项目码三步换绑——一个群同时只属一个项目，重复绑定重置全选 + 群内个人码）/解绑/群@任务消息 AI 录单分发（含全量 GROUP_MESSAGE_CREATE 按 bot 提及过滤）；C2C 单聊任务消息分发 handleC2cTaskTodo（绑定意图优先于录单，AI 未配置静默）；聊天记录导出分发（C2C 102 即时导出需已绑定、群 103+「导出」需群已绑定项目；C2C 收集模式「开始/结束/取消导出」标记拦截——收集期间一切消息入档含 102/103、不进录单，qqCollectSession 存会话）；QQ_DEBUG_EVENTS=1 打印富类型事件/带附件消息原始载荷（联调 spike）
 - `qqWebhook.ts` — QQ webhook 验签：Ed25519（appSecret 倍增取 32 字节 seed）op13 回包签名 / 事件回调验签（timestamp+rawBody）；事件 id 去重（500 条 FIFO）
+- `qqChatExport.ts` — QQ 聊天记录导出：parseForwardPayload（102/103 → 归一化消息；实测 C2C 为顶层扁平文本，按缩进递归展开嵌套转发补 📁 标题、图片/语音 ASR/卡片/被引用消息提取、附件行 `[视频] 文件名（大小）` 渲染，限深 3、500 条截断）+ renderMarkdown（线性转录，引用块前置，文末附注块）+ collectDirectMessage（收集模式直发消息：图片即时抓取内嵌 base64、语音转写、视频/文件记元信息）+ exportMessagesToFile（embedRemoteImages 抓取远程图片内嵌 data URI、失败降级 `[图片] 文件名` 文本；UTF-8 BOM；storeBuffer + File 建档，projectId 可空=个人文件）
+- `qqCollectSession.ts` — C2C 收集模式会话（纯内存 Map）：startCollect/getCollect（30min 惰性过期）/appendCollect（500 条上限截断）/endCollect/cancelCollect；重启丢失进行中会话
 - `qqTodo.ts` — QQ AI 录单：群@任务消息 → parseTask 解析 → createTodo 建单（记录 qqSourceGroupOpenId 来源群）；@成员三层身份对照（member_openid→union_openid→昵称唯一）；msg_id 被动回复建单结果；单聊（C2C）录单 handleC2cTaskTodo：多「进行中」活动回序号列表选择归属（内存 pending 10min TTL，0 取消/越界重试/选中复核），单活动直达，C2C 无 mentions 不做指派
 - `ai.ts` — AI 待办解析（OpenAI 兼容 SDK，默认 DeepSeek deepseek-v4-flash）：parseTask 文本→结构化待办（isTask/title/三个时间/note），失败一律 null；客户端按 config.ai 缓存
 - `todos.ts` — 待办建单共用逻辑：createTodo（成员校验+落库+动态+指派通知）、assertAssigneesAreMembers/todoAssignBody/todoLink（HTTP 路由与 QQ 录单共用）
@@ -149,13 +152,13 @@
 
 ### 测试 `tests/`（vitest + supertest + mongodb-memory-server，打真实路由）
 - `setup.ts` / `helpers.ts` — 内存 Mongo 基建 / 造号工具（createSuperAdmin/registerUser）
-- 每域一个 `*.test.ts`：auth/admin/me/projects/invites/todos/todo-complete/todo-updates/template/finance/materials/files/physical/accounts/announcements/dashboard/onsite/workModules/stageRundowns/stageExecution/stageSignups/customTools/open/lostFound/notifications/push/cron/trial/onboarding/qq/qq-todo/qq-webhook/health
+- 每域一个 `*.test.ts`：auth/admin/me/projects/invites/todos/todo-complete/todo-updates/template/finance/materials/files/physical/accounts/announcements/dashboard/onsite/workModules/stageRundowns/stageExecution/stageSignups/customTools/open/lostFound/notifications/push/cron/trial/onboarding/qq/qq-todo/qq-webhook/qqExport/qqExportFailure/qqCollect/health
 
 ## 前端 `frontend/`
 
 ### 入口与基座
 - `src/main.tsx` — Provider 挂载、PWA 注册、离线队列同步、demo 动态安装
-- `src/App.tsx` — 路由表：公开 /login /register /lf/:token（失物招领公开页）、/screen/:token（现场大屏公开页）；RequireAuth：/projects、/p/:id（ProjectHome）、/p/:id/onsite、/me、/help、/admin、/invite/:token、/p/:id/work-sheet/print
+- `src/App.tsx` — 路由表：公开 /login /register /lf/:token（失物招领公开页）、/screen/:token（现场大屏公开页）；RequireAuth：/projects、/p/:id（ProjectHome）、/p/:id/onsite、/me、/help、/admin、/invite/:token、/p/:id/work-sheet/print、/dl/:id（导出文件下载页）
 - `src/api/client.ts` — api/authorizedFetch/downloadFile：Bearer 注入、401 单飞刷新重放；401 跳登录白名单 /invite/ 与 /lf/（公开页）
 - `src/auth.tsx` — AuthProvider/useAuth：login/logout/refresh、trialExpiresAt
 - `src/theme.tsx` — ThemeProvider/ModeToggle：日夜 × 简洁/明快
@@ -177,6 +180,7 @@
 - `ProjectHome.tsx` — 项目主页：10 个按权限过滤的 Tab + 现场模式入口；移动端底部导航「更多」Sheet（现场模式/溢出 Tab/「安装应用」PWA 入口，指引弹层挂 Sheet 外由本页持有）
 - `OnsitePage.tsx` — 现场模式：签到/完成/异常上报（离线入队）、舞台执行卡（Rundown 开始/推进/顺延，按 tools:manage 显隐）、失物登记入口（复用 LostFoundItemDialog，按 myPermissions 显隐）、30s 轮询
 - `WorkSheetPrint.tsx` — 任务单打印页（按人/全员）
+- `DownloadFile.tsx` — 导出文件下载页（QQ 聊天记录导出链接落点）：进入即带登录态触发下载，失败可重试
 - `Me.tsx` — 个人资料/联系方式/推送设置/QQ 通知绑定（QqBindCard）/API 密钥（ApiKeysCard）/界面偏好
 - `Admin.tsx` — 超管邀请码管理
 - `InviteAccept.tsx` — 接受项目邀请（AuthShell 壳，错误/信息/加载三态在壳内）

@@ -283,8 +283,8 @@ interface MilestoneItem {
 
 ### GET /api/files/:id
 
-该项目成员或超管可下载。响应为文件流（`Content-Disposition: attachment`）。
-错误：403 非项目成员；404 不存在
+项目文件：该项目成员或超管可下载（资源版本文件另过可见范围校验）；个人文件（无项目归属，如 QQ 单聊聊天记录导出）：仅上传者本人或超管可下载。响应为文件流（`Content-Disposition: attachment`）。
+错误：403 无权限；404 不存在
 
 ---
 

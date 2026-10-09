@@ -9,6 +9,7 @@ import { startTour } from './components/onboarding/tour';
 import { Skeleton } from './components/ui/skeleton';
 import Admin from './pages/Admin';
 import DocsPage from './pages/DocsPage';
+import DownloadFile from './pages/DownloadFile';
 import InviteAccept from './pages/InviteAccept';
 import Login from './pages/Login';
 import Me from './pages/Me';
@@ -77,6 +78,14 @@ export default function App() {
           element={
             <RequireAuth>
               <WorkSheetPrint />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/dl/:id"
+          element={
+            <RequireAuth>
+              <DownloadFile />
             </RequireAuth>
           }
         />

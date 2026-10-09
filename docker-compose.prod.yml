@@ -65,6 +65,8 @@ services:
       AI_API_KEY: ${AI_API_KEY:-}
       AI_BASE_URL: ${AI_BASE_URL:-}
       AI_MODEL: ${AI_MODEL:-}
+      # QQ 富类型事件调试日志（可选）：=1 打印合并转发/引用事件原始载荷（联调聊天记录导出用）
+      QQ_DEBUG_EVENTS: ${QQ_DEBUG_EVENTS:-}
       # 前端公开地址（可选）：QQ 通知消息末尾附「查看」链接时用作基座
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
       PLATFORM_CRYPTO_KEY: ${PLATFORM_CRYPTO_KEY:-}
