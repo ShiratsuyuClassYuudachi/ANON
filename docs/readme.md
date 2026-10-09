@@ -63,6 +63,7 @@ cd frontend && npm install && npm run dev
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | 否 | Web Push 推送（`npx web-push generate-vapid-keys` 生成密钥）；未配置时推送渠道静默禁用，邮件不受影响 |
 | `QQ_BOT_APP_ID` / `QQ_BOT_APP_SECRET` / `QQ_BOT_SANDBOX` | 否 | QQ 机器人通知（QQ 开放平台 Bot API v2 凭证，`QQ_BOT_SANDBOX=true` 走沙箱环境）；未配置时 QQ 渠道静默禁用。管理端前提：勾选「单聊/群聊消息事件」订阅（否则网关收不到事件）；群主动消息需单独开通权限（有数分钟生效延迟；沙箱环境另需在「沙箱配置」白名单加群） |
 | `PUBLIC_BASE_URL` | 否 | 前端公开地址（如 `https://app.example.com`）：QQ 通知消息末尾附「查看」链接时用作基座；置空不拼链接 |
+| `QQ_DEBUG_EVENTS` | 否 | `=1` 时后端打印 QQ 合并转发/引用（message_type≥100）事件的原始载荷，联调聊天记录导出功能用；默认关闭 |
 | `PLATFORM_CRYPTO_KEY` | 否 | 平台账号「服务端加密」模式的密钥源（SHA-256 派生 AES-256-GCM 密钥）；缺省回退 `JWT_SECRET`。浏览器端 ANONv1 加密（默认）不依赖此项 |
 
 ## cron 提醒

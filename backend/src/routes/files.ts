@@ -37,6 +37,12 @@ filesRouter.get(
     const doc = await File.findById(req.params.id);
     if (!doc) throw new AppError(404, 'not_found', '文件不存在');
     if (!req.user!.isSuperAdmin) {
+      // 个人文件（无项目归属，如 QQ 单聊导出）：仅上传者本人可下载
+      if (!doc.projectId) {
+        if (doc.uploadedBy.toString() !== req.userId) throw new AppError(403, 'forbidden', '没有权限访问该文件');
+        await sendStoredFile(res, doc.path, doc.filename);
+        return;
+      }
       const m = await Membership.findOne({ projectId: doc.projectId, userId: req.userId });
       if (!m) throw new AppError(403, 'forbidden', '没有权限访问该文件');
       // 资源版本的文件还需过可见范围校验，否则撤销可见性后仍可下载

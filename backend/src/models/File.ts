@@ -1,7 +1,8 @@
 import { Schema, model, models, type HydratedDocument, type Model, type Types } from 'mongoose';
 
 export interface IFile {
-  projectId: Types.ObjectId;
+  /** 为空表示个人文件（如 QQ 单聊聊天记录导出）：仅上传者本人/超管可下载 */
+  projectId?: Types.ObjectId;
   filename: string;
   path: string;
   mime: string;
@@ -13,7 +14,7 @@ export type FileDoc = HydratedDocument<IFile>;
 
 const schema = new Schema<IFile>(
   {
-    projectId: { type: Schema.Types.ObjectId, ref: 'Project', required: true },
+    projectId: { type: Schema.Types.ObjectId, ref: 'Project' },
     filename: { type: String, required: true },
     path: { type: String, required: true },
     mime: { type: String, default: 'application/octet-stream' },

@@ -1,7 +1,11 @@
+import type { Types } from 'mongoose';
 import { Project } from '../models/Project';
 import { User } from '../models/User';
+import { config } from '../config';
 import { aiConfigured } from './ai';
 import { consumeBindCode, QQ_GROUP_TYPE_KEYS } from './qqbot';
+import { collectDirectMessage, exportMessagesToFile, parseForwardPayload } from './qqChatExport';
+import { appendCollect, cancelCollect, endCollect, getCollect, startCollect } from './qqCollectSession';
 import { sendC2CMessage, sendGroupMessage } from './qqApi';
 import { handleC2cTaskTodo, handleGroupTaskTodo } from './qqTodo';
 
@@ -21,6 +25,11 @@ interface C2CMessagePayload {
   id?: string;
   author?: { user_openid?: string; union_openid?: string };
   content?: string;
+  /** 0=文本 3=卡片 101=并行 102=聊天记录（合并转发） 103=引用消息 */
+  message_type?: number;
+  message_scene?: { ext?: string[] };
+  msg_elements?: unknown[];
+  attachments?: unknown[];
 }
 interface GroupAtMessagePayload {
   id?: string;
@@ -28,6 +37,10 @@ interface GroupAtMessagePayload {
   content?: string;
   author?: { member_openid?: string; union_openid?: string; username?: string };
   mentions?: { member_openid?: string; union_openid?: string; username?: string; bot?: boolean }[];
+  message_type?: number;
+  message_scene?: { ext?: string[] };
+  msg_elements?: unknown[];
+  attachments?: unknown[];
 }
 interface OpenidPayload {
   openid?: string;
@@ -44,34 +57,167 @@ function extractBindCode(content: string): string | null {
   return /^[A-Za-z0-9]{6}$/.test(trimmed) ? trimmed : null;
 }
 
+// --- 聊天记录导出（合并转发/其引用 → markdown 文件，回复主站下载链接） ---
+
+/** 解析 → 建档 → 回复下载链接；visibilityHint 说明可见范围 */
+async function runChatExport(
+  d: unknown,
+  attribution: { projectId?: Types.ObjectId; uploadedBy: Types.ObjectId },
+  reply: (text: string) => Promise<boolean>,
+  visibilityHint: string,
+): Promise<void> {
+  if (!config.publicBaseUrl) {
+    console.error('[qq] 导出失败：未配置 PUBLIC_BASE_URL');
+    await reply('服务器未配置 PUBLIC_BASE_URL，无法生成下载链接。');
+    return;
+  }
+  const { messages, truncated } = parseForwardPayload(d);
+  if (messages.length === 0) {
+    await reply('未能从该消息解析出聊天内容。');
+    return;
+  }
+  try {
+    const file = await exportMessagesToFile(messages, truncated, attribution);
+    const link = `${config.publicBaseUrl}/dl/${file._id}?name=${encodeURIComponent(file.filename)}`;
+    await reply(`已导出 ${messages.length} 条消息：${link}\n需登录 ANON 下载，${visibilityHint}。`);
+  } catch (err) {
+    console.error('[qq] 聊天记录导出失败:', err);
+    await reply('导出失败，请稍后重试。');
+  }
+}
+
+/** C2C 合并转发导出：仅核验 QQ 已绑定 ANON 账号，文件归个人（仅本人/超管可见） */
+async function handleC2cExport(d: C2CMessagePayload, openid: string): Promise<void> {
+  const reply = (text: string) => (d.id ? sendC2CMessage(openid, text, { msgId: d.id }) : Promise.resolve(false));
+  const user = await User.findOne({ qqOpenId: openid }).lean();
+  if (!user) {
+    await reply('请先在 ANON「我的」页生成绑定码并发送「绑定 XXXXXX」，完成绑定后再导出聊天记录。');
+    return;
+  }
+  await runChatExport(d, { uploadedBy: user._id }, reply, '仅本人可见');
+}
+
+/** 群「引用回复转发 + @机器人 说导出」：文件归属本群绑定项目，项目成员可见 */
+async function handleGroupExport(d: GroupAtMessagePayload, groupOpenid: string): Promise<void> {
+  const reply = (text: string) => (d.id ? sendGroupMessage(groupOpenid, text, { msgId: d.id }) : Promise.resolve(false));
+  const project = await Project.findOne({ 'qqGroups.groupOpenId': groupOpenid }).lean();
+  if (!project) {
+    await reply('本群未绑定项目，请项目管理者先在项目「设置」页生成绑定码并完成绑定。');
+    return;
+  }
+  const memberOpenid = d.author?.member_openid;
+  const user = memberOpenid
+    ? await User.findOne({
+        qqMemberIds: { $elemMatch: { groupOpenId: groupOpenid, memberOpenId: memberOpenid } },
+      }).lean()
+    : null;
+  await runChatExport(d, { projectId: project._id, uploadedBy: user?._id ?? project.createdBy }, reply, '项目成员可见');
+}
+
+/** C2C 收集模式标记：开始导出（需已绑定）/ 结束导出（建档回链）/ 取消导出（丢弃） */
+async function handleC2cCollectMarker(marker: string, openid: string, msgId?: string): Promise<void> {
+  const reply = (text: string) => (msgId ? sendC2CMessage(openid, text, { msgId }) : Promise.resolve(false));
+  if (marker === '开始导出') {
+    const user = await User.findOne({ qqOpenId: openid }).lean();
+    if (!user) {
+      await reply('请先在 ANON「我的」页生成绑定码并发送「绑定 XXXXXX」，完成绑定后再导出聊天记录。');
+      return;
+    }
+    startCollect(openid, { id: user._id, name: user.name });
+    await reply('已开始收集聊天记录：接下来你发的文字、图片、转发的聊天记录都会并入本次导出。发完后回复「结束导出」；中途可回复「取消导出」。');
+    return;
+  }
+  if (marker === '取消导出') {
+    await reply(cancelCollect(openid) ? '已取消本次导出，收集的内容已丢弃。' : '当前没有正在进行的导出。发送「开始导出」开始收集。');
+    return;
+  }
+  // 结束导出
+  const session = endCollect(openid);
+  if (!session) {
+    await reply('当前没有正在进行的导出。发送「开始导出」开始收集。');
+    return;
+  }
+  if (session.messages.length === 0) {
+    await reply('本次没有收集到任何内容，未生成文件。');
+    return;
+  }
+  if (!config.publicBaseUrl) {
+    console.error('[qq] 导出失败：未配置 PUBLIC_BASE_URL');
+    await reply('服务器未配置 PUBLIC_BASE_URL，无法生成下载链接。');
+    return;
+  }
+  try {
+    const file = await exportMessagesToFile(session.messages, session.truncated, { uploadedBy: session.userId });
+    const link = `${config.publicBaseUrl}/dl/${file._id}?name=${encodeURIComponent(file.filename)}`;
+    await reply(`已导出 ${session.messages.length} 条消息：${link}\n需登录 ANON 下载，仅本人可见。`);
+  } catch (err) {
+    console.error('[qq] 聊天记录导出失败:', err);
+    await reply('导出失败，请稍后重试。');
+  }
+}
+
 async function handleC2CMessage(d: C2CMessagePayload): Promise<void> {
   const openid = d.author?.user_openid;
   if (!openid) return;
+  const reply = (text: string) => (d.id ? sendC2CMessage(openid, text, { msgId: d.id }) : Promise.resolve(false));
   const content = (d.content ?? '').trim();
+  // 收集模式标记最优先拦截
+  if (content === '开始导出' || content === '结束导出' || content === '取消导出') {
+    await handleC2cCollectMarker(content, openid, d.id);
+    return;
+  }
   const code = extractBindCode(content);
-  if (!code) {
-    // 有绑定意图但码形不对 → 提示（绑定意图永远优先于录单）
-    if (content.includes('绑定') && d.id) {
-      await sendC2CMessage(openid, INVALID_BIND_HINT, { msgId: d.id });
-    } else if (aiConfigured() && d.id) {
-      // 任务消息：AI 已配置时进入单聊录单；否则静默忽略（渠道禁用语义，与群录单一致）
-      await handleC2cTaskTodo(d);
+  // 绑定意图永远优先于收录与录单（102 转发 content 为整段拍平文本，不做绑定判断——保持原语义）
+  if (d.message_type !== 102) {
+    if (code) {
+      const bind = await consumeBindCode(code, 'user');
+      if (!bind?.userId) {
+        if (d.id) await sendC2CMessage(openid, INVALID_BIND_HINT, { msgId: d.id });
+        return;
+      }
+      // union_openid 官方标注「可能为空」：仅在事件携带时写入，为空不覆盖已有值
+      const user = await User.findByIdAndUpdate(
+        bind.userId,
+        { qqOpenId: openid, ...(d.author?.union_openid ? { qqUnionOpenId: d.author.union_openid } : {}) },
+        { new: true },
+      ).lean();
+      if (d.id) {
+        await sendC2CMessage(openid, `绑定成功：已关联 ANON 账号「${user?.name ?? ''}」，待办/里程碑等提醒将发送到这里。`, { msgId: d.id });
+      }
+      return;
     }
+    if (content.includes('绑定')) {
+      if (d.id) await sendC2CMessage(openid, INVALID_BIND_HINT, { msgId: d.id });
+      return;
+    }
+  }
+  // 收集模式：一切消息入档（含 102/103），不进即时导出与 AI 录单
+  const session = getCollect(openid);
+  if (session) {
+    const msgs =
+      d.message_type === 102 || d.message_type === 103
+        ? parseForwardPayload(d).messages
+        : await collectDirectMessage(content, d.attachments, session.userName);
+    if (msgs.length === 0) {
+      await reply('该消息没有可收集的内容，未并入。');
+      return;
+    }
+    const r = appendCollect(openid, msgs);
+    if (!r) {
+      await reply('收集会话已过期，请重新发送「开始导出」。');
+      return;
+    }
+    await reply(r.capped ? '本次收集已达 500 条上限，请发送「结束导出」生成文件。' : `已收录（本次共 ${r.total} 条）。`);
     return;
   }
-  const bind = await consumeBindCode(code, 'user');
-  if (!bind?.userId) {
-    if (d.id) await sendC2CMessage(openid, INVALID_BIND_HINT, { msgId: d.id });
+  // 合并转发即时导出（转发 content 为占位文本，不应进入录单）
+  if (d.message_type === 102) {
+    await handleC2cExport(d, openid);
     return;
   }
-  // union_openid 官方标注「可能为空」：仅在事件携带时写入，为空不覆盖已有值
-  const user = await User.findByIdAndUpdate(
-    bind.userId,
-    { qqOpenId: openid, ...(d.author?.union_openid ? { qqUnionOpenId: d.author.union_openid } : {}) },
-    { new: true },
-  ).lean();
-  if (d.id) {
-    await sendC2CMessage(openid, `绑定成功：已关联 ANON 账号「${user?.name ?? ''}」，待办/里程碑等提醒将发送到这里。`, { msgId: d.id });
+  // 任务消息：AI 已配置时进入单聊录单；否则静默忽略（渠道禁用语义，与群录单一致）
+  if (aiConfigured() && d.id) {
+    await handleC2cTaskTodo(d);
   }
 }
 
@@ -127,6 +273,11 @@ async function handleGroupAtMessage(d: GroupAtMessagePayload): Promise<void> {
     if (d.id) await sendGroupMessage(groupOpenid, INVALID_GROUP_BIND_HINT, { msgId: d.id });
     return;
   }
+  // 引用回复一条合并转发并说「导出」→ 导出被引用的聊天记录（置于 AI 录单之前）
+  if (d.message_type === 103 && content.includes('导出')) {
+    await handleGroupExport(d, groupOpenid);
+    return;
+  }
   // 任务消息：仅已绑定项目且 AI 已配置时处理；否则静默忽略（渠道禁用语义）
   if (aiConfigured() && (await Project.exists({ 'qqGroups.groupOpenId': groupOpenid }))) {
     await handleGroupTaskTodo(d);
@@ -140,6 +291,18 @@ async function handleGroupAtMessage(d: GroupAtMessagePayload): Promise<void> {
 // 事件负载为外部输入：以下 cast 目标字段全部可选，处理器内逐个运行时校验后才消费
 export async function handleQQEvent(t: string, d: unknown, eventId?: string): Promise<void> {
   try {
+    // spike：观察富类型事件（102/103 等）与携带附件消息的真实形状（QQ_DEBUG_EVENTS=1 开启）
+    const dd = d as Record<string, unknown> | null;
+    const mt = dd?.message_type;
+    const hasAtt = Array.isArray(dd?.attachments) && (dd.attachments as unknown[]).length > 0;
+    if (process.env.QQ_DEBUG_EVENTS === '1' && ((typeof mt === 'number' && mt >= 100) || hasAtt)) {
+      console.log(`[qq] debug event ${t}:`, JSON.stringify(d)?.slice(0, 8192));
+      // content 体积大且已解析，结构字段（message_scene/attachments 等）单独完整输出
+      if (dd && typeof dd === 'object') {
+        const { content, ...rest } = dd;
+        console.log(`[qq] debug event meta (content len=${typeof content === 'string' ? content.length : 0}):`, JSON.stringify(rest));
+      }
+    }
     switch (t) {
       case 'C2C_MESSAGE_CREATE':
         await handleC2CMessage((d ?? {}) as C2CMessagePayload);

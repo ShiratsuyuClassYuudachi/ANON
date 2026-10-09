@@ -1,6 +1,10 @@
+import fs from 'fs';
+import path from 'path';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../src/app';
+import { config } from '../src/config';
+import { File } from '../src/models/File';
 import { InviteCode } from '../src/models/InviteCode';
 import { User } from '../src/models/User';
 import { createSuperAdmin, registerUser } from './helpers';
@@ -102,5 +106,39 @@ describe('files', () => {
       .get(`/api/files/${fileId}`)
       .set('Authorization', `Bearer ${owner.token}`);
     expect(okAdmin.status).toBe(200);
+  });
+
+  it('无项目文件：仅上传者本人与超管可下载，其他登录用户 403', async () => {
+    const p = path.resolve(config.uploadDir, 'test-personal.md');
+    await fs.promises.mkdir(path.dirname(p), { recursive: true });
+    await fs.promises.writeFile(p, 'personal');
+    const doc = await File.create({
+      filename: 'personal.md',
+      path: p,
+      mime: 'text/markdown',
+      size: 8,
+      uploadedBy: outsider.user.id,
+    });
+
+    // 本人 → 200
+    const self = await request(app)
+      .get(`/api/files/${doc._id}`)
+      .set('Authorization', `Bearer ${outsider.token}`);
+    expect(self.status).toBe(200);
+    expect(self.text).toBe('personal');
+
+    // 其他登录用户 → 403
+    await InviteCode.create({ code: 'C9', createdBy: (await User.findOne())!._id });
+    const third = await registerUser('C9', 't@example.com');
+    const denied = await request(app)
+      .get(`/api/files/${doc._id}`)
+      .set('Authorization', `Bearer ${third.token}`);
+    expect(denied.status).toBe(403);
+
+    // 超管 → 200
+    const admin = await request(app)
+      .get(`/api/files/${doc._id}`)
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(admin.status).toBe(200);
   });
 });
