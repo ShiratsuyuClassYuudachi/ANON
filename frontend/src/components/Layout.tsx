@@ -42,9 +42,10 @@ export default function Layout() {
   }, [id]);
   const current = projects?.find((p) => p.id === id);
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-dvh bg-background">
+      <a href="#main-content" className="sr-only z-50 rounded-lg bg-primary px-4 py-3 text-sm font-medium text-primary-foreground focus:not-sr-only focus:fixed focus:left-4 focus:top-2">跳到主要内容</a>
       <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur">
-        <div className="mx-auto flex h-14 w-full max-w-3xl items-center gap-2 px-4 md:max-w-5xl">
+        <div className="mx-auto flex h-14 w-full max-w-3xl items-center gap-2 px-4 md:max-w-6xl">
           <Link
             to={id ? `/p/${id}` : '/projects'}
             aria-label={id ? '返回当前项目看板' : '查看项目列表'}
@@ -58,13 +59,13 @@ export default function Layout() {
                 onClick={() => nav(`/p/${id}`)}
                 aria-label="返回看板"
                 title={`${current.name} — 点击回看板`}
-                className="min-w-0 flex-1 truncate px-2.5 py-1.5 text-sm font-medium hover:bg-muted"
+                className="min-w-0 flex-1 truncate px-2.5 py-1.5 text-sm font-medium outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               >
                 {current.name}
               </button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button aria-label="切换项目" title="切换项目" className="border-l bg-muted/60 px-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
+                  <button aria-label="切换项目" title="切换项目" className="min-w-9 border-l bg-muted/60 px-2 text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
                     <ChevronDown className="size-4" />
                   </button>
                 </DropdownMenuTrigger>
@@ -90,12 +91,14 @@ export default function Layout() {
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button data-tour="user-menu" aria-label="用户菜单" className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                <Avatar className="size-8 ring-1 ring-border">
+              <button data-tour="user-menu" aria-label="用户菜单" className="flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-full px-1 outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <Avatar className="size-8 shrink-0 ring-1 ring-border">
                   <AvatarFallback className="bg-primary/10 font-semibold text-primary">
                     {(user?.name ?? '?').slice(0, 1)}
                   </AvatarFallback>
                 </Avatar>
+                <span className="hidden max-w-24 truncate text-sm font-medium lg:block">{user?.name}</span>
+                <ChevronDown className="hidden size-3.5 text-muted-foreground lg:block" aria-hidden="true" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -135,7 +138,7 @@ export default function Layout() {
           </DropdownMenu>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-3xl px-4 py-4 md:max-w-5xl">
+      <main id="main-content" tabIndex={-1} className="mx-auto w-full max-w-3xl px-4 py-5 outline-none md:max-w-6xl md:py-6">
         <DemoBanner />
         <TrialBanner />
         <PushBanner />

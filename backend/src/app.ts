@@ -34,6 +34,12 @@ import { workSheetRouter } from './routes/workSheet';
 export const app = express();
 app.set('trust proxy', 1); // nginx 单跳代理，取真实客户端 IP 供限流
 app.use(helmet({ contentSecurityPolicy: false })); // CSP 由 nginx 对静态页下发；API 不需要
+// API 含个人资料、凭证及项目文件，成功和错误响应均禁止浏览器/代理缓存。
+app.use('/api', (_req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  res.vary('Authorization');
+  next();
+});
 // QQ webhook 必须在 json() 之前：验签需要原始请求体字节，路由内用 raw() 自取
 app.use('/api/qq', qqWebhookRouter);
 app.use(express.json({ limit: '2mb' }));

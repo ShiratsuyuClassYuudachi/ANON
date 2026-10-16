@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { api, getToken, setTokens } from './api/client';
+import { api, getSessionId, getToken, setTokens } from './api/client';
 import type { User } from './types';
 
 interface AuthState {
@@ -19,6 +19,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [trialExpiresAt, setTrialExpiresAt] = useState<string | null>(null);
 
   const refresh = async () => {
+    const sessionId = getSessionId();
     if (!getToken()) {
       setUser(null);
       setTrialExpiresAt(null);
@@ -27,18 +28,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     try {
       const d = await api<{ user: User; trialExpiresAt?: string | null; qq?: { enabled: boolean; bound: boolean } }>('/api/me');
+      if (sessionId !== getSessionId()) return;
       setUser(d.user);
       setTrialExpiresAt(d.trialExpiresAt ?? null);
     } catch {
+      if (sessionId !== getSessionId()) return;
       setUser(null);
       setTrialExpiresAt(null);
     } finally {
-      setLoading(false);
+      if (sessionId === getSessionId()) setLoading(false);
     }
   };
 
   useEffect(() => {
-    refresh();
+    void refresh();
+    const syncSession = (event: StorageEvent) => {
+      if (event.key !== 'anon-session-id' && event.key !== null) return;
+      setUser(null);
+      setTrialExpiresAt(null);
+      setLoading(true);
+      void refresh();
+    };
+    window.addEventListener('storage', syncSession);
+    return () => window.removeEventListener('storage', syncSession);
   }, []);
 
   return (
@@ -51,6 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setTokens(token, refreshToken);
           setUser(u);
           setTrialExpiresAt(expiresAt ?? null);
+          setLoading(false);
         },
         logout: () => {
           // 服务端吊销 refresh token（失败不阻塞本地登出）
@@ -58,11 +71,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ refreshToken: localStorage.getItem('anon-refresh-token') }),
+            cache: 'no-store',
+            redirect: 'error',
           }).catch(() => {});
           setTokens(null, null);
           if ('caches' in window) void caches.delete('api-cache'); // 清历史残留缓存
           setUser(null);
           setTrialExpiresAt(null);
+          setLoading(false);
         },
         refresh,
       }}

@@ -3,3 +3,7 @@
 [[IgnoredVulns]]
 id = "GHSA-qwww-vcr4-c8h2"
 reason = "react-router RSC 模式专属 CSRF（官方注明仅影响 unstable RSC APIs）；本项目为纯客户端 SPA（无 RSC/SSR），代码路径不可达。修复版本 8.3.0 要求 React >=19.2.7，待整体升级 React 时解除"
+
+[[IgnoredVulns]]
+id = "GHSA-vfj7-8cjw-p6xm"
+reason = "2026-10-16 核实 braces 最新版仍为 3.0.3，官方公告无修复版本；仅由 shadcn CLI 的 fast-glob/ts-morph 开发依赖引入。应用只导入 shadcn/tailwind.css，构建与运行不执行 CLI、不接收外部 glob 模式，漏洞路径不可达。保留 CSS 依赖，待上游修复后解除；不得将此豁免扩用于处理不可信模式的 CLI 服务。公告：https://github.com/advisories/GHSA-vfj7-8cjw-p6xm"

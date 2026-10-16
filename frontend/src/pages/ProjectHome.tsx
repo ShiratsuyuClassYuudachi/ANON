@@ -98,12 +98,18 @@ export default function ProjectHome() {
 
   const load = useCallback(async () => {
     const d = await api<Detail>(`/api/projects/${id}`);
-    setDetail(d);
+    setDetail((current) => current?.project.id === id ? d : current);
   }, [id]);
 
   useEffect(() => {
-    load().catch((e) => setErr(e.message));
-  }, [load]);
+    let alive = true;
+    setErr('');
+    setDetail(null);
+    api<Detail>(`/api/projects/${id}`)
+      .then((d) => alive && setDetail(d))
+      .catch((e) => alive && setErr(e.message));
+    return () => { alive = false; };
+  }, [id]);
 
   if (err)
     return (
@@ -112,7 +118,7 @@ export default function ProjectHome() {
         <Button variant="outline" onClick={() => nav('/projects')}>返回项目列表</Button>
       </Card>
     );
-  if (!detail)
+  if (!detail || detail.project.id !== id)
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-1/2" />
@@ -131,27 +137,34 @@ export default function ProjectHome() {
   return (
     <div className="pb-20 md:flex md:gap-6 md:pb-0">
       <aside className="hidden md:block md:w-44 md:shrink-0">
-        <div className="sticky top-18 space-y-1">
+        <nav aria-label="项目功能" data-tour="tab-nav" className="sticky top-18 space-y-1 rounded-xl border bg-card p-2 shadow-sm">
+          <p className="px-3 py-2 text-xs font-medium text-muted-foreground">工作空间</p>
           {visibleTabs.map((t) => (
             <button
               key={t.key}
+              aria-current={activeTab === t.key ? 'page' : undefined}
               onClick={() => setTab(t.key)}
-              className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm ${activeTab === t.key ? 'bg-primary/10 font-medium text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+              className={`flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${activeTab === t.key ? 'bg-primary/10 font-semibold text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
             >
-              <t.icon className="size-4" />
+              <t.icon className="size-4" aria-hidden="true" />
               {t.label}
+              {activeTab === t.key && <span aria-hidden="true" className="ml-auto size-1.5 rounded-full bg-primary" />}
             </button>
           ))}
-          <Button variant="outline" className="mt-3 w-full justify-start" onClick={() => nav(`/p/${id}/onsite`)}>
+          <Button variant="outline" className="mt-3 min-h-11 w-full justify-start" onClick={() => nav(`/p/${id}/onsite`)}>
             <Smartphone className="size-4" /> 现场模式
           </Button>
-        </div>
+        </nav>
       </aside>
 
       <div className="min-w-0 flex-1">
-      <div className="mb-3 flex items-center gap-2">
-        <h2 className="text-xl font-semibold">{detail.project.name}</h2>
-        <Badge variant="secondary">{detail.myRole}</Badge>
+      <div className="mb-5 space-y-2 rounded-xl border bg-card p-4 shadow-sm sm:p-5">
+        <p className="text-xs text-muted-foreground">项目空间 <span aria-hidden="true" className="px-1">/</span> {visibleTabs.find((t) => t.key === activeTab)?.label}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="min-w-0 break-words text-xl font-semibold tracking-tight [overflow-wrap:anywhere] sm:text-2xl">{detail.project.name}</h1>
+          <Badge variant="secondary" className="shrink-0">{detail.myRole}</Badge>
+        </div>
+        {detail.project.description && <p className="line-clamp-2 break-words text-sm leading-6 text-muted-foreground [overflow-wrap:anywhere]">{detail.project.description}</p>}
       </div>
 
       {/* Tab 内容 */}
@@ -200,7 +213,7 @@ export default function ProjectHome() {
       </div>
 
       {/* 移动端底部导航 */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+      <nav aria-label="项目导航" data-tour="mobile-tab-nav" className="fixed inset-x-0 bottom-0 z-40 border-t bg-card/95 pb-[env(safe-area-inset-bottom)] shadow-sm backdrop-blur md:hidden">
         <div
           className="grid"
           style={{ gridTemplateColumns: `repeat(${mainTabs.length + (moreTabs.length > 0 ? 1 : 0)}, minmax(0, 1fr))` }}
@@ -208,19 +221,23 @@ export default function ProjectHome() {
           {mainTabs.map((t) => (
             <button
               key={t.key}
+              aria-current={activeTab === t.key ? 'page' : undefined}
               onClick={() => setTab(t.key)}
-              className={`flex flex-col items-center gap-0.5 py-2 text-xs ${activeTab === t.key ? 'text-primary' : 'text-muted-foreground'}`}
+              className={`flex min-h-16 flex-col items-center justify-center gap-0.5 py-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${activeTab === t.key ? 'font-medium text-primary' : 'text-muted-foreground'}`}
             >
-              <t.icon className="size-5" />
+              <span className={`rounded-lg px-4 py-1 ${activeTab === t.key ? 'bg-primary/10' : ''}`}><t.icon className="size-5" aria-hidden="true" /></span>
               {t.label}
             </button>
           ))}
           {moreTabs.length > 0 && (
             <button
+              aria-label="更多项目功能"
+              aria-expanded={moreOpen}
+              aria-current={moreTabs.some((t) => t.key === activeTab) ? 'page' : undefined}
               onClick={() => setMoreOpen(true)}
-              className={`flex flex-col items-center gap-0.5 py-2 text-xs ${moreTabs.some((t) => t.key === activeTab) ? 'text-primary' : 'text-muted-foreground'}`}
+              className={`flex min-h-16 flex-col items-center justify-center gap-0.5 py-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${moreTabs.some((t) => t.key === activeTab) ? 'font-medium text-primary' : 'text-muted-foreground'}`}
             >
-              <MoreHorizontal className="size-5" />
+              <span className={`rounded-lg px-4 py-1 ${moreTabs.some((t) => t.key === activeTab) ? 'bg-primary/10' : ''}`}><MoreHorizontal className="size-5" aria-hidden="true" /></span>
               更多
             </button>
           )}
