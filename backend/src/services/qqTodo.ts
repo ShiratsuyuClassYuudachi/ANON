@@ -186,6 +186,11 @@ function getPending(openid: string): PendingC2cTodo | null {
   return null;
 }
 
+/** 统一录入分发器在新消息到来时清除旧待办选择，数字回复只交给当前流程。 */
+export function clearPendingC2cTodo(openid: string): void {
+  pendingC2cTodos.delete(openid);
+}
+
 type C2cProject = Pick<IProject, 'name' | 'timezone'> & { _id: Types.ObjectId };
 type C2cUser = Pick<IUser, 'name'> & { _id: Types.ObjectId };
 

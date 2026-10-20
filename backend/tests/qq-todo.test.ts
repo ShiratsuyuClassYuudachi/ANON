@@ -21,10 +21,10 @@ vi.mock('../src/services/qqApi', async (importOriginal) => {
   };
 });
 
-// 只替身 parseTask：aiConfigured 用真实实现（读 config.ai.apiKey），由测试控制开关
+// 固定分流为待办并替身 parseTask；aiConfigured 读取真实配置，由测试控制开关。
 vi.mock('../src/services/ai', async (importOriginal) => {
   const mod = await importOriginal<typeof import('../src/services/ai')>();
-  return { ...mod, parseTask: vi.fn() };
+  return { ...mod, parseTask: vi.fn(), classifyIntake: vi.fn().mockResolvedValue('todo') };
 });
 
 import { parseTask } from '../src/services/ai';

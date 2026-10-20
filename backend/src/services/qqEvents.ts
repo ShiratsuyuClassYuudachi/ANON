@@ -7,18 +7,18 @@ import { consumeBindCode, QQ_GROUP_TYPE_KEYS } from './qqbot';
 import { collectDirectMessage, exportMessagesToFile, parseForwardPayload } from './qqChatExport';
 import { appendCollect, cancelCollect, endCollect, getCollect, startCollect } from './qqCollectSession';
 import { sendC2CMessage, sendGroupMessage } from './qqApi';
-import { handleC2cTaskTodo, handleGroupTaskTodo } from './qqTodo';
+import { clearQqIntake, handleQqIntake } from './qqIntake';
 
 /**
  * QQ 事件分发：webhook 回调（routes/qqWebhook.ts）验签去重后调用 handleQQEvent。
- * 处理绑定流程、解绑清理、群@与单聊任务消息 AI 录单（不做自由对话）。
+ * 处理绑定流程、解绑清理、群@与单聊待办/舞台报名 AI 录入（不做自由对话）。
  * 事件帧（op/t/id）由 webhook 入口解析，本模块只关心 t + d。
  */
 
 const INVALID_BIND_HINT = '绑定码无效或已过期，请在 ANON「我的」页重新生成。';
 const INVALID_GROUP_BIND_HINT = '绑定码无效或已过期，请项目管理者在项目「设置」页重新生成。';
-const FRIEND_GUIDE = '这里是 ANON 通知机器人。在 ANON 个人中心生成绑定码后，发送「绑定 XXXXXX」即可接收待办与里程碑提醒。';
-const GROUP_GUIDE = '这里是 ANON 通知机器人。项目管理者在项目「设置」页生成绑定码后，@我 发送「绑定 XXXXXX」即可让本群接收项目通知。@我 发送任务描述（如「周五前把海报送到印刷店」）可直接创建待办。';
+const FRIEND_GUIDE = '这里是 ANON 通知机器人。在 ANON 个人中心生成绑定码后，发送「绑定 XXXXXX」即可接收待办与里程碑提醒，也可发送任务描述创建待办。有工具管理权限的成员还可发送节目名称、时长等报名资料，预览确认后录入舞台报名。';
+const GROUP_GUIDE = '这里是 ANON 通知机器人。项目管理者在项目「设置」页生成绑定码后，@我 发送「绑定 XXXXXX」即可让本群接收项目通知。@我 发送任务描述（如「周五前把海报送到印刷店」）可直接创建待办；有工具管理权限的成员绑定个人账号后，也可 @我 发送节目名称、时长等报名资料，预览确认后录入。';
 
 /** QQ 事件负载：字段全部可选，消费前逐个运行时校验 */
 interface C2CMessagePayload {
@@ -163,6 +163,7 @@ async function handleC2CMessage(d: C2CMessagePayload): Promise<void> {
   const content = (d.content ?? '').trim();
   // 收集模式标记最优先拦截
   if (content === '开始导出' || content === '结束导出' || content === '取消导出') {
+    clearQqIntake(d);
     await handleC2cCollectMarker(content, openid, d.id);
     return;
   }
@@ -170,6 +171,7 @@ async function handleC2CMessage(d: C2CMessagePayload): Promise<void> {
   // 绑定意图永远优先于收录与录单（102 转发 content 为整段拍平文本，不做绑定判断——保持原语义）
   if (d.message_type !== 102) {
     if (code) {
+      clearQqIntake(d);
       const bind = await consumeBindCode(code, 'user');
       if (!bind?.userId) {
         if (d.id) await sendC2CMessage(openid, INVALID_BIND_HINT, { msgId: d.id });
@@ -212,12 +214,13 @@ async function handleC2CMessage(d: C2CMessagePayload): Promise<void> {
   }
   // 合并转发即时导出（转发 content 为占位文本，不应进入录单）
   if (d.message_type === 102) {
+    clearQqIntake(d);
     await handleC2cExport(d, openid);
     return;
   }
-  // 任务消息：AI 已配置时进入单聊录单；否则静默忽略（渠道禁用语义，与群录单一致）
+  // 录入消息：AI 已配置时分流待办与舞台报名；否则静默忽略。
   if (aiConfigured() && d.id) {
-    await handleC2cTaskTodo(d);
+    await handleQqIntake(d);
   }
 }
 
@@ -228,6 +231,7 @@ async function handleGroupAtMessage(d: GroupAtMessagePayload): Promise<void> {
   console.log(`[qq] 群@消息: group=${groupOpenid} len=${content.length} author=${d.author?.username ?? '?'} mentions=${d.mentions?.length ?? 0}`);
   const code = extractBindCode(content);
   if (code) {
+    clearQqIntake(d);
     // 先项目绑定码，未命中再试群内个人绑定码（@用户 指派解析依赖 qqMemberIds 对照表）
     const bind = await consumeBindCode(code, 'project');
     if (bind?.projectId) {
@@ -278,9 +282,9 @@ async function handleGroupAtMessage(d: GroupAtMessagePayload): Promise<void> {
     await handleGroupExport(d, groupOpenid);
     return;
   }
-  // 任务消息：仅已绑定项目且 AI 已配置时处理；否则静默忽略（渠道禁用语义）
+  // 录入消息：仅已绑定项目且 AI 已配置时分流待办与舞台报名。
   if (aiConfigured() && (await Project.exists({ 'qqGroups.groupOpenId': groupOpenid }))) {
-    await handleGroupTaskTodo(d);
+    await handleQqIntake(d);
   }
 }
 
