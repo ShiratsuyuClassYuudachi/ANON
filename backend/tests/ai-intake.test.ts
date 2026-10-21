@@ -29,6 +29,11 @@ describe('AI 录入输出校验', () => {
     expect(prompt).toContain('["@成员1","@成员2"]');
     expect(prompt).toContain('被 @ 不等于付款人');
   });
+  it('平摊对象不明确时提示模型默认全员，保留有效收支和金额', async () => {
+    respond({ type: 'expense', amount: '120', note: '海报', payerName: null, splitNames: null });
+    expect(await parseFinance('我付120元，相关人员分摊，具体人员不清楚')).toMatchObject({ type: 'expense', amount: '120', splitNames: null });
+    expect(complete.mock.calls[0][0].messages[0].content).toContain('平摊对象不明确');
+  });
   it('记账保留缺失字段，不猜测金额和人名，十进制金额不经过浮点计算', async () => {
     const value = { type: 'expense', amount: '120.50', note: ' 海报 ', payerName: null, splitNames: null };
     respond(value);

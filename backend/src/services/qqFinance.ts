@@ -38,16 +38,13 @@ async function projectMembers(projectId: Types.ObjectId) {
 
 /** 把真实提及转成模型可引用的标记，姓名不同或同名时仍按 QQ 身份定位。 */
 function prepareMentions(original: QqMessage, users: Member[]) {
-  const references: { ref: string; identity: QqIdentity; user: Member }[] = [];
+  const references: { ref: string; identity: QqIdentity; user: Member | null }[] = [];
   const replacements = new Map<string, { ref: string; userId: string } | null>();
   for (const mention of original.mentions ?? []) {
     const user = mention.bot ? null : resolveQqMember(users, original.group_openid, mention);
-    if (!mention.bot && !user) {
-      throw new AppError(400, 'bad_request', `未识别成员：@${mention.username || '该群成员'}，请先绑定个人账号或使用项目内唯一姓名重发。`);
-    }
     const ref = mention.bot ? '' : `@成员${references.length + 1}`;
-    if (user) references.push({ ref, identity: mention, user });
-    const value = { ref, userId: user ? String(user._id) : 'bot' };
+    if (!mention.bot) references.push({ ref, identity: mention, user });
+    const value = { ref, userId: user ? String(user._id) : mention.bot ? 'bot' : `unresolved:${ref}` };
     const aliases = [mention.member_openid, mention.union_openid].filter((s): s is string => !!s)
       .flatMap((id) => [`<@${id}>`, `<@!${id}>`, `@${id}`]);
     if (mention.username?.trim()) aliases.push(`@${mention.username.trim()}`);
@@ -61,11 +58,21 @@ function prepareMentions(original: QqMessage, users: Member[]) {
     .map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
   const text = pattern ? (original.content ?? '').replace(new RegExp(pattern, 'g'), (alias) => {
     const value = replacements.get(alias);
-    if (!value) throw new AppError(400, 'bad_request', '被 @ 的昵称有重名，请使用 QQ 的实际 @成员后重新发送完整记账内容。');
+    if (!value) {
+      const ref = `@成员${references.length + 1}`;
+      references.push({ ref, identity: { username: alias.replace(/^@/, '') }, user: null });
+      replacements.set(alias, { ref, userId: `unresolved:${ref}` });
+      return ref;
+    }
     return value.ref;
   }) : original.content ?? '';
-  if (/<@!?[^>]+>/.test(text)) throw new AppError(400, 'bad_request', '未收到完整的 @成员信息，请重新 @成员发送，或在网页选择成员记账。');
-  return { text, references };
+  // 缺少提及元数据时保留其语义位置，由付款/平摊角色分别决定如何处理。
+  const normalized = text.replace(/<@!?([^>]+)>/g, (_tag, id: string) => {
+    const ref = `@成员${references.length + 1}`;
+    references.push({ ref, identity: { member_openid: id }, user: null });
+    return ref;
+  });
+  return { text: normalized, references };
 }
 
 async function preview(original: QqMessage, current: QqMessage, user: UserDoc, project: ProjectDoc): Promise<void> {
@@ -93,9 +100,12 @@ async function preview(original: QqMessage, current: QqMessage, user: UserDoc, p
     const mentioned = reference ? [reference] : references.filter((r) => r.identity.username?.trim()
       && [r.identity.username.trim(), `@${r.identity.username.trim()}`].includes(name));
     if (mentioned.length) {
-      if (new Set(mentioned.map((r) => String(r.user._id))).size !== 1) throw new AppError(400, 'bad_request', '被 @ 的昵称有重名，请使用 QQ 的实际 @成员后重新发送完整记账内容。');
-      for (const r of mentioned) mentionBindings.push({ identity: r.identity, userId: String(r.user._id) });
-      return mentioned[0].user;
+      const matched = mentioned[0].user;
+      if (!matched || mentioned.some((r) => !r.user || String(r.user._id) !== String(matched._id))) {
+        throw new AppError(400, 'bad_request', `未识别成员：@${mentioned[0].identity.username || '该群成员'}，请先绑定个人账号或使用项目内唯一姓名重发。`);
+      }
+      for (const r of mentioned) mentionBindings.push({ identity: r.identity, userId: String(matched._id) });
+      return matched;
     }
     if (name && /^@成员\d+$/.test(name)) throw new AppError(400, 'bad_request', '未识别的 @成员引用，请重新发送完整记账内容。');
     const plainName = name.replace(/^@/, '');
@@ -104,15 +114,28 @@ async function preview(original: QqMessage, current: QqMessage, user: UserDoc, p
     return found[0];
   };
   const payer = resolveName(parsed.payerName);
-  const split = [...new Map((parsed.splitNames?.map(resolveName) ?? []).map((u) => [String(u._id), u])).values()];
+  const payerBindingCount = mentionBindings.length;
+  let split: Member[] = [];
+  let splitUnclear = false;
+  try {
+    split = [...new Map((parsed.splitNames?.map(resolveName) ?? []).map((u) => [String(u._id), u])).values()];
+  } catch (err) {
+    if (!(err instanceof AppError) || err.code !== 'bad_request') throw err;
+    // 整组不明确时按全员平摊，不能只保留其中已识别的人。
+    splitUnclear = true;
+    mentionBindings.splice(payerBindingCount);
+  }
   const memberLabel = (member: Member) => {
-    const nickname = references.find((r) => String(r.user._id) === String(member._id))?.identity.username?.trim();
+    const nickname = references.find((r) => r.user && String(r.user._id) === String(member._id))?.identity.username?.trim();
     return nickname && nickname !== member.name ? `${member.name}（@${nickname}）` : member.name;
   };
-  const note = parsed.note.replace(/@成员\d+/g, (ref) => references.find((r) => r.ref === ref)?.user.name ?? ref);
+  const note = parsed.note.replace(/@成员\d+/g, (ref) => {
+    const mention = references.find((r) => r.ref === ref);
+    return mention?.user?.name ?? mention?.identity.username ?? '群成员';
+  });
   const entry: Entry = { type: parsed.type, amountCents, note, payerUserId: String(payer._id), splitAmong: [...new Set(split.map((u) => String(u._id)))] };
   save(qqSessionKey(current)!, { step: 'confirm', original, userId: String(user._id), projectId: String(project._id), entry, mentionBindings, expiresAt: Date.now() + TTL });
-  await reply(current, `请确认记账：\n活动：${project.name}\n类型：${entry.type === 'income' ? '收入' : '支出'}\n金额：${(amountCents / 100).toFixed(2)} 元\n${entry.type === 'income' ? '收款人' : '付款人'}：${memberLabel(payer)}${parsed.payerName === null ? '（默认本人）' : ''}\n平摊：${split.length ? split.map(memberLabel).join('、') : '全员（随项目成员变动）'}\n事由：${entry.note || '未提供'}\n回复「确认」保存，回复「取消」或 0 放弃；修改请完整重发。${current.group_openid ? '\n群内回复请继续 @我。' : ''}`);
+  await reply(current, `请确认记账：\n活动：${project.name}\n类型：${entry.type === 'income' ? '收入' : '支出'}\n金额：${(amountCents / 100).toFixed(2)} 元\n${entry.type === 'income' ? '收款人' : '付款人'}：${memberLabel(payer)}${parsed.payerName === null ? '（默认本人）' : ''}\n平摊：${split.length ? split.map(memberLabel).join('、') : splitUnclear ? '全员（平摊对象不明确，已默认全员；随项目成员变动）' : '全员（默认平摊范围；随项目成员变动）'}\n事由：${entry.note || '未提供'}\n回复「确认」保存，回复「取消」或 0 放弃；修改请完整重发。${current.group_openid ? '\n群内回复请继续 @我。' : ''}`);
 }
 
 export async function beginQqFinance(original: QqMessage, current = original): Promise<void> {

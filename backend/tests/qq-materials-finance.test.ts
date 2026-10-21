@@ -135,25 +135,29 @@ describe('QQ 记账 @成员', () => {
     await g('确认'); const tx = await Transaction.findOne();
     expect(String(tx?.payerUserId)).toBe(auth.user.id); expect(tx?.splitAmong).toHaveLength(0);
   });
-  it('未知提及不兜底本人或全员，提示绑定后重发', async () => {
+  it('付款人是未知提及时仍要求绑定后重发', async () => {
+    parse.mockResolvedValue({ ...parsed, payerName: '@成员1' });
     await g('记账：@不存在的人付120元', { mentions: [{ member_openid: 'unknown', username: '不存在的人' }] });
-    expect(last()).toContain('未识别成员'); expect(parse).not.toHaveBeenCalled(); await g('确认'); expect(await Transaction.countDocuments()).toBe(0);
+    expect(last()).toContain('未识别成员'); expect(parse).toHaveBeenCalled(); await g('确认'); expect(await Transaction.countDocuments()).toBe(0);
   });
   it('重名但没有稳定绑定时不能猜测成员', async () => {
     await mentionedMember('同名'); await mentionedMember('同名');
+    parse.mockResolvedValue({ ...parsed, payerName: '@成员1' });
     await g('记账：@同名付120元', { mentions: [{ username: '同名' }] });
-    expect(last()).toContain('未识别成员'); expect(parse).not.toHaveBeenCalled();
+    expect(last()).toContain('未识别成员'); expect(parse).toHaveBeenCalled();
   });
   it('同一个群成员绑定到多人时拒绝，不能退回昵称绕过冲突', async () => {
     await mentionedMember('唯一昵称', { qqMemberIds: [{ groupOpenId: group, memberOpenId: 'collision' }] });
     await mentionedMember('另外一个人', { qqMemberIds: [{ groupOpenId: group, memberOpenId: 'collision' }] });
+    parse.mockResolvedValue({ ...parsed, payerName: '@成员1' });
     await g('记账：@唯一昵称付120元', { mentions: [{ member_openid: 'collision', username: '唯一昵称' }] });
-    expect(last()).toContain('未识别成员'); expect(parse).not.toHaveBeenCalled();
+    expect(last()).toContain('未识别成员'); expect(parse).toHaveBeenCalled();
   });
   it('不使用其他群的 member_openid 对照表', async () => {
     await mentionedMember('ANON姓名', { qqMemberIds: [{ groupOpenId: 'other-group', memberOpenId: 'same-id' }] });
+    parse.mockResolvedValue({ ...parsed, payerName: '@成员1' });
     await g('记账：@QQ昵称付120元', { mentions: [{ member_openid: 'same-id', username: 'QQ昵称' }] });
-    expect(last()).toContain('未识别成员'); expect(parse).not.toHaveBeenCalled();
+    expect(last()).toContain('未识别成员'); expect(parse).toHaveBeenCalled();
   });
   it('同一人重复提及和平摊引用按用户去重', async () => {
     const member = await mentionedMember('小明', { qqMemberIds: [{ groupOpenId: group, memberOpenId: 'ming' }] });
@@ -187,7 +191,8 @@ describe('QQ 记账 @成员', () => {
     expect(String((await Transaction.findOne())?.payerUserId)).toBe(String(member._id));
   });
   it('没有 QQ mentions 元数据的原生 @标记与模型编造引用均拒绝', async () => {
-    await g('记账：<@unknown>付120元'); expect(last()).toContain('未收到完整'); expect(parse).not.toHaveBeenCalled();
+    parse.mockResolvedValue({ ...parsed, payerName: '@成员1' });
+    await g('记账：<@unknown>付120元'); expect(last()).toContain('未识别成员');
     parse.mockResolvedValue({ ...parsed, payerName: '@成员99' }); await g('记账：我付120元'); expect(last()).toContain('未识别的 @成员引用');
     await g('确认'); expect(await Transaction.countDocuments()).toBe(0);
   });
@@ -197,7 +202,8 @@ describe('QQ 记账 @成员', () => {
     const mentions = [{ member_openid: 'a', username: '小明' }, { member_openid: 'b', username: '小明' }];
     parse.mockResolvedValue({ ...parsed, payerName: '@成员1', splitNames: ['@成员2'] });
     await g('记账：<@a>付120元，<@b>平摊', { mentions }); expect(last()).toContain('请确认记账'); await g('取消');
-    await g('记账：@小明付120元', { mentions }); expect(last()).toContain('昵称有重名');
+    parse.mockResolvedValue({ ...parsed, payerName: '@成员3', splitNames: null });
+    await g('记账：@小明付120元', { mentions }); expect(last()).toContain('未识别成员');
   });
   it('长昵称优先替换，含正则字符的昵称可正确解析', async () => {
     await mentionedMember('小明', { qqMemberIds: [{ groupOpenId: group, memberOpenId: 'short' }] });
@@ -209,6 +215,58 @@ describe('QQ 记账 @成员', () => {
     ] });
     expect(parse).toHaveBeenCalledWith('记账：@成员2付120元，@成员3平摊，@成员1知悉', { mentions: ['@成员1', '@成员2', '@成员3'] });
     await g('确认'); expect(String((await Transaction.findOne())?.payerUserId)).toBe(String(long._id));
+  });
+});
+
+describe('QQ 不明确的平摊对象默认全员', () => {
+  it.each([['不存在的人'], ['我', '不存在的人'], ['@成员99']])('无法识别平摊列表 %j 时整笔默认全员，不保留部分成员', async (...names) => {
+    parse.mockResolvedValue({ ...parsed, splitNames: names });
+    await g('记账：我付120元，分摊对象待定');
+    expect(last()).toContain('平摊对象不明确，已默认全员'); expect(await Transaction.countDocuments()).toBe(0);
+    await g('确认'); const tx = await Transaction.findOne();
+    expect(String(tx?.payerUserId)).toBe(auth.user.id); expect(tx?.splitAmong).toHaveLength(0);
+  });
+  it('ANON 重名的平摊人默认全员', async () => {
+    await mentionedMember('同名'); await mentionedMember('同名');
+    parse.mockResolvedValue({ ...parsed, splitNames: ['同名'] });
+    await g('记账：我付120元，由同名分摊'); expect(last()).toContain('已默认全员');
+    await g('确认'); expect((await Transaction.findOne())?.splitAmong).toHaveLength(0);
+  });
+  it('未绑定的真实 @平摊人默认全员，不影响明确的付款人', async () => {
+    parse.mockResolvedValue({ ...parsed, splitNames: ['@成员1'] });
+    await g('记账：我付120元，与@陌生人平摊', { mentions: [{ member_openid: 'unknown', username: '陌生人' }] });
+    expect(last()).toContain('已默认全员'); await g('确认');
+    expect((await Transaction.findOne())?.splitAmong).toHaveLength(0);
+  });
+  it('缺少 QQ 元数据的原生 @平摊人默认全员', async () => {
+    parse.mockResolvedValue({ ...parsed, splitNames: ['@成员1'] });
+    await g('记账：我付120元，与<@unknown>平摊'); expect(last()).toContain('已默认全员');
+    await g('确认'); expect((await Transaction.findOne())?.splitAmong).toHaveLength(0);
+  });
+  it('QQ 平铺昵称重名导致平摊对象不明确时默认全员', async () => {
+    await mentionedMember('小明甲', { qqMemberIds: [{ groupOpenId: group, memberOpenId: 'a' }] });
+    await mentionedMember('小明乙', { qqMemberIds: [{ groupOpenId: group, memberOpenId: 'b' }] });
+    parse.mockResolvedValue({ ...parsed, splitNames: ['@成员3'] });
+    await g('记账：我付120元，@小明平摊', { mentions: [{ member_openid: 'a', username: '小明' }, { member_openid: 'b', username: '小明' }] });
+    expect(last()).toContain('已默认全员'); await g('确认'); expect((await Transaction.findOne())?.splitAmong).toHaveLength(0);
+  });
+  it('整组默认全员后不保留已识别平摊人的绑定检查', async () => {
+    const member = await mentionedMember('小明', { qqMemberIds: [{ groupOpenId: group, memberOpenId: 'ming' }] });
+    parse.mockResolvedValue({ ...parsed, splitNames: ['@成员1', '不存在的人'] });
+    await g('记账：我付120元，与@小明及其他人平摊', { mentions: [{ member_openid: 'ming', username: '小明' }] });
+    expect(last()).toContain('已默认全员'); await Membership.deleteOne({ projectId: project._id, userId: member._id });
+    await g('确认'); expect(last()).toContain('已记账'); expect((await Transaction.findOne())?.splitAmong).toHaveLength(0);
+  });
+  it('默认全员后仍保留付款人的绑定检查', async () => {
+    const payer = await mentionedMember('付款人', { qqMemberIds: [{ groupOpenId: group, memberOpenId: 'payer' }] });
+    parse.mockResolvedValue({ ...parsed, payerName: '@成员1', splitNames: ['不存在的人'] });
+    await g('记账：@QQ付款人付120元，分摊人员待定', { mentions: [{ member_openid: 'payer', username: 'QQ付款人' }] });
+    expect(last()).toContain('已默认全员'); await User.updateOne({ _id: payer._id }, { qqMemberIds: [] });
+    await g('确认'); expect(await Transaction.countDocuments()).toBe(0);
+  });
+  it('未知的通知对象不阻止明确记账，默认全员仍可确认', async () => {
+    await g('记账：我付120元，全员平摊，@陌生群友知悉', { mentions: [{ member_openid: 'unknown', username: '陌生群友' }] });
+    expect(last()).toContain('平摊：全员'); await g('确认'); expect((await Transaction.findOne())?.splitAmong).toHaveLength(0);
   });
 });
 
