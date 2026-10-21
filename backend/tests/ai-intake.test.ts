@@ -1,10 +1,11 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { config } from '../src/config';
+import { parseFinanceAmount } from '../src/services/financeEntries';
 const { complete } = vi.hoisted(() => ({ complete: vi.fn() }));
 vi.mock('openai', () => ({ default: class {
   chat = { completions: { create: complete } };
 } }));
-import { classifyIntake, parseStageSignup } from '../src/services/ai';
+import { classifyIntake, parseStageSignup, parseFinance } from '../src/services/ai';
 
 const oldKey = config.ai.apiKey;
 const respond = (value: unknown) => complete.mockResolvedValue({ choices: [{ message: { content: JSON.stringify(value) } }] });
@@ -15,7 +16,29 @@ beforeEach(() => {
 afterAll(() => { config.ai.apiKey = oldKey; });
 
 describe('AI 录入输出校验', () => {
-  it.each(['signup', 'todo', 'ambiguous', 'none'] as const)('接受合法意图 %s', async (intent) => {
+  it('十进制大金额精确转分，超过安全整数范围则拒绝', () => {
+    expect(parseFinanceAmount('90071992547409.91')).toBe(Number.MAX_SAFE_INTEGER);
+    expect(parseFinanceAmount('120.50')).toBe(12050);
+    expect(() => parseFinanceAmount('90071992547409.92')).toThrow('金额');
+  });
+
+  it('记账保留缺失字段，不猜测金额和人名，十进制金额不经过浮点计算', async () => {
+    const value = { type: 'expense', amount: '120.50', note: ' 海报 ', payerName: null, splitNames: null };
+    respond(value);
+    expect(await parseFinance('记账')).toEqual({ ...value, note: '海报' });
+    respond({ ...value, type: null, amount: null });
+    expect(await parseFinance('缺金额')).toMatchObject({ type: null, amount: null });
+  });
+  it.each([
+    { type: 'transfer' }, { amount: 120.5 }, { amount: '1.234' }, { amount: '-1' },
+    { amount: '1e3' }, { amount: 'NaN' }, { payerName: 12 }, { splitNames: [''] },
+    { splitNames: [] }, { splitNames: [12] }, { note: null },
+  ])('拒绝非法记账字段 %j', async (bad) => {
+    respond({ type: 'expense', amount: '120.50', note: '海报', payerName: null, splitNames: null, ...bad });
+    expect(await parseFinance('记账')).toBeNull();
+  });
+
+  it.each(['signup', 'todo', 'finance', 'ambiguous', 'none'] as const)('接受合法意图 %s', async (intent) => {
     respond({ intent });
     expect(await classifyIntake('消息')).toBe(intent);
   });

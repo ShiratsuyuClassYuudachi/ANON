@@ -1,22 +1,17 @@
 import { config } from '../config';
-import { Membership } from '../models/Membership';
 import { Project, type ProjectDoc } from '../models/Project';
 import { StageSignup } from '../models/StageSignup';
-import { User, type UserDoc } from '../models/User';
+import type { UserDoc } from '../models/User';
 import { AppError } from '../utils/errors';
 import { classifyIntake, parseStageSignup } from './ai';
+import { checkedQqProject, qqCanWrite, qqProjects, qqSessionKey as sessionKey, resolveQqUser as resolveUser, type QqMessage } from './qqContext';
 import { sendC2CMessage, sendGroupMessage } from './qqApi';
 import { clearPendingC2cTodo, handleC2cTaskTodo, handleGroupTaskTodo } from './qqTodo';
+import { beginQqFinance, clearQqFinance } from './qqFinance';
 import { addSignupItem, type SignupItemInput } from './stageSignups';
 
 /** 群与单聊共享的消息分流；绑定、导出由 qqEvents 优先处理。 */
-export interface QqIntakePayload {
-  id?: string;
-  group_openid?: string;
-  content?: string;
-  author?: { user_openid?: string; member_openid?: string; union_openid?: string; username?: string };
-  mentions?: { member_openid?: string; union_openid?: string; username?: string; bot?: boolean }[];
-}
+export type QqIntakePayload = QqMessage;
 
 type Session = { expiresAt: number; original: QqIntakePayload } & (
   | { step: 'intent' }
@@ -28,18 +23,11 @@ type Session = { expiresAt: number; original: QqIntakePayload } & (
 const sessions = new Map<string, Session>();
 const queues = new Map<string, Promise<void>>();
 const TTL_MS = 10 * 60_000;
-const ACTIVE_STATUSES = ['preparing', 'active', 'settling'];
-
-function sessionKey(d: QqIntakePayload): string | null {
-  if (!d.group_openid) return d.author?.user_openid ? JSON.stringify(['c2c', d.author.user_openid]) : null;
-  const sender = d.author?.member_openid || d.author?.union_openid;
-  return sender ? JSON.stringify(['group', d.group_openid, sender]) : null;
-}
-
 /** 绑定或进入导出时丢弃草稿；保存前仍会复核身份，不能借旧会话跨账号提交。 */
 export function clearQqIntake(d: QqIntakePayload): void {
   const key = sessionKey(d);
   if (key) sessions.delete(key);
+  clearQqFinance(d);
   if (!d.group_openid && d.author?.user_openid) clearPendingC2cTodo(d.author.user_openid);
 }
 
@@ -48,38 +36,8 @@ function save(key: string, state: Session): void {
   sessions.set(key, state);
 }
 
-async function resolveUser(d: QqIntakePayload): Promise<UserDoc | null> {
-  if (!d.group_openid) return d.author?.user_openid ? User.findOne({ qqOpenId: d.author.user_openid }) : null;
-  // 群内写权限只接受已绑定的稳定身份；不使用昵称或项目创建者兜底。
-  if (d.author?.member_openid) {
-    const users = await User.find({ qqMemberIds: { $elemMatch: {
-      groupOpenId: d.group_openid, memberOpenId: d.author.member_openid,
-    } } }).limit(2);
-    if (users.length) return users.length === 1 ? users[0] : null;
-  }
-  if (d.author?.union_openid) {
-    const users = await User.find({ qqUnionOpenId: d.author.union_openid }).limit(2);
-    return users.length === 1 ? users[0] : null;
-  }
-  return null;
-}
-
-async function canManage(user: UserDoc, project: ProjectDoc): Promise<boolean> {
-  if (user.isSuperAdmin) return true;
-  const member = await Membership.findOne({ projectId: project._id, userId: user._id }).lean();
-  const permissions = project.roles.find((r) => r.name === member?.roleName)?.permissions ?? [];
-  return !!member && (permissions.includes('tools:manage') || permissions.includes('project:manage'));
-}
-
-async function checkedProject(d: QqIntakePayload, user: UserDoc, id: string): Promise<ProjectDoc> {
-  const project = d.group_openid
-    ? await Project.findOne({ _id: id, 'qqGroups.groupOpenId': d.group_openid })
-    : await Project.findOne({ _id: id, status: { $in: ACTIVE_STATUSES } });
-  if (!project || !await canManage(user, project)) {
-    throw new AppError(403, 'forbidden', '该活动已不可用或你没有工具管理权限，请重新发送节目资料。');
-  }
-  return project;
-}
+const canManage = (user: UserDoc, project: ProjectDoc) => qqCanWrite(user, project, 'signup');
+const checkedProject = (d: QqIntakePayload, user: UserDoc, id: string) => checkedQqProject(d, user, id, 'signup');
 
 type Reply = (text: string) => Promise<boolean>;
 
@@ -137,13 +95,7 @@ async function beginSignup(key: string, original: QqIntakePayload, current: QqIn
     await chooseBatch(key, original, user, project, reply);
     return;
   }
-  const memberships = await Membership.find({ userId: user._id }).lean();
-  const projects = await Project.find({
-    _id: { $in: memberships.map((m) => m.projectId) }, status: { $in: ACTIVE_STATUSES },
-  });
-  const eligible: ProjectDoc[] = [];
-  for (const p of projects) if (await canManage(user, p)) eligible.push(p);
-  eligible.sort((a, b) => (a.startDate?.getTime() ?? Infinity) - (b.startDate?.getTime() ?? Infinity) || a.name.localeCompare(b.name, 'zh') || String(a._id).localeCompare(String(b._id)));
+  const eligible = await qqProjects(current, user, 'signup');
   if (!eligible.length) {
     await reply('你当前没有具有工具管理权限的进行中活动，暂无可录入节目的项目。');
   } else if (eligible.length === 1) {
@@ -166,7 +118,7 @@ async function processIntake(d: QqIntakePayload, key: string): Promise<void> {
       state = undefined;
     }
     const numeric = /^\d+$/.test(content);
-    const control = numeric || content === '确认' || content === '取消' || content === '节目报名' || content === '待办';
+    const control = numeric || content === '确认' || content === '取消' || content === '节目报名' || content === '待办' || (state?.step === 'intent' && content === '记账');
     if (control && state) {
       if (content === '取消' || content === '0') {
         sessions.delete(key);
@@ -180,8 +132,11 @@ async function processIntake(d: QqIntakePayload, key: string): Promise<void> {
         } else if (content === '2' || content === '待办') {
           sessions.delete(key);
           await runTodo(state.original, d);
+        } else if (content === '3' || content === '记账') {
+          sessions.delete(key);
+          await beginQqFinance(state.original, d);
         } else {
-          await reply('请回复 1 选择节目报名，2 选择待办，或 0 取消。');
+          await reply('请回复 1 选择节目报名，2 选择待办，3 选择记账，或 0 取消。');
         }
         return;
       }
@@ -222,7 +177,7 @@ async function processIntake(d: QqIntakePayload, key: string): Promise<void> {
         clearQqIntake(d);
         await reply('已取消本次录入。');
       } else if (numeric && !d.group_openid) await handleC2cTaskTodo(d);
-      else await reply('没有待选择或待确认的节目，请重新发送完整节目资料。');
+      else await reply('没有待选择或待确认的录入，请重新发送完整节目或记账资料。');
       return;
     }
     // 完整新消息替换上一次意图、节目草稿或待办项目选择。
@@ -234,10 +189,11 @@ async function processIntake(d: QqIntakePayload, key: string): Promise<void> {
     const intent = await classifyIntake(content);
     if (intent === 'signup') await beginSignup(key, d, d, reply);
     else if (intent === 'todo') await runTodo(d, d);
+    else if (intent === 'finance') await beginQqFinance(d);
     else if (intent === 'ambiguous') {
       save(key, { step: 'intent', original: d, expiresAt: Date.now() + TTL_MS });
-      await reply('这条消息要录入什么？\n1. 节目报名（一次一个）\n2. 待办\n回复序号选择，或 0 取消；多个节目或多种事项请拆开重发。');
-    } else if (intent === 'none') await reply('未识别到录入内容。可以发送要办的事项，或一个节目的名称、时长等报名资料。');
+      await reply('这条消息要录入什么？\n1. 节目报名（一次一个）\n2. 待办\n3. 记账\n回复序号选择，或 0 取消；多个节目、账目或多种事项请拆开重发。');
+    } else if (intent === 'none') await reply('未识别到录入内容。可以发送要办的事项，一个节目的名称、时长等报名资料，或已发生的收支描述。');
     else await reply('消息识别暂时不可用，请稍后重试，或在 ANON 网页手动录入。');
   } catch (err) {
     sessions.delete(key);
