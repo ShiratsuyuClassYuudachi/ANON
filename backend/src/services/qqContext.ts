@@ -1,6 +1,6 @@
 import { Membership } from '../models/Membership';
 import { Project, type ProjectDoc } from '../models/Project';
-import { User, type UserDoc } from '../models/User';
+import { User, type IUser, type UserDoc } from '../models/User';
 import { AppError } from '../utils/errors';
 
 export interface QqMessage {
@@ -11,6 +11,24 @@ export interface QqMessage {
   mentions?: { member_openid?: string; union_openid?: string; username?: string; bot?: boolean }[];
   attachments?: unknown[];
   message_type?: number;
+}
+
+export type QqIdentity = NonNullable<QqMessage['author']>;
+export type QqMemberIdentity = Pick<IUser, 'name' | 'qqUnionOpenId' | 'qqMemberIds'>;
+
+/** 待办指派与记账目标共用三层对照；仅用于成员映射，录入者授权仍需稳定绑定。 */
+export function resolveQqMember<T extends QqMemberIdentity>(members: readonly T[], groupOpenid: string | undefined, identity: QqIdentity): T | null {
+  if (groupOpenid && identity.member_openid) {
+    const hits = members.filter((u) => u.qqMemberIds?.some((m) => m.groupOpenId === groupOpenid && m.memberOpenId === identity.member_openid));
+    if (hits.length) return hits.length === 1 ? hits[0] : null;
+  }
+  if (identity.union_openid) {
+    const hits = members.filter((u) => u.qqUnionOpenId === identity.union_openid);
+    if (hits.length) return hits.length === 1 ? hits[0] : null;
+  }
+  const name = identity.username?.trim();
+  const hits = name ? members.filter((u) => u.name === name) : [];
+  return hits.length === 1 ? hits[0] : null;
 }
 
 export function qqSessionKey(d: QqMessage): string | null {

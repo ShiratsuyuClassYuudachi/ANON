@@ -5,6 +5,7 @@ import { User, type IUser } from '../models/User';
 import { config } from '../config';
 import { parseTask } from './ai';
 import { sendC2CMessage, sendGroupMessage } from './qqApi';
+import { resolveQqMember } from './qqContext';
 import { createTodo } from './todos';
 
 /**
@@ -72,24 +73,7 @@ export async function handleGroupTaskTodo(d: GroupTaskPayload): Promise<void> {
     const members: MemberUser[] = await User.find({ _id: { $in: memberships.map((m) => m.userId) } }).lean();
 
     // 三层对照：member_openid（群维度）→ union_openid（跨场景，可能为空）→ 昵称唯一匹配
-    const resolveIdentity = (q: { member_openid?: string; union_openid?: string; username?: string }): MemberUser | null => {
-      if (q.member_openid) {
-        const hit = members.find((u) =>
-          u.qqMemberIds?.some((m) => m.groupOpenId === groupOpenid && m.memberOpenId === q.member_openid),
-        );
-        if (hit) return hit;
-      }
-      if (q.union_openid) {
-        const hit = members.find((u) => u.qqUnionOpenId === q.union_openid);
-        if (hit) return hit;
-      }
-      if (q.username) {
-        const name = q.username.trim();
-        const hits = name ? members.filter((u) => u.name === name) : [];
-        if (hits.length === 1) return hits[0];
-      }
-      return null;
-    };
+    const resolveIdentity = (q: { member_openid?: string; union_openid?: string; username?: string }) => resolveQqMember(members, groupOpenid, q);
 
     const parsed = await parseTask(content, { now: new Date(), timezone: project.timezone });
     if (!parsed) {

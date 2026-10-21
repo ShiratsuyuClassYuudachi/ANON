@@ -22,6 +22,13 @@ describe('AI 录入输出校验', () => {
     expect(() => parseFinanceAmount('90071992547409.92')).toThrow('金额');
   });
 
+  it('向 AI 传递合法提及引用并保留付款/平摊角色，服务端再映射用户身份', async () => {
+    respond({ type: 'expense', amount: '120', note: '海报', payerName: '@成员1', splitNames: ['我', '@成员2'] });
+    expect(await parseFinance('@成员1垫付120元，我和@成员2平摊', { mentions: ['@成员1', '@成员2'] })).toMatchObject({ payerName: '@成员1', splitNames: ['我', '@成员2'] });
+    const prompt = complete.mock.calls[0][0].messages[0].content;
+    expect(prompt).toContain('["@成员1","@成员2"]');
+    expect(prompt).toContain('被 @ 不等于付款人');
+  });
   it('记账保留缺失字段，不猜测金额和人名，十进制金额不经过浮点计算', async () => {
     const value = { type: 'expense', amount: '120.50', note: ' 海报 ', payerName: null, splitNames: null };
     respond(value);

@@ -1,4 +1,5 @@
 import { config } from '../config';
+import type { Types } from 'mongoose';
 import { Membership } from '../models/Membership';
 import { User, type UserDoc } from '../models/User';
 import type { ProjectDoc } from '../models/Project';
@@ -6,12 +7,14 @@ import { AppError } from '../utils/errors';
 import { aiConfigured, parseFinance } from './ai';
 import { createFinanceEntry, parseFinanceAmount } from './financeEntries';
 import { sendC2CMessage, sendGroupMessage } from './qqApi';
-import { checkedQqProject, qqProjects, qqSessionKey, resolveQqUser, type QqMessage } from './qqContext';
+import { checkedQqProject, qqProjects, qqSessionKey, resolveQqMember, resolveQqUser, type QqIdentity, type QqMemberIdentity, type QqMessage } from './qqContext';
 
 type Entry = { type: 'income' | 'expense'; amountCents: number; note: string; payerUserId: string; splitAmong: string[] };
+type MentionBinding = { identity: QqIdentity; userId: string };
+type Member = QqMemberIdentity & { _id: Types.ObjectId };
 type State = { expiresAt: number; userId: string; original: QqMessage } & (
   | { step: 'project'; projectIds: string[] }
-  | { step: 'confirm'; projectId: string; entry: Entry }
+  | { step: 'confirm'; projectId: string; entry: Entry; mentionBindings: MentionBinding[] }
 );
 const sessions = new Map<string, State>();
 const TTL = 10 * 60_000;
@@ -28,8 +31,47 @@ function save(key: string, state: State): void {
   sessions.set(key, state);
 }
 
+async function projectMembers(projectId: Types.ObjectId) {
+  const ms = await Membership.find({ projectId }).lean();
+  return User.find({ _id: { $in: ms.map((m) => m.userId) } }).lean();
+}
+
+/** 把真实提及转成模型可引用的标记，姓名不同或同名时仍按 QQ 身份定位。 */
+function prepareMentions(original: QqMessage, users: Member[]) {
+  const references: { ref: string; identity: QqIdentity; user: Member }[] = [];
+  const replacements = new Map<string, { ref: string; userId: string } | null>();
+  for (const mention of original.mentions ?? []) {
+    const user = mention.bot ? null : resolveQqMember(users, original.group_openid, mention);
+    if (!mention.bot && !user) {
+      throw new AppError(400, 'bad_request', `未识别成员：@${mention.username || '该群成员'}，请先绑定个人账号或使用项目内唯一姓名重发。`);
+    }
+    const ref = mention.bot ? '' : `@成员${references.length + 1}`;
+    if (user) references.push({ ref, identity: mention, user });
+    const value = { ref, userId: user ? String(user._id) : 'bot' };
+    const aliases = [mention.member_openid, mention.union_openid].filter((s): s is string => !!s)
+      .flatMap((id) => [`<@${id}>`, `<@!${id}>`, `@${id}`]);
+    if (mention.username?.trim()) aliases.push(`@${mention.username.trim()}`);
+    for (const alias of aliases) {
+      const existing = replacements.get(alias);
+      if (!replacements.has(alias)) replacements.set(alias, value);
+      else if (!existing || existing.userId !== value.userId) replacements.set(alias, null);
+    }
+  }
+  const pattern = [...replacements.keys()].sort((a, b) => b.length - a.length)
+    .map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const text = pattern ? (original.content ?? '').replace(new RegExp(pattern, 'g'), (alias) => {
+    const value = replacements.get(alias);
+    if (!value) throw new AppError(400, 'bad_request', '被 @ 的昵称有重名，请使用 QQ 的实际 @成员后重新发送完整记账内容。');
+    return value.ref;
+  }) : original.content ?? '';
+  if (/<@!?[^>]+>/.test(text)) throw new AppError(400, 'bad_request', '未收到完整的 @成员信息，请重新 @成员发送，或在网页选择成员记账。');
+  return { text, references };
+}
+
 async function preview(original: QqMessage, current: QqMessage, user: UserDoc, project: ProjectDoc): Promise<void> {
-  const parsed = await parseFinance(original.content ?? '');
+  const users = await projectMembers(project._id);
+  const { text, references } = prepareMentions(original, users);
+  const parsed = await parseFinance(text, { mentions: references.map((r) => r.ref) });
   if (!parsed) {
     await reply(current, '记账解析暂时不可用，请稍后重试，或在 ANON 财务页手动添加。');
     return;
@@ -39,19 +81,38 @@ async function preview(original: QqMessage, current: QqMessage, user: UserDoc, p
     return;
   }
   const amountCents = parseFinanceAmount(parsed.amount);
-  const ms = await Membership.find({ projectId: project._id }).lean();
-  const users = await User.find({ _id: { $in: ms.map((m) => m.userId) } }).lean();
+  const mentionBindings: MentionBinding[] = [];
   const resolveName = (name: string | null) => {
-    const found = name === null || ['我', '本人', '自己'].includes(name)
-      ? users.filter((u) => String(u._id) === String(user._id)) : users.filter((u) => u.name === name);
-    if (found.length !== 1) throw new AppError(400, 'bad_request', `成员「${name ?? user.name}」不存在或重名，请在网页选择成员，或使用唯一姓名完整重发。`);
+    // 「我」是录入者；即使群里另有人昵称叫「我」，也不能覆盖这个语义。
+    if (name === null || ['我', '本人', '自己'].includes(name)) {
+      const self = users.find((u) => String(u._id) === String(user._id));
+      if (!self) throw new AppError(400, 'bad_request', '本人已不是项目成员，请重新发送完整记账内容。');
+      return self;
+    }
+    const reference = references.find((r) => r.ref === name);
+    const mentioned = reference ? [reference] : references.filter((r) => r.identity.username?.trim()
+      && [r.identity.username.trim(), `@${r.identity.username.trim()}`].includes(name));
+    if (mentioned.length) {
+      if (new Set(mentioned.map((r) => String(r.user._id))).size !== 1) throw new AppError(400, 'bad_request', '被 @ 的昵称有重名，请使用 QQ 的实际 @成员后重新发送完整记账内容。');
+      for (const r of mentioned) mentionBindings.push({ identity: r.identity, userId: String(r.user._id) });
+      return mentioned[0].user;
+    }
+    if (name && /^@成员\d+$/.test(name)) throw new AppError(400, 'bad_request', '未识别的 @成员引用，请重新发送完整记账内容。');
+    const plainName = name.replace(/^@/, '');
+    const found = users.filter((u) => u.name === plainName);
+    if (found.length !== 1) throw new AppError(400, 'bad_request', `成员「${name}」不存在或重名，请在网页选择成员，或使用唯一姓名完整重发。`);
     return found[0];
   };
   const payer = resolveName(parsed.payerName);
-  const split = parsed.splitNames?.map(resolveName) ?? [];
-  const entry: Entry = { type: parsed.type, amountCents, note: parsed.note, payerUserId: String(payer._id), splitAmong: [...new Set(split.map((u) => String(u._id)))] };
-  save(qqSessionKey(current)!, { step: 'confirm', original, userId: String(user._id), projectId: String(project._id), entry, expiresAt: Date.now() + TTL });
-  await reply(current, `请确认记账：\n活动：${project.name}\n类型：${entry.type === 'income' ? '收入' : '支出'}\n金额：${(amountCents / 100).toFixed(2)} 元\n${entry.type === 'income' ? '收款人' : '付款人'}：${payer.name}${parsed.payerName === null ? '（默认本人）' : ''}\n平摊：${split.length ? split.map((u) => u.name).join('、') : '全员（随项目成员变动）'}\n事由：${entry.note || '未提供'}\n回复「确认」保存，回复「取消」或 0 放弃；修改请完整重发。${current.group_openid ? '\n群内回复请继续 @我。' : ''}`);
+  const split = [...new Map((parsed.splitNames?.map(resolveName) ?? []).map((u) => [String(u._id), u])).values()];
+  const memberLabel = (member: Member) => {
+    const nickname = references.find((r) => String(r.user._id) === String(member._id))?.identity.username?.trim();
+    return nickname && nickname !== member.name ? `${member.name}（@${nickname}）` : member.name;
+  };
+  const note = parsed.note.replace(/@成员\d+/g, (ref) => references.find((r) => r.ref === ref)?.user.name ?? ref);
+  const entry: Entry = { type: parsed.type, amountCents, note, payerUserId: String(payer._id), splitAmong: [...new Set(split.map((u) => String(u._id)))] };
+  save(qqSessionKey(current)!, { step: 'confirm', original, userId: String(user._id), projectId: String(project._id), entry, mentionBindings, expiresAt: Date.now() + TTL });
+  await reply(current, `请确认记账：\n活动：${project.name}\n类型：${entry.type === 'income' ? '收入' : '支出'}\n金额：${(amountCents / 100).toFixed(2)} 元\n${entry.type === 'income' ? '收款人' : '付款人'}：${memberLabel(payer)}${parsed.payerName === null ? '（默认本人）' : ''}\n平摊：${split.length ? split.map(memberLabel).join('、') : '全员（随项目成员变动）'}\n事由：${entry.note || '未提供'}\n回复「确认」保存，回复「取消」或 0 放弃；修改请完整重发。${current.group_openid ? '\n群内回复请继续 @我。' : ''}`);
 }
 
 export async function beginQqFinance(original: QqMessage, current = original): Promise<void> {
@@ -116,6 +177,15 @@ export async function handleQqFinance(d: QqMessage): Promise<boolean> {
     if (content !== '确认') { await reply(d, '请回复「确认」保存记账，或「取消」放弃。'); return true; }
     sessions.delete(key);
     const project = await checkedQqProject(d, user, state.projectId, 'finance');
+    if (state.mentionBindings.length) {
+      const users = await projectMembers(project._id);
+      for (const binding of state.mentionBindings) {
+        const matched = resolveQqMember(users, state.original.group_openid, binding.identity);
+        if (!matched || String(matched._id) !== binding.userId) {
+          throw new AppError(400, 'bad_request', '被 @ 的成员绑定或项目归属已变化，请重新发送完整记账内容。');
+        }
+      }
+    }
     const tx = await createFinanceEntry({ ...state.entry, projectId: project._id, userId: String(user._id), userName: user.name });
     const delivered = await reply(d, `已记账：${tx.type === 'income' ? '收入' : '支出'} ${(tx.amountCents / 100).toFixed(2)} 元\n活动：${project.name}\n事由：${tx.note || '未提供'}${config.publicBaseUrl ? `\n查看：${config.publicBaseUrl}/p/${project._id}?tab=finance` : ''}`).catch(() => false);
     if (!delivered) console.error('[qq-finance] 账目已保存，但结果回复失败');
