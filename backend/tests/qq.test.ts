@@ -90,6 +90,35 @@ describe('个人绑定码', () => {
     }
   });
 
+  it('已绑定私聊仍可生成个人码追加群身份，保留私聊和其他群绑定', async () => {
+    await User.updateOne({ _id: staff.user.id }, {
+      qqOpenId: 'qq-open-staff',
+      qqMemberIds: [{ groupOpenId: 'old-group', memberOpenId: 'old-member' }],
+    });
+    const res = await request(app)
+      .post('/api/me/qq-bind-code')
+      .set('Authorization', `Bearer ${staff.token}`);
+    expect(res.status).toBe(201);
+    expect(res.body.code).toMatch(/^\d{6}$/);
+
+    await handleQQEvent('GROUP_AT_MESSAGE_CREATE', {
+      id: 'bind-existing-user-to-new-group',
+      group_openid: 'new-group',
+      author: { member_openid: 'new-member' },
+      content: `绑定 ${res.body.code}`,
+    });
+    const user = (await User.findById(staff.user.id).lean())!;
+    expect(user.qqOpenId).toBe('qq-open-staff');
+    expect(user.qqMemberIds).toEqual([
+      { groupOpenId: 'old-group', memberOpenId: 'old-member' },
+      { groupOpenId: 'new-group', memberOpenId: 'new-member' },
+    ]);
+    expect(await QQBindCode.exists({ code: res.body.code })).toBeFalsy();
+    expect(sendGroupMock.mock.calls.at(-1)?.[1]).toContain('绑定成功');
+    const me = await request(app).get('/api/me').set('Authorization', `Bearer ${staff.token}`);
+    expect(me.body.qq.bound).toBe(true);
+  });
+
   it('GET /api/me 暴露 qq 绑定状态（enabled/bound），DELETE 解绑', async () => {
     const me = await request(app).get('/api/me').set('Authorization', `Bearer ${staff.token}`);
     expect(me.body.qq).toEqual({ enabled: true, bound: false });

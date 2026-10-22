@@ -14,7 +14,7 @@ interface BindCode {
   expiresAt: string;
 }
 
-/** 「个人资料」页的 QQ 通知绑定卡片：生成绑定码 → QQ 私聊机器人发送「绑定 XXXXXX」完成关联 */
+/** 个人 QQ 绑定：已绑定私聊后仍可生成个人码，在群内补充身份关联。 */
 export default function QqBindCard() {
   const [state, setState] = useState<QqState | null>(null);
   const [bindCode, setBindCode] = useState<BindCode | null>(null);
@@ -49,6 +49,7 @@ export default function QqBindCard() {
     try {
       await api('/api/me/qq-binding', { method: 'DELETE' });
       setState({ enabled: true, bound: false });
+      setBindCode(null);
       toast.success('已解绑 QQ');
     } catch (e) {
       toast.error((e as Error).message);
@@ -67,21 +68,20 @@ export default function QqBindCard() {
           <p className="text-sm text-muted-foreground">检测中…</p>
         ) : !state.enabled ? (
           <p className="text-sm text-muted-foreground">部署未启用 QQ 通知（未配置机器人凭证），其他提醒渠道不受影响</p>
-        ) : state.bound ? (
-          <>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" disabled={busy} onClick={unbind}>
-                解绑
-              </Button>
-            </div>
-            <p className="text-sm text-muted-foreground">已绑定 QQ：指派、待办到期、里程碑等提醒会发到你的 QQ 私聊</p>
-          </>
         ) : (
           <>
-            <div className="flex items-center gap-2">
+            {state.bound && (
+              <p className="text-sm text-muted-foreground">已绑定 QQ：指派、待办到期、里程碑等提醒会发到你的 QQ 私聊</p>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline" size="sm" disabled={busy} onClick={generate}>
-                {bindCode ? '重新生成' : '生成绑定码'}
+                {bindCode ? '重新生成' : state.bound ? '生成群绑定码' : '生成绑定码'}
               </Button>
+              {state.bound && (
+                <Button variant="outline" size="sm" disabled={busy} onClick={unbind}>
+                  解绑
+                </Button>
+              )}
               {bindCode && (
                 <span className="font-mono text-2xl font-semibold tracking-[0.3em]" aria-label="绑定码">
                   {bindCode.code}
@@ -89,10 +89,15 @@ export default function QqBindCard() {
               )}
             </div>
             <p className="text-sm text-muted-foreground">
-              {bindCode
-                ? `10 分钟内，在 QQ 私聊 ANON 机器人发送：绑定 ${bindCode.code}`
-                : '生成绑定码后，在 QQ 私聊 ANON 机器人发送「绑定 XXXXXX」完成关联'}
+              {state.bound
+                ? bindCode
+                  ? `10 分钟内，在目标 QQ 群 @ANON 机器人发送：绑定 ${bindCode.code}`
+                  : '生成群绑定码后，在目标 QQ 群 @ANON 机器人发送「绑定 XXXXXX」，关联你的群内身份'
+                : bindCode
+                  ? `10 分钟内，在 QQ 私聊 ANON 机器人发送：绑定 ${bindCode.code}；也可在目标群 @机器人发送此指令`
+                  : '生成绑定码后，在 QQ 私聊 ANON 机器人发送「绑定 XXXXXX」；群内绑定请在目标群 @机器人发送同样的指令'}
             </p>
+            <p className="text-sm text-muted-foreground">绑定码仅可使用一次，多个群需分别生成。群内录入按你的项目角色权限执行。</p>
           </>
         )}
       </CardContent>
