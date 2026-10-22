@@ -7,18 +7,21 @@ import { consumeBindCode, QQ_GROUP_TYPE_KEYS } from './qqbot';
 import { collectDirectMessage, exportMessagesToFile, parseForwardPayload } from './qqChatExport';
 import { appendCollect, cancelCollect, endCollect, getCollect, startCollect } from './qqCollectSession';
 import { sendC2CMessage, sendGroupMessage } from './qqApi';
-import { handleC2cTaskTodo, handleGroupTaskTodo } from './qqTodo';
+import { clearQqIntake, handleQqIntake, hasQqIntake } from './qqIntake';
+import { qqControlText, serializeQqMessage, type QqMessage } from './qqContext';
+import { beginQqFinance, handleQqFinance, hasQqFinance } from './qqFinance';
+import { clearQqMaterials, handleQqMaterials, hasQqMaterials } from './qqMaterials';
 
 /**
  * QQ 事件分发：webhook 回调（routes/qqWebhook.ts）验签去重后调用 handleQQEvent。
- * 处理绑定流程、解绑清理、群@与单聊任务消息 AI 录单（不做自由对话）。
+ * 处理绑定流程、解绑清理、群@与单聊待办/舞台报名/记账 AI 录入及物料上传（不做自由对话）。
  * 事件帧（op/t/id）由 webhook 入口解析，本模块只关心 t + d。
  */
 
 const INVALID_BIND_HINT = '绑定码无效或已过期，请在 ANON「我的」页重新生成。';
 const INVALID_GROUP_BIND_HINT = '绑定码无效或已过期，请项目管理者在项目「设置」页重新生成。';
-const FRIEND_GUIDE = '这里是 ANON 通知机器人。在 ANON 个人中心生成绑定码后，发送「绑定 XXXXXX」即可接收待办与里程碑提醒。';
-const GROUP_GUIDE = '这里是 ANON 通知机器人。项目管理者在项目「设置」页生成绑定码后，@我 发送「绑定 XXXXXX」即可让本群接收项目通知。@我 发送任务描述（如「周五前把海报送到印刷店」）可直接创建待办。';
+const FRIEND_GUIDE = '这里是 ANON 通知机器人。在 ANON 个人中心生成绑定码后，发送「绑定 XXXXXX」即可接收待办与里程碑提醒，也可发送任务描述创建待办。有工具管理权限的成员还可发送节目名称、时长等报名资料，预览确认后录入舞台报名。发送「开始上传物料」后逐条发文件或图片，发完用「结束上传物料」保存。发送「记账：我买海报支出120元」可由 AI 解析，确认后入账。';
+const GROUP_GUIDE = '这里是 ANON 通知机器人。项目管理者在项目「设置」页生成绑定码后，@我 发送「绑定 XXXXXX」即可让本群接收项目通知。@我 发送任务描述（如「周五前把海报送到印刷店」）可直接创建待办；有工具管理权限的成员绑定个人账号后，也可 @我 发送节目名称、时长等报名资料，预览确认后录入。还可 @我 发送「开始上传物料」后上传文件，用「结束上传物料」保存；发送收支描述由 AI 解析，确认后记账。';
 
 /** QQ 事件负载：字段全部可选，消费前逐个运行时校验 */
 interface C2CMessagePayload {
@@ -163,6 +166,8 @@ async function handleC2CMessage(d: C2CMessagePayload): Promise<void> {
   const content = (d.content ?? '').trim();
   // 收集模式标记最优先拦截
   if (content === '开始导出' || content === '结束导出' || content === '取消导出') {
+    clearQqIntake(d);
+    await clearQqMaterials(d);
     await handleC2cCollectMarker(content, openid, d.id);
     return;
   }
@@ -170,6 +175,8 @@ async function handleC2CMessage(d: C2CMessagePayload): Promise<void> {
   // 绑定意图永远优先于收录与录单（102 转发 content 为整段拍平文本，不做绑定判断——保持原语义）
   if (d.message_type !== 102) {
     if (code) {
+      clearQqIntake(d);
+      await clearQqMaterials(d);
       const bind = await consumeBindCode(code, 'user');
       if (!bind?.userId) {
         if (d.id) await sendC2CMessage(openid, INVALID_BIND_HINT, { msgId: d.id });
@@ -190,6 +197,11 @@ async function handleC2CMessage(d: C2CMessagePayload): Promise<void> {
       if (d.id) await sendC2CMessage(openid, INVALID_BIND_HINT, { msgId: d.id });
       return;
     }
+  }
+  if (await handleQqMaterials(d)) {
+    clearQqIntake(d);
+    cancelCollect(openid);
+    return;
   }
   // 收集模式：一切消息入档（含 102/103），不进即时导出与 AI 录单
   const session = getCollect(openid);
@@ -212,12 +224,19 @@ async function handleC2CMessage(d: C2CMessagePayload): Promise<void> {
   }
   // 合并转发即时导出（转发 content 为占位文本，不应进入录单）
   if (d.message_type === 102) {
+    clearQqIntake(d);
     await handleC2cExport(d, openid);
     return;
   }
-  // 任务消息：AI 已配置时进入单聊录单；否则静默忽略（渠道禁用语义，与群录单一致）
+  if (await handleQqFinance(d)) return;
+  if (d.attachments?.length) {
+    await reply('上传文件或图片前，请先发送「开始上传物料」，发完发送「结束上传物料」。记账请发送文字描述。');
+    return;
+  }
+  if (/^记账(?:[：:\s]|$)/.test(content) && !aiConfigured()) { await beginQqFinance(d); return; }
+  // 录入消息：AI 已配置时分流待办、舞台报名与记账；否则静默忽略。
   if (aiConfigured() && d.id) {
-    await handleC2cTaskTodo(d);
+    await handleQqIntake(d);
   }
 }
 
@@ -228,6 +247,8 @@ async function handleGroupAtMessage(d: GroupAtMessagePayload): Promise<void> {
   console.log(`[qq] 群@消息: group=${groupOpenid} len=${content.length} author=${d.author?.username ?? '?'} mentions=${d.mentions?.length ?? 0}`);
   const code = extractBindCode(content);
   if (code) {
+    clearQqIntake(d);
+    await clearQqMaterials(d);
     // 先项目绑定码，未命中再试群内个人绑定码（@用户 指派解析依赖 qqMemberIds 对照表）
     const bind = await consumeBindCode(code, 'project');
     if (bind?.projectId) {
@@ -242,7 +263,7 @@ async function handleGroupAtMessage(d: GroupAtMessagePayload): Promise<void> {
       );
       const project = await Project.findByIdAndUpdate(
         bind.projectId,
-        { $push: { qqGroups: { groupOpenId: groupOpenid, types: QQ_GROUP_TYPE_KEYS } } },
+        { $push: { qqGroups: { groupOpenId: groupOpenid, types: QQ_GROUP_TYPE_KEYS, allowStageSignup: false } } },
         { new: true },
       ).lean();
       if (d.id) {
@@ -273,14 +294,22 @@ async function handleGroupAtMessage(d: GroupAtMessagePayload): Promise<void> {
     if (d.id) await sendGroupMessage(groupOpenid, INVALID_GROUP_BIND_HINT, { msgId: d.id });
     return;
   }
+  if (await handleQqMaterials(d)) { clearQqIntake(d); return; }
+  if (await handleQqFinance(d)) return;
+  if (d.attachments?.length) {
+    if (d.id) await sendGroupMessage(groupOpenid, '上传文件或图片前，请先 @我 发送「开始上传物料」，发完发送「结束上传物料」。记账请发送文字描述。', { msgId: d.id });
+    return;
+  }
+  if (/^记账(?:[：:\s]|$)/.test(content) && !aiConfigured()) { await beginQqFinance(d); return; }
   // 引用回复一条合并转发并说「导出」→ 导出被引用的聊天记录（置于 AI 录单之前）
   if (d.message_type === 103 && content.includes('导出')) {
+    clearQqIntake(d);
     await handleGroupExport(d, groupOpenid);
     return;
   }
-  // 任务消息：仅已绑定项目且 AI 已配置时处理；否则静默忽略（渠道禁用语义）
+  // 录入消息：仅已绑定项目且 AI 已配置时分流待办、舞台报名与记账。
   if (aiConfigured() && (await Project.exists({ 'qqGroups.groupOpenId': groupOpenid }))) {
-    await handleGroupTaskTodo(d);
+    await handleQqIntake(d);
   }
 }
 
@@ -289,7 +318,7 @@ async function handleGroupAtMessage(d: GroupAtMessagePayload): Promise<void> {
  * eventId 为事件最外层 id（FRIEND_ADD / GROUP_ADD_ROBOT 被动回信用）。
  */
 // 事件负载为外部输入：以下 cast 目标字段全部可选，处理器内逐个运行时校验后才消费
-export async function handleQQEvent(t: string, d: unknown, eventId?: string): Promise<void> {
+async function dispatchQQEvent(t: string, d: unknown, eventId?: string): Promise<void> {
   try {
     // spike：观察富类型事件（102/103 等）与携带附件消息的真实形状（QQ_DEBUG_EVENTS=1 开启）
     const dd = d as Record<string, unknown> | null;
@@ -311,9 +340,10 @@ export async function handleQQEvent(t: string, d: unknown, eventId?: string): Pr
         await handleGroupAtMessage((d ?? {}) as GroupAtMessagePayload);
         break;
       case 'GROUP_MESSAGE_CREATE': {
-        // 全量群消息（与 GROUP_AT_MESSAGE_CREATE 字段一致）：仅当 mentions 含 bot=true（即 @ 了机器人）才按群@消息处理
+        // 普通群消息仅接收本人已有会话的控制回复，其他聊天不进入 AI 或清除草稿。
         const payload = (d ?? {}) as GroupAtMessagePayload;
-        if (payload.mentions?.some((m) => m.bot)) await handleGroupAtMessage(payload);
+        const pendingReply = qqControlText(payload) !== null && (hasQqIntake(payload) || hasQqFinance(payload));
+        if (payload.mentions?.some((m) => m.bot) || hasQqMaterials(payload) || pendingReply) await handleGroupAtMessage(payload);
         break;
       }
       case 'FRIEND_ADD': {
@@ -347,4 +377,14 @@ export async function handleQQEvent(t: string, d: unknown, eventId?: string): Pr
   } catch (err) {
     console.error(`[qq] 事件处理失败 ${t}:`, err);
   }
+}
+
+/** 同一会话的下载、绑定和确认按到达顺序处理。 */
+export async function handleQQEvent(t: string, d: unknown, eventId?: string): Promise<void> {
+  if (['C2C_MESSAGE_CREATE', 'GROUP_AT_MESSAGE_CREATE', 'GROUP_MESSAGE_CREATE'].includes(t)) {
+    const payload = (d ?? {}) as QqMessage;
+    const control = t === 'C2C_MESSAGE_CREATE' ? null : qqControlText(payload);
+    const message = control === null ? d : { ...payload, content: control };
+    await serializeQqMessage(payload, () => dispatchQQEvent(t, message, eventId));
+  } else await dispatchQQEvent(t, d, eventId);
 }

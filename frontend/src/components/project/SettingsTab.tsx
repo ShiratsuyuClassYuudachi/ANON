@@ -31,7 +31,7 @@ function toDateInput(v: string | null): string {
   return v ? v.slice(0, 10) : '';
 }
 
-/** 「QQ 群通知」卡：项目管理者生成绑定码 → 群里 @机器人 发送「绑定 XXXXXX」完成关联；多群各自勾选接收的消息类型 */
+/** 项目管理者绑定 QQ 群，逐群配置通知订阅与舞台节目录入授权。 */
 function QqGroupCard({ project, canManage, onChanged }: { project: ProjectDetail; canManage: boolean; onChanged: () => Promise<void> }) {
   const [bindCode, setBindCode] = useState<{ code: string; expiresAt: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -61,24 +61,26 @@ function QqGroupCard({ project, canManage, onChanged }: { project: ProjectDetail
     }
   };
 
-  const toggleType = async (groupOpenId: string, types: string[], value: string, checked: boolean) => {
-    const next = checked ? [...types, value] : types.filter((t) => t !== value);
+  const updateGroup = async (groupOpenId: string, settings: { types?: string[]; allowStageSignup?: boolean }) => {
+    setBusy(true);
     try {
       await api(`/api/projects/${project.id}/qq-binding/${encodeURIComponent(groupOpenId)}`, {
         method: 'PATCH',
-        body: { types: next },
+        body: settings,
       });
       await onChanged();
     } catch (e) {
       toast.error((e as Error).message);
       await onChanged();
+    } finally {
+      setBusy(false);
     }
   };
 
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">QQ 群通知</CardTitle>
+        <CardTitle className="text-base">QQ 群通知与录入</CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
         {!project.qqEnabled ? (
@@ -102,12 +104,23 @@ function QqGroupCard({ project, canManage, onChanged }: { project: ProjectDetail
                         <label key={opt.value} className="flex items-center gap-2 text-sm">
                           <Checkbox
                             checked={g.types.includes(opt.value)}
-                            disabled={!canManage}
-                            onCheckedChange={(c) => toggleType(g.groupOpenId, g.types, opt.value, c === true)}
+                            disabled={!canManage || busy}
+                            onCheckedChange={(c) => updateGroup(g.groupOpenId, { types: c === true ? [...g.types, opt.value] : g.types.filter((t) => t !== opt.value) })}
                           />
                           {opt.label}
                         </label>
                       ))}
+                    </div>
+                    <div className="space-y-1 border-t pt-2">
+                      <label className="flex items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={g.allowStageSignup === true}
+                          disabled={!canManage || busy}
+                          onCheckedChange={(c) => updateGroup(g.groupOpenId, { allowStageSignup: c === true })}
+                        />
+                        允许本群所有成员录入舞台节目
+                      </label>
+                      <p className="text-sm text-muted-foreground">开启后无需绑定个人账号，节目进入报名待审核。物料上传和记账仍按个人权限执行。</p>
                     </div>
                   </ListRow>
                 ))}

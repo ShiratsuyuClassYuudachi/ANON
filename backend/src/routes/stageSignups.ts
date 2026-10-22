@@ -8,6 +8,7 @@ import { StageSignup, type IStageSignupItem, type StageSignupDoc } from '../mode
 import { User } from '../models/User';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
+import { addSignupItem, assertSignupDuration as assertDurationMin } from '../services/stageSignups';
 
 export const stageSignupsRouter = Router({ mergeParams: true });
 stageSignupsRouter.use(authRequired, loadMembership);
@@ -100,14 +101,6 @@ async function rundownJson(rid: Types.ObjectId) {
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };
-}
-
-function assertDurationMin(v: unknown): number {
-  const n = Number(v);
-  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1 || n > 1440) {
-    throw new AppError(400, 'bad_request', '时长必须为 1–1440 分钟的整数');
-  }
-  return n;
 }
 
 function parseTime(v: unknown, field: string): Date {
@@ -222,17 +215,16 @@ stageSignupsRouter.post(
   '/:sid/items',
   ...requirePermission('tools:manage'),
   ah(async (req, res) => {
-    const doc = await loadSignup(req.params.sid, req.project!._id);
+    await loadSignup(req.params.sid, req.project!._id);
     const b = req.body ?? {};
     const name = String(b.name ?? '').trim();
     if (!name) throw new AppError(400, 'bad_request', '节目名称不能为空');
-    doc.items.push({
+    const doc = await addSignupItem(req.project!._id, req.params.sid, {
       name,
       durationMin: assertDurationMin(b.durationMin),
       participants: parseParticipants(b.participants),
       note: String(b.note ?? '').trim(),
-    } as IStageSignupItem);
-    await doc.save();
+    });
     res.status(201).json({ signup: await signupJson(doc) });
   }),
 );

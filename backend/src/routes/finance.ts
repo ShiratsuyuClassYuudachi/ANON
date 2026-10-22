@@ -9,6 +9,7 @@ import { Transaction, type TransactionDoc } from '../models/Transaction';
 import { User } from '../models/User';
 import { logActivity } from '../services/activity';
 import { buildSummary, type MemberInfo } from '../services/finance';
+import { createFinanceEntry, parseFinanceAmount as parseAmount } from '../services/financeEntries';
 import { persistUploads } from '../services/storage';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
@@ -64,16 +65,6 @@ async function assertMembers(projectId: unknown, label: string, userIds: string[
   if (count !== new Set(userIds).size) {
     throw new AppError(400, 'bad_request', `${label}必须是项目成员`);
   }
-}
-
-/** 元（最多两位小数）→ 整数分 */
-function parseAmount(v: unknown): number {
-  const n = Number(v);
-  if (!Number.isFinite(n) || n <= 0) throw new AppError(400, 'bad_request', '金额必须为正数');
-  if (Math.abs(n * 100 - Math.round(n * 100)) > 1e-6) {
-    throw new AppError(400, 'bad_request', '金额最多两位小数');
-  }
-  return Math.round(n * 100);
 }
 
 /** multipart 表单中 splitAmong 为 JSON 字符串或逗号分隔；去重以保证结算守恒 */
@@ -147,17 +138,11 @@ financeRouter.post(
     await assertMembers(req.project!._id, '付款人', [String(payerUserId)]);
     await assertMembers(req.project!._id, '平摊人', splitAmong);
     const fileDocs = await saveUploads(req);
-    const tx = await Transaction.create({
-      projectId: req.project!._id,
-      type: parseType(type),
-      amountCents: parseAmount(amount),
-      note: String(note ?? ''),
-      createdBy: req.userId,
-      payerUserId: String(payerUserId),
-      splitAmong,
-      attachments: fileDocs.map((f) => f._id),
+    const tx = await createFinanceEntry({
+      projectId: req.project!._id, userId: req.userId!, userName: req.user!.name,
+      type: parseType(type), amountCents: parseAmount(amount), note: String(note ?? ''),
+      payerUserId: String(payerUserId), splitAmong, attachments: fileDocs.map((f) => f._id),
     });
-    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'finance:create', message: `${req.user!.name}添加了一笔${tx.type === 'income' ? '收入' : '支出'}记录`, sourceType: 'finance', sourceId: tx._id, permissionGate: 'finance:manage' });
     res.status(201).json({ transaction: await txJson(tx) });
   }),
 );

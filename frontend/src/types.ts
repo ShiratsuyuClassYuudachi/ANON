@@ -36,7 +36,7 @@ export interface ProjectDetail {
   stages: StageItem[];
   roles: Role[];
   createdBy: string;
-  qqGroups: { groupOpenId: string; types: string[] }[];
+  qqGroups: { groupOpenId: string; types: string[]; allowStageSignup?: boolean }[];
   qqEnabled: boolean;
 }
 export interface TodoUpdateItem {
