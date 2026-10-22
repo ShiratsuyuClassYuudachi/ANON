@@ -11,17 +11,16 @@ import { clearQqIntake, handleQqIntake, hasQqIntake } from './qqIntake';
 import { qqControlText, serializeQqMessage, type QqMessage } from './qqContext';
 import { beginQqFinance, handleQqFinance, hasQqFinance } from './qqFinance';
 import { clearQqMaterials, handleQqMaterials, hasQqMaterials } from './qqMaterials';
+import { qqHelpMenu, qqHelpReply } from './qqHelp';
 
 /**
  * QQ 事件分发：webhook 回调（routes/qqWebhook.ts）验签去重后调用 handleQQEvent。
- * 处理绑定流程、解绑清理、群@与单聊待办/舞台报名/记账 AI 录入及物料上传（不做自由对话）。
+ * 处理帮助菜单、绑定流程、解绑清理、群@与单聊 AI 录入及物料上传（不做自由对话）。
  * 事件帧（op/t/id）由 webhook 入口解析，本模块只关心 t + d。
  */
 
 const INVALID_BIND_HINT = '绑定码无效或已过期，请在 ANON「我的」页重新生成。';
 const INVALID_GROUP_BIND_HINT = '绑定码无效或已过期，请项目管理者在项目「设置」页重新生成。';
-const FRIEND_GUIDE = '这里是 ANON 通知机器人。在 ANON 个人中心生成绑定码后，发送「绑定 XXXXXX」即可接收待办与里程碑提醒，也可发送任务描述创建待办。有工具管理权限的成员还可发送节目名称、时长等报名资料，预览确认后录入舞台报名。发送「开始上传物料」后逐条发文件或图片，发完用「结束上传物料」保存。发送「记账：我买海报支出120元」可由 AI 解析，确认后入账。';
-const GROUP_GUIDE = '这里是 ANON 通知机器人。项目管理者在项目「设置」页生成绑定码后，@我 发送「绑定 XXXXXX」即可让本群接收项目通知。@我 发送任务描述（如「周五前把海报送到印刷店」）可直接创建待办；有工具管理权限的成员绑定个人账号后，也可 @我 发送节目名称、时长等报名资料，预览确认后录入。还可 @我 发送「开始上传物料」后上传文件，用「结束上传物料」保存；发送收支描述由 AI 解析，确认后记账。';
 
 /** QQ 事件负载：字段全部可选，消费前逐个运行时校验 */
 interface C2CMessagePayload {
@@ -164,7 +163,10 @@ async function handleC2CMessage(d: C2CMessagePayload): Promise<void> {
   if (!openid) return;
   const reply = (text: string) => (d.id ? sendC2CMessage(openid, text, { msgId: d.id }) : Promise.resolve(false));
   const content = (d.content ?? '').trim();
-  // 收集模式标记最优先拦截
+  // 帮助在绑定、收集与草稿处理之前回复，不改动任何进行中的会话。
+  const help = qqHelpReply(d);
+  if (help) { await reply(help); return; }
+  // 导出控制指令优先于绑定、收录与录单。
   if (content === '开始导出' || content === '结束导出' || content === '取消导出') {
     clearQqIntake(d);
     await clearQqMaterials(d);
@@ -244,6 +246,11 @@ async function handleGroupAtMessage(d: GroupAtMessagePayload): Promise<void> {
   const groupOpenid = d.group_openid;
   if (!groupOpenid) return;
   const content = (d.content ?? '').trim();
+  const help = qqHelpReply(d);
+  if (help) {
+    if (d.id) await sendGroupMessage(groupOpenid, help, { msgId: d.id });
+    return;
+  }
   console.log(`[qq] 群@消息: group=${groupOpenid} len=${content.length} author=${d.author?.username ?? '?'} mentions=${d.mentions?.length ?? 0}`);
   const code = extractBindCode(content);
   if (code) {
@@ -348,12 +355,12 @@ async function dispatchQQEvent(t: string, d: unknown, eventId?: string): Promise
       }
       case 'FRIEND_ADD': {
         const { openid } = (d ?? {}) as OpenidPayload;
-        if (openid) await sendC2CMessage(openid, FRIEND_GUIDE, { eventId });
+        if (openid) await sendC2CMessage(openid, qqHelpMenu(false), { eventId });
         break;
       }
       case 'GROUP_ADD_ROBOT': {
         const { group_openid: groupOpenid } = (d ?? {}) as GroupPayload;
-        if (groupOpenid) await sendGroupMessage(groupOpenid, GROUP_GUIDE, { eventId });
+        if (groupOpenid) await sendGroupMessage(groupOpenid, qqHelpMenu(true), { eventId });
         break;
       }
       case 'FRIEND_DEL': {
