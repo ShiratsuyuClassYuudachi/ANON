@@ -39,13 +39,14 @@ interface ProjectSummary {
 }
 interface QqGroup {
   groupOpenId: string;   // QQ 群 group_openid（项目成员可见，用于逐群配置/解绑寻址）
-  types: string[];       // 订阅的精选消息类型（空数组 = 不接收任何群消息）
+  types: string[];       // 订阅的精选消息类型（空数组 = 不接收通知）
+  allowStageSignup: boolean; // 默认 false，允许本群全员提交待审核舞台节目
 }
 interface ProjectDetail {
   id: string; name: string; description: string; status: ProjectStatus;
   startDate: string|null; endDate: string|null; location: string; timezone: string;
   currentStage: string; stages: StageItem[]; roles: Role[]; createdBy: string;
-  qqGroups: { groupOpenId: string; types: string[] }[]; // 已绑定 QQ 群列表（逐群订阅的精选类型；空数组 = 未绑定）
+  qqGroups: QqGroup[]; // 已绑定 QQ 群列表（逐群订阅的精选类型；空数组 = 未绑定）
   qqEnabled: boolean;    // 部署是否配置了 QQ 机器人凭证
 }
 interface TodoItem {
@@ -122,7 +123,7 @@ interface FileMeta { id: string; filename: string; mime: string; size: number }
 
 ### POST /api/me/qq-bind-code
 
-生成 QQ 绑定码：6 位数字，10 分钟有效；同用户单一有效码，重复生成旧码作废。随后在 QQ 私聊机器人发送「绑定 XXXXXX」完成关联（机器人被动回复确认）。
+生成 QQ 绑定码：6 位数字，10 分钟有效；同用户单一有效码，重复生成旧码作废。已绑定用户仍可生成；在 QQ 私聊机器人或目标群 @机器人 发送「绑定 XXXXXX」完成关联，个人码一次性消费，群内补绑保留已有私聊与其他群身份。
 响应 201：`{ code: string, expiresAt: string }`
 错误：503 `qq_disabled`（部署未配置 QQ 机器人凭证）
 
@@ -196,16 +197,16 @@ interface FileMeta { id: string; filename: string; mime: string; size: number }
 ### QQ 群通知
 
 - **POST /api/projects/:id/qq-bind-code**（需 `project:manage`）
-  生成项目 QQ 群绑定码（规则同个人绑定码；同项目同时只有一个有效码，多群顺序生成绑定即可）。把机器人拉进 QQ 群并 @机器人 发送「绑定 XXXXXX」完成关联；一个群同一时刻只属于一个项目，绑到新项目会自动从旧项目解除，同一项目重复绑定同群会将其类型配置重置为全选。
+  生成项目 QQ 群绑定码（规则同个人绑定码；同项目同时只有一个有效码，多群顺序生成绑定即可）。把机器人拉进 QQ 群并 @机器人 发送「绑定 XXXXXX」完成关联；一个群同一时刻只属于一个项目，绑到新项目会自动从旧项目解除，同一项目重复绑定同群会将其类型配置重置为全选，并关闭舞台节目录入授权。
   响应 201：`{ code: string, expiresAt: string }`
   错误：503 `qq_disabled`
 - **DELETE /api/projects/:id/qq-binding/:groupOpenId**（需 `project:manage`）
   按群解绑（从 `qqGroups` 移除该群，幂等）。QQ 侧把机器人移出群（GROUP_DEL_ROBOT 事件）也会自动解绑。
   响应 200：`{ qqGroups: QqGroup[] }`（解绑后的剩余绑定列表）
 - **PATCH /api/projects/:id/qq-binding/:groupOpenId**（需 `project:manage`）
-  配置单个群订阅的消息类型。请求体：`{ types: string[] }`，每个值须为精选 7 类之一（`milestone:approaching`、`todo:remind`、`todo:due`、`announcement:published`、`risk:new`、`incident:reported`、`weekly:report`），去重后整体覆盖；空数组 = 该群不接收任何群消息。
+  配置单个群订阅类型与舞台授权。请求体：`{ types?: string[], allowStageSignup?: boolean }`，至少提供一项，未提供的设置保持原值。`types` 每个值须为精选 7 类之一（`milestone:approaching`、`todo:remind`、`todo:due`、`announcement:published`、`risk:new`、`incident:reported`、`weekly:report`），去重后整体覆盖；空数组 = 该群不接收通知。`allowStageSignup` 默认 false，true 时允许本群所有成员（含未绑定个人账号者）通过机器人提交待审核舞台节目；不扩大其他操作或私聊权限，确认保存时重新检查授权。
   响应 200：`{ qqGroups: QqGroup[] }`
-  错误：400 `bad_request`（含非法类型）、404 `not_found`（该群未绑定）
+  错误：400 `bad_request`（未提供设置、含非法类型或授权值非布尔）、404 `not_found`（该群未绑定）
 
 群里只收订阅的精选类型（高频的指派/进度/完成/现场任务分配只发个人单聊不进群）。群里 @机器人 创建的待办会记录来源群，其节点/到期提醒只回来源群（来源群未订阅该提醒类型或已解绑时不发任何群）；其余待办提醒发到全部订阅群。
 
@@ -559,6 +560,8 @@ interface RiskItem {
 - 管理端前提：机器人需勾选「单聊/群聊消息事件」订阅并**配置 webhook 回调地址后发布**；群主动消息需单独开通「主动消息」权限（开通有数分钟生效延迟）。
 
 绑定/解绑接口见「个人资料」与「项目 · QQ 群通知」节。
+
+QQ 消息入口同时支持舞台报名、文字记账与物料上传，不新增 HTTP 端点。报名及账目需预览确认，分别复用舞台报名和财务列表读取；物料保存到既有资源/版本/文件模型。个人权限分别为 `tools:manage`、`finance:add` 或 `finance:manage`、`materials:manage`（`project:manage` 可放行）。群舞台授权只允许提交待审核节目，不能用于物料、财务或私聊操作。完整指令与会话限制见 [功能指南](features.md#qq-机器人通知)。
 
 ### POST /api/qq/webhook（公开路径，Ed25519 验签）
 
