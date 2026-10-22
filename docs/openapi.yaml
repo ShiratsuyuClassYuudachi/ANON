@@ -3027,7 +3027,9 @@ paths:
         QQ 机器人 webhook 入口（管理端配置回调地址，仅支持 443/8443/80/8080 端口）。
         op=13 为回调地址验证：对 event_ts+plain_token 以 appSecret 派生的 Ed25519 私钥签名返回；
         op=0 为事件分发：按 X-Signature-Ed25519/X-Signature-Timestamp 头验签（timestamp+原始 body），
-        验签通过且未重复后立即返回 200，事件异步处理（绑定/解绑/群@ AI 录单）。
+        验签通过且未重复后立即返回 200，事件异步处理（帮助菜单、绑定/解绑、录单、物料与聊天导出）。
+        私聊发送帮助、菜单或 /help 可查看菜单，群内先 @机器人；支持帮助加绑定/待办/报名/记账/物料/导出主题。
+        帮助不依赖账号或项目绑定及 AI，不清理或续期已有草稿，通过触发消息的 msg_id 被动回复；欢迎菜单使用 event_id。
       security: []
       parameters:
         - name: X-Signature-Ed25519
