@@ -17,8 +17,8 @@ export interface QqMessage {
 export type QqIdentity = NonNullable<QqMessage['author']>;
 export type QqMemberIdentity = Pick<IUser, 'name' | 'qqUnionOpenId' | 'qqMemberIds'>;
 
-/** 仅识别完整控制回复；剥离消息首尾的机器人提及，不改写普通正文中的人员提及。 */
-export function qqControlText(d: QqMessage): string | null {
+/** 剥离消息首尾的机器人提及，不改写普通正文中的人员提及。 */
+export function qqMessageText(d: QqMessage): string | null {
   if (typeof d.content !== 'string') return null;
   let text = d.content.trim();
   if (d.group_openid) {
@@ -47,7 +47,13 @@ export function qqControlText(d: QqMessage): string | null {
       }
     } while (text !== previous);
   }
-  return /^(确认|取消|节目报名|待办|记账|\d+)$/.test(text) ? text : null;
+  return text;
+}
+
+/** 仅识别完整控制回复，普通正文继续交给原有录入流程。 */
+export function qqControlText(d: QqMessage): string | null {
+  const text = qqMessageText(d);
+  return text !== null && /^(确认|取消|节目报名|待办|记账|\d+)$/.test(text) ? text : null;
 }
 
 /** 待办指派与记账目标共用三层对照；仅用于成员映射，录入者授权仍需稳定绑定。 */
