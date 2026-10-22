@@ -90,6 +90,86 @@ afterAll(() => {
 });
 
 describe('QQ 节目报名录入', () => {
+  it.each(['未绑定账号', '无工具管理权限', '不是项目成员'])('群授权允许%s的群成员提交待审核节目', async (kind) => {
+    await Project.updateOne({ _id: project._id }, { qqGroups: [{ groupOpenId: group, types: [], allowStageSignup: true }] });
+    let author = { member_openid: member };
+    if (kind === '未绑定账号') author = { member_openid: 'visitor' };
+    if (kind === '无工具管理权限') await Project.updateOne({ _id: project._id }, { roles: [] });
+    if (kind === '不是项目成员') await Membership.deleteOne({ projectId: project._id, userId: manager.user.id });
+    const usersBefore = await User.countDocuments();
+    const membersBefore = await Membership.countDocuments();
+    await groupMsg('报名追光，5分钟', { author });
+    expect(groupText()).toContain('请确认节目报名');
+    await handleQQEvent('GROUP_MESSAGE_CREATE', groupEvent('确认', { author }));
+    const doc = (await StageSignup.findById(signup._id))!;
+    expect(doc.items).toHaveLength(1);
+    expect(doc.items[0].status).toBe('pending');
+    expect(await User.countDocuments()).toBe(usersBefore);
+    expect(await Membership.countDocuments()).toBe(membersBefore);
+  });
+
+  it('旧群缺省未授权，未绑定群成员仍需个人身份或群授权', async () => {
+    await Project.collection.updateOne({ _id: project._id }, { $set: { qqGroups: [{ groupOpenId: group, types: [] }] } });
+    await groupMsg('报名追光，5分钟', { author: { member_openid: 'visitor' } });
+    expect(groupText()).toContain('开启本群舞台节目录入授权');
+    expect(parse).not.toHaveBeenCalled();
+    expect((await StageSignup.findById(signup._id))!.items).toHaveLength(0);
+  });
+
+  it('群授权在确认前关闭，未绑定成员草稿不能保存', async () => {
+    const author = { member_openid: 'visitor' };
+    await Project.updateOne({ _id: project._id }, { qqGroups: [{ groupOpenId: group, types: [], allowStageSignup: true }] });
+    await groupMsg('报名追光，5分钟', { author });
+    await Project.updateOne({ _id: project._id }, { qqGroups: [{ groupOpenId: group, types: [], allowStageSignup: false }] });
+    await handleQQEvent('GROUP_MESSAGE_CREATE', groupEvent('确认', { author }));
+    expect(groupText()).toContain('授权已关闭');
+    expect((await StageSignup.findById(signup._id))!.items).toHaveLength(0);
+  });
+
+  it('选择批次前关闭授权同样拒绝，群换绑后旧草稿不能写入其他项目', async () => {
+    const author = { member_openid: 'visitor' };
+    const groups = [{ groupOpenId: group, types: [], allowStageSignup: true }];
+    await batch();
+    await Project.updateOne({ _id: project._id }, { qqGroups: groups });
+    await groupMsg('报名追光，5分钟', { author });
+    await Project.updateOne({ _id: project._id }, { qqGroups: [{ ...groups[0], allowStageSignup: false }] });
+    await handleQQEvent('GROUP_MESSAGE_CREATE', groupEvent('2', { author }));
+    expect(groupText()).toContain('授权已关闭');
+    await Project.updateOne({ _id: project._id }, { qqGroups: groups });
+    await groupMsg('报名追光，5分钟', { author });
+    await handleQQEvent('GROUP_MESSAGE_CREATE', groupEvent('1', { author }));
+    const other = await secondProject();
+    await Project.updateOne({ _id: project._id }, { qqGroups: [] });
+    await Project.updateOne({ _id: other._id }, { qqGroups: groups });
+    await handleQQEvent('GROUP_MESSAGE_CREATE', groupEvent('确认', { author }));
+    expect(groupText()).toContain('绑定项目已变化');
+    expect((await StageSignup.findById(signup._id))!.items).toHaveLength(0);
+    expect((await StageSignup.findOne({ projectId: other._id }))!.items).toHaveLength(0);
+  });
+
+  it('群授权下两位未绑定成员的草稿和确认互相隔离', async () => {
+    await Project.updateOne({ _id: project._id }, { qqGroups: [{ groupOpenId: group, types: [], allowStageSignup: true }] });
+    const a = { member_openid: 'visitor-a' }, b = { member_openid: 'visitor-b' };
+    await groupMsg('报名追光，5分钟', { author: a });
+    parse.mockResolvedValue({ ...parsed, name: '第二位的节目' });
+    await groupMsg('报名第二位的节目，5分钟', { author: b });
+    await handleQQEvent('GROUP_MESSAGE_CREATE', groupEvent('确认', { author: b }));
+    expect((await StageSignup.findById(signup._id))!.items.map((i) => i.name)).toEqual(['第二位的节目']);
+    await handleQQEvent('GROUP_MESSAGE_CREATE', groupEvent('确认', { author: a }));
+    expect((await StageSignup.findById(signup._id))!.items.map((i) => i.name)).toEqual(['第二位的节目', '追光']);
+  });
+
+  it('群授权不扩大私聊权限，关闭群授权后个人原有权限仍有效', async () => {
+    await Project.updateOne({ _id: project._id }, { qqGroups: [{ groupOpenId: group, types: [], allowStageSignup: true }], roles: [] });
+    await c2cMsg('报名追光，5分钟');
+    expect(c2cText()).toContain('没有具有工具管理权限');
+    await Project.updateOne({ _id: project._id }, { roles: [{ name: '录入员', permissions: ['tools:manage'] }] });
+    await groupMsg('报名追光，5分钟');
+    await Project.updateOne({ _id: project._id }, { qqGroups: [{ groupOpenId: group, types: [], allowStageSignup: false }] });
+    await groupMsg('确认');
+    expect((await StageSignup.findById(signup._id))!.items).toHaveLength(1);
+  });
+
   it.each(['<@!robot> 确认', '<@robot>确认', '确认 <@!robot>', '@ANON\u2005确认', '<@!robot>\n确认'])('群聊原始机器人提及回复 %s 应消费草稿，不再交给 AI', async (content) => {
     await groupMsg('报名追光，5分钟');
     classify.mockResolvedValue('none');

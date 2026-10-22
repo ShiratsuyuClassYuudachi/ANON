@@ -263,7 +263,7 @@ async function handleGroupAtMessage(d: GroupAtMessagePayload): Promise<void> {
       );
       const project = await Project.findByIdAndUpdate(
         bind.projectId,
-        { $push: { qqGroups: { groupOpenId: groupOpenid, types: QQ_GROUP_TYPE_KEYS } } },
+        { $push: { qqGroups: { groupOpenId: groupOpenid, types: QQ_GROUP_TYPE_KEYS, allowStageSignup: false } } },
         { new: true },
       ).lean();
       if (d.id) {

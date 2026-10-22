@@ -35,7 +35,7 @@ function projectJson(p: InstanceType<typeof Project>) {
     stages: stages.map((s) => ({ id: s._id.toString(), name: s.name, order: s.order, completedAt: s.completedAt?.toISOString() ?? null, note: s.note ?? '' })),
     roles: p.roles,
     createdBy: p.createdBy.toString(),
-    qqGroups: (p.qqGroups ?? []).map((g) => ({ groupOpenId: g.groupOpenId, types: g.types })),
+    qqGroups: (p.qqGroups ?? []).map((g) => ({ groupOpenId: g.groupOpenId, types: g.types, allowStageSignup: g.allowStageSignup === true })),
     qqEnabled: qqConfigured(),
   };
 }
@@ -300,9 +300,15 @@ projectsRouter.patch(
   '/:id/qq-binding/:groupOpenId',
   ...requirePermission('project:manage'),
   ah(async (req, res) => {
-    const { types } = req.body ?? {};
-    if (!Array.isArray(types) || types.some((t) => typeof t !== 'string' || !QQ_GROUP_TYPE_KEYS.includes(t))) {
+    const { types, allowStageSignup } = req.body ?? {};
+    if (types === undefined && allowStageSignup === undefined) {
+      throw new AppError(400, 'bad_request', '请提供通知类型或舞台节目录入授权');
+    }
+    if (types !== undefined && (!Array.isArray(types) || types.some((t) => typeof t !== 'string' || !QQ_GROUP_TYPE_KEYS.includes(t)))) {
       throw new AppError(400, 'bad_request', '无效的通知类型');
+    }
+    if (allowStageSignup !== undefined && typeof allowStageSignup !== 'boolean') {
+      throw new AppError(400, 'bad_request', '舞台节目录入授权必须为布尔值');
     }
     // 读-改-写整数组：规避 FerretDB 位置操作符（$）不确定性（管理操作并发极低，可接受）
     const project = await Project.findById(req.project!._id).lean();
@@ -311,7 +317,11 @@ projectsRouter.patch(
       throw new AppError(404, 'not_found', '该群未绑定');
     }
     const next = groups.map((g) =>
-      g.groupOpenId === req.params.groupOpenId ? { ...g, types: [...new Set(types)] } : g,
+      g.groupOpenId === req.params.groupOpenId ? {
+        ...g,
+        ...(types !== undefined ? { types: [...new Set(types)] } : {}),
+        ...(allowStageSignup !== undefined ? { allowStageSignup } : {}),
+      } : g,
     );
     await Project.updateOne({ _id: req.project!._id }, { $set: { qqGroups: next } });
     res.json({ qqGroups: next });

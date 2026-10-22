@@ -1350,8 +1350,8 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
     patch:
       tags: [项目]
-      summary: 配置单个群的订阅消息类型
-      description: 需 project:manage 权限。types 去重后整体覆盖该群的订阅类型；每个值须为精选 7 类之一（milestone:approaching / todo:remind / todo:due / announcement:published / risk:new / incident:reported / weekly:report），空数组表示该群不接收任何群消息。
+      summary: 配置单个群的订阅类型与舞台节目录入授权
+      description: 需 project:manage 权限。至少提供 types 或 allowStageSignup 之一，未提供的设置保持原值。types 去重后整体覆盖该群的订阅类型；每个值须为精选 7 类之一（milestone:approaching / todo:remind / todo:due / announcement:published / risk:new / incident:reported / weekly:report），空数组表示该群不接收通知。allowStageSignup 默认关闭，开启后允许该群所有成员（包括未绑定个人账号的成员）通过机器人提交舞台节目报名，节目进入待审核；不扩大物料、记账或私聊权限。确认保存时重新检查授权，群重新绑定后授权恢复关闭。
       parameters:
         - name: id
           in: path
@@ -1367,11 +1367,16 @@ paths:
           application/json:
             schema:
               type: object
-              required: [types]
+              anyOf:
+                - required: [types]
+                - required: [allowStageSignup]
               properties:
                 types:
                   type: array
                   items: { type: string, enum: [milestone:approaching, todo:remind, todo:due, announcement:published, risk:new, incident:reported, weekly:report] }
+                allowStageSignup:
+                  type: boolean
+                  description: 是否允许本群所有成员通过机器人录入舞台节目
       responses:
         '200':
           description: 更新后的绑定列表
@@ -1385,7 +1390,7 @@ paths:
                     type: array
                     items: { $ref: '#/components/schemas/QqGroup' }
         '400':
-          description: 无效的通知类型（bad_request）
+          description: 未提供设置、通知类型无效或舞台授权不是布尔值（bad_request）
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -7961,6 +7966,10 @@ components:
           type: array
           description: 订阅的精选消息类型（空数组 = 不接收任何群消息）
           items: { type: string }
+        allowStageSignup:
+          type: boolean
+          default: false
+          description: 是否允许本群所有成员（包括未绑定个人账号的成员）通过机器人提交待审核舞台节目；不扩大其他操作权限
     StageItem:
       description: 项目阶段
       type: object

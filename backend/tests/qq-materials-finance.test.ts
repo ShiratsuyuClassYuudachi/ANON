@@ -271,6 +271,17 @@ describe('QQ 不明确的平摊对象默认全员', () => {
 });
 
 describe('QQ 文字 AI 记账', () => {
+  it.each(['未绑定成员', '缺少个人权限'])('舞台群授权不开放%s的记账和物料权限', async (kind) => {
+    await Project.updateOne({ _id: project._id }, { qqGroups: [{ groupOpenId: group, types: [], allowStageSignup: true }], roles: [] });
+    const extra = kind === '未绑定成员' ? { author: { member_openid: 'visitor' } } : {};
+    await g('记账：我付120元', extra);
+    expect(last()).toMatch(/绑定|权限/);
+    expect(await Transaction.countDocuments()).toBe(0);
+    await g('开始上传物料', extra);
+    expect(last()).toMatch(/绑定|权限/);
+    expect(await Resource.countDocuments()).toBe(0);
+  });
+
   it.each(['确认', '<@!robot>\u2005确认'])('全量群消息 %s 消费本人记账草稿，不重新做 AI 分类', async (content) => {
     await g('记账：我印海报花了120.50元');
     classify.mockResolvedValue('none');

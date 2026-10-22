@@ -13,11 +13,13 @@ import { addSignupItem, type SignupItemInput } from './stageSignups';
 /** 群与单聊共享的消息分流；绑定、导出由 qqEvents 优先处理。 */
 export type QqIntakePayload = QqMessage;
 
+type SignupActor = { userId: string | null; groupAuthorized: boolean };
+
 type Session = { expiresAt: number; original: QqIntakePayload } & (
   | { step: 'intent' }
-  | { step: 'project'; userId: string; projectIds: string[] }
-  | { step: 'batch'; userId: string; projectId: string; signupIds: string[]; item: SignupItemInput }
-  | { step: 'confirm'; userId: string; projectId: string; signupId: string; item: SignupItemInput }
+  | ({ step: 'project'; projectIds: string[] } & SignupActor)
+  | ({ step: 'batch'; projectId: string; signupIds: string[]; item: SignupItemInput } & SignupActor)
+  | ({ step: 'confirm'; projectId: string; signupId: string; item: SignupItemInput } & SignupActor)
 );
 
 const sessions = new Map<string, Session>();
@@ -46,6 +48,16 @@ function save(key: string, state: Session): void {
 const canManage = (user: UserDoc, project: ProjectDoc) => qqCanWrite(user, project, 'signup');
 const checkedProject = (d: QqIntakePayload, user: UserDoc, id: string) => checkedQqProject(d, user, id, 'signup');
 
+/** 群授权只允许提交舞台报名，不借用任何 ANON 账号或扩大个人权限。 */
+async function checkedGroupSignupProject(d: QqIntakePayload, id: string): Promise<ProjectDoc> {
+  const project = d.group_openid ? await Project.findOne({
+    _id: id,
+    qqGroups: { $elemMatch: { groupOpenId: d.group_openid, allowStageSignup: true } },
+  }) : null;
+  if (!project) throw new AppError(403, 'forbidden', '本群的舞台节目录入授权已关闭或绑定项目已变化，请联系项目管理者后重新提交。');
+  return project;
+}
+
 type Reply = (text: string) => Promise<boolean>;
 
 async function runTodo(original: QqIntakePayload, current: QqIntakePayload): Promise<void> {
@@ -55,17 +67,17 @@ async function runTodo(original: QqIntakePayload, current: QqIntakePayload): Pro
 }
 
 async function preview(
-  key: string, original: QqIntakePayload, user: UserDoc, project: ProjectDoc,
+  key: string, original: QqIntakePayload, actor: SignupActor, project: ProjectDoc,
   signupId: string, item: SignupItemInput, reply: Reply,
 ): Promise<void> {
   const signup = await StageSignup.findOne({ _id: signupId, projectId: project._id }).lean();
   if (!signup) throw new AppError(404, 'not_found', '报名批次已不存在，请重新发送节目资料。');
-  save(key, { step: 'confirm', original, userId: String(user._id), projectId: String(project._id), signupId, item, expiresAt: Date.now() + TTL_MS });
+  save(key, { step: 'confirm', original, ...actor, projectId: String(project._id), signupId, item, expiresAt: Date.now() + TTL_MS });
   const participants = item.participants.map((p) => `${p.cn}${p.contact ? `（${p.contact}）` : ''}`).join('、') || '未提供';
   await reply(`请确认节目报名：\n活动：${project.name}\n批次：${signup.name}\n节目：${item.name}\n时长：${item.durationMin} 分钟\n报名人：${participants}\n备注：${item.note || '无'}\n回复「确认」保存为待审核，回复「取消」或 0 放弃；修改资料请完整重发。${original.group_openid ? '\n群内回复请继续 @我。' : ''}`);
 }
 
-async function chooseBatch(key: string, original: QqIntakePayload, user: UserDoc, project: ProjectDoc, reply: Reply): Promise<void> {
+async function chooseBatch(key: string, original: QqIntakePayload, actor: SignupActor, project: ProjectDoc, reply: Reply): Promise<void> {
   const parsed = await parseStageSignup(original.content ?? '');
   if (!parsed) {
     await reply('节目资料解析暂时不可用，请稍后重试，或在 ANON 舞台报名审核页手动添加。');
@@ -80,35 +92,40 @@ async function chooseBatch(key: string, original: QqIntakePayload, user: UserDoc
   if (!signups.length) {
     await reply('该活动暂无报名批次，请先在 ANON「工具 → 舞台报名审核」创建批次，再重新发送节目资料。');
   } else if (signups.length === 1) {
-    await preview(key, original, user, project, String(signups[0]._id), item, reply);
+    await preview(key, original, actor, project, String(signups[0]._id), item, reply);
   } else {
-    save(key, { step: 'batch', original, userId: String(user._id), projectId: String(project._id), signupIds: signups.map((s) => String(s._id)), item, expiresAt: Date.now() + TTL_MS });
+    save(key, { step: 'batch', original, ...actor, projectId: String(project._id), signupIds: signups.map((s) => String(s._id)), item, expiresAt: Date.now() + TTL_MS });
     await reply(`请选择报名批次，回复序号（0 取消）：\n${signups.map((s, i) => `${i + 1}. ${s.name}（${s.startAt.toISOString()}）`).join('\n')}`);
   }
 }
 
 async function beginSignup(key: string, original: QqIntakePayload, current: QqIntakePayload, reply: Reply): Promise<void> {
   const user = await resolveUser(current);
+  if (current.group_openid) {
+    const project = await Project.findOne({ 'qqGroups.groupOpenId': current.group_openid });
+    const personal = !!project && !!user && await canManage(user, project);
+    const groupAuthorized = project?.qqGroups.some((g) => g.groupOpenId === current.group_openid && g.allowStageSignup === true) === true;
+    if (!project || (!personal && !groupAuthorized)) {
+      await reply(user
+        ? '你没有本项目的工具管理权限，无法通过机器人录入节目。可请项目管理者开启本群舞台节目录入授权。'
+        : '请先在 ANON「我的」页生成个人绑定码并关联账号，或请项目管理者在项目设置中开启本群舞台节目录入授权。');
+      return;
+    }
+    await chooseBatch(key, original, { userId: personal ? String(user!._id) : null, groupAuthorized: !personal }, project, reply);
+    return;
+  }
   if (!user) {
     await reply('请先在 ANON「我的」页生成个人绑定码，并在当前会话发送「绑定 XXXXXX」关联账号；录入节目需要工具管理权限。');
     return;
   }
-  if (current.group_openid) {
-    const project = await Project.findOne({ 'qqGroups.groupOpenId': current.group_openid });
-    if (!project || !await canManage(user, project)) {
-      await reply('你没有本项目的工具管理权限，无法通过机器人录入节目。');
-      return;
-    }
-    await chooseBatch(key, original, user, project, reply);
-    return;
-  }
+  const actor: SignupActor = { userId: String(user._id), groupAuthorized: false };
   const eligible = await qqProjects(current, user, 'signup');
   if (!eligible.length) {
     await reply('你当前没有具有工具管理权限的进行中活动，暂无可录入节目的项目。');
   } else if (eligible.length === 1) {
-    await chooseBatch(key, original, user, eligible[0], reply);
+    await chooseBatch(key, original, actor, eligible[0], reply);
   } else {
-    save(key, { step: 'project', original, userId: String(user._id), projectIds: eligible.map((p) => String(p._id)), expiresAt: Date.now() + TTL_MS });
+    save(key, { step: 'project', original, ...actor, projectIds: eligible.map((p) => String(p._id)), expiresAt: Date.now() + TTL_MS });
     await reply(`这条节目报名属于哪个活动？回复序号选择（0 取消）：\n${eligible.map((p, i) => `${i + 1}. ${p.name}`).join('\n')}`);
   }
 }
@@ -148,9 +165,11 @@ async function processIntake(d: QqIntakePayload, key: string): Promise<void> {
         return;
       }
       const user = await resolveUser(d);
-      if (!user || String(user._id) !== state.userId) {
+      if (!state.groupAuthorized && (!user || String(user._id) !== state.userId)) {
         throw new AppError(403, 'forbidden', '账号绑定已变化，请重新绑定后发送节目资料。');
       }
+      const actor: SignupActor = { userId: state.userId, groupAuthorized: state.groupAuthorized };
+      const loadProject = (id: string) => state.groupAuthorized ? checkedGroupSignupProject(d, id) : checkedProject(d, user!, id);
       if (state.step === 'project' || state.step === 'batch') {
         const ids = state.step === 'project' ? state.projectIds : state.signupIds;
         const index = Number(content) - 1;
@@ -158,10 +177,10 @@ async function processIntake(d: QqIntakePayload, key: string): Promise<void> {
           await reply(`序号无效，请回复 1-${ids.length} 之间的数字，或回复 0 取消。`);
           return;
         }
-        const project = await checkedProject(d, user, state.step === 'project' ? ids[index] : state.projectId);
+        const project = await loadProject(state.step === 'project' ? ids[index] : state.projectId);
         sessions.delete(key);
-        if (state.step === 'project') await chooseBatch(key, state.original, user, project, reply);
-        else await preview(key, state.original, user, project, ids[index], state.item, reply);
+        if (state.step === 'project') await chooseBatch(key, state.original, actor, project, reply);
+        else await preview(key, state.original, actor, project, ids[index], state.item, reply);
         return;
       }
       if (content !== '确认') {
@@ -170,7 +189,7 @@ async function processIntake(d: QqIntakePayload, key: string): Promise<void> {
       }
       // 先消费会话，再写库。同发送者串行处理，重复确认不会再次追加。
       sessions.delete(key);
-      const project = await checkedProject(d, user, state.projectId);
+      const project = await loadProject(state.projectId);
       const signup = await addSignupItem(project._id, state.signupId, state.item);
       let text = `已录入节目「${state.item.name}」\n活动：${project.name}\n批次：${signup.name}\n状态：待审核`;
       if (config.publicBaseUrl) text += `\n查看：${config.publicBaseUrl}/p/${project._id}?tab=tools`;

@@ -162,7 +162,7 @@ describe('项目群绑定码', () => {
     const detail2 = await request(app)
       .get(`/api/projects/${projectId}`)
       .set('Authorization', `Bearer ${owner.token}`);
-    expect(detail2.body.project.qqGroups).toEqual([{ groupOpenId: 'grp-1', types: QQ_GROUP_TYPE_KEYS }]);
+    expect(detail2.body.project.qqGroups).toEqual([{ groupOpenId: 'grp-1', types: QQ_GROUP_TYPE_KEYS, allowStageSignup: false }]);
 
     const del = await request(app)
       .delete(`/api/projects/${projectId}/qq-binding/grp-1`)
@@ -218,7 +218,7 @@ describe('QQ 事件绑定流程', () => {
       content: `绑定：${code}`,
     });
     expect((await Project.findById(projectId).lean())!.qqGroups).toEqual([
-      { groupOpenId: 'grp-1', types: QQ_GROUP_TYPE_KEYS },
+      { groupOpenId: 'grp-1', types: QQ_GROUP_TYPE_KEYS, allowStageSignup: false },
     ]);
     expect(sendGroupMock).toHaveBeenCalledTimes(1);
     const [to, text, opts] = sendGroupMock.mock.calls[0];
@@ -385,7 +385,7 @@ describe('多群绑定与投递', () => {
     await bindTo(projectId2);
     expect((await Project.findById(projectId).lean())!.qqGroups).toEqual([]);
     expect((await Project.findById(projectId2).lean())!.qqGroups).toEqual([
-      { groupOpenId: 'grp-1', types: QQ_GROUP_TYPE_KEYS },
+      { groupOpenId: 'grp-1', types: QQ_GROUP_TYPE_KEYS, allowStageSignup: false },
     ]);
   });
 });
@@ -396,6 +396,43 @@ describe('分群类型配置', () => {
       { _id: projectId },
       { qqGroups: [{ groupOpenId: 'grp-1', types: QQ_GROUP_TYPE_KEYS }, { groupOpenId: 'grp-2', types: QQ_GROUP_TYPE_KEYS }] },
     );
+  });
+
+  it('项目管理者可单独授权舞台节目录入，修改通知类型时保留授权', async () => {
+    const path = `/api/projects/${projectId}/qq-binding/grp-1`;
+    const enabled = await request(app).patch(path).set('Authorization', `Bearer ${owner.token}`).send({ allowStageSignup: true });
+    expect(enabled.status).toBe(200);
+    expect(enabled.body.qqGroups.find((g: { groupOpenId: string }) => g.groupOpenId === 'grp-1')).toMatchObject({ types: QQ_GROUP_TYPE_KEYS, allowStageSignup: true });
+    const types = await request(app).patch(path).set('Authorization', `Bearer ${owner.token}`).send({ types: ['risk:new'] });
+    expect(types.status).toBe(200);
+    expect(types.body.qqGroups[0]).toMatchObject({ types: ['risk:new'], allowStageSignup: true });
+    const detail = await request(app).get(`/api/projects/${projectId}`).set('Authorization', `Bearer ${staff.token}`);
+    expect(detail.body.project.qqGroups[0].allowStageSignup).toBe(true);
+    expect(detail.body.project.qqGroups[1].allowStageSignup).toBe(false);
+    const disabled = await request(app).patch(path).set('Authorization', `Bearer ${owner.token}`).send({ allowStageSignup: false });
+    expect(disabled.status).toBe(200);
+    expect(disabled.body.qqGroups[0]).toMatchObject({ types: ['risk:new'], allowStageSignup: false });
+  });
+
+  it('普通成员不能开启群舞台授权，空设置和未绑定群均拒绝', async () => {
+    const path = `/api/projects/${projectId}/qq-binding/grp-1`;
+    const denied = await request(app).patch(path).set('Authorization', `Bearer ${staff.token}`).send({ allowStageSignup: true });
+    expect(denied.status).toBe(403);
+    expect((await request(app).patch(path).set('Authorization', `Bearer ${owner.token}`).send({})).status).toBe(400);
+    expect((await request(app).patch(`/api/projects/${projectId}/qq-binding/missing`).set('Authorization', `Bearer ${owner.token}`).send({ allowStageSignup: true })).status).toBe(404);
+  });
+
+  it.each([null, 'true', 1, []])('群授权拒绝非布尔值 %j', async (allowStageSignup) => {
+    const response = await request(app).patch(`/api/projects/${projectId}/qq-binding/grp-1`).set('Authorization', `Bearer ${owner.token}`).send({ allowStageSignup });
+    expect(response.status).toBe(400);
+    expect((await Project.findById(projectId))!.qqGroups[0].allowStageSignup).toBe(false);
+  });
+
+  it('重新绑定群后舞台授权恢复关闭', async () => {
+    await request(app).patch(`/api/projects/${projectId}/qq-binding/grp-1`).set('Authorization', `Bearer ${owner.token}`).send({ allowStageSignup: true });
+    const code = await request(app).post(`/api/projects/${projectId}/qq-bind-code`).set('Authorization', `Bearer ${owner.token}`);
+    await handleQQEvent('GROUP_AT_MESSAGE_CREATE', { id: 'rebind-reset-stage-grant', group_openid: 'grp-1', author: { member_openid: 'sender' }, content: `绑定 ${code.body.code}` });
+    expect((await Project.findById(projectId))!.qqGroups.find((g) => g.groupOpenId === 'grp-1')?.allowStageSignup).toBe(false);
   });
 
   it('PATCH qq-binding 权限与校验：无 project:manage 403；非法类型 400；群未绑定 404；合法子集 200 回写', async () => {

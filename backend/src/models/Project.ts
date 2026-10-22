@@ -26,6 +26,8 @@ export interface IQqGroup {
   groupOpenId: string;
   /** 订阅的群消息类型（NotificationType 中 7 类群精选类型的子集；空数组 = 不接收任何群消息） */
   types: string[];
+  /** 开启后，本群所有成员均可提交舞台报名节目。缺省关闭。 */
+  allowStageSignup?: boolean;
 }
 
 export interface IProject {
@@ -86,6 +88,7 @@ const schema = new Schema<IProject>(
         _id: false,
         groupOpenId: { type: String, required: true },
         types: { type: [String], default: [] },
+        allowStageSignup: { type: Boolean, default: false },
       }],
       default: [],
     },
