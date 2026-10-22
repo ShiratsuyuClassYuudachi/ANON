@@ -90,6 +90,67 @@ afterAll(() => {
 });
 
 describe('QQ 节目报名录入', () => {
+  it.each(['<@!robot> 确认', '<@robot>确认', '确认 <@!robot>', '@ANON\u2005确认', '<@!robot>\n确认'])('群聊原始机器人提及回复 %s 应消费草稿，不再交给 AI', async (content) => {
+    await groupMsg('报名追光，5分钟');
+    classify.mockResolvedValue('none');
+    await groupMsg(content, { mentions: [{ member_openid: 'robot', username: 'ANON', bot: true }] });
+    expect((await StageSignup.findById(signup._id))!.items).toHaveLength(1);
+    expect(groupText()).toContain('已录入节目');
+    expect(classify).toHaveBeenCalledTimes(1);
+  });
+
+  it('全量群消息中的本人确认可保存，其他人和普通聊天不消费草稿', async () => {
+    await groupMsg('报名追光，5分钟');
+    classify.mockResolvedValue('none');
+    await handleQQEvent('GROUP_MESSAGE_CREATE', groupEvent('确认', { author: { member_openid: 'other' } }));
+    await handleQQEvent('GROUP_MESSAGE_CREATE', groupEvent('大家稍等一下'));
+    await handleQQEvent('GROUP_MESSAGE_CREATE', groupEvent('<@someone> 确认', { mentions: [{ member_openid: 'someone', username: '别人' }] }));
+    expect((await StageSignup.findById(signup._id))!.items).toHaveLength(0);
+    await handleQQEvent('GROUP_MESSAGE_CREATE', groupEvent('确认'));
+    expect((await StageSignup.findById(signup._id))!.items).toHaveLength(1);
+    expect(classify).toHaveBeenCalledTimes(1);
+  });
+
+  it('缺少 mentions 时可按已配置机器人 ID 识别原生提及确认', async () => {
+    const oldAppId = config.qq.appId;
+    config.qq.appId = 'configured-bot';
+    try {
+      await groupMsg('报名追光，5分钟');
+      classify.mockResolvedValue('none');
+      await groupMsg('<@!configured-bot> 确认');
+      expect((await StageSignup.findById(signup._id))!.items).toHaveLength(1);
+      expect(classify).toHaveBeenCalledTimes(1);
+    } finally {
+      config.qq.appId = oldAppId;
+    }
+  });
+
+  it('全量群内直接选批次、确认，完成后重复裸回复静默且不重复保存', async () => {
+    const b2 = await batch();
+    await groupMsg('报名追光，5分钟');
+    await handleQQEvent('GROUP_MESSAGE_CREATE', groupEvent('2'));
+    expect(groupText()).toContain('请确认节目报名');
+    await handleQQEvent('GROUP_MESSAGE_CREATE', groupEvent('确认'));
+    const count = sendGroup.mock.calls.length;
+    await handleQQEvent('GROUP_MESSAGE_CREATE', groupEvent('确认'));
+    expect((await StageSignup.findById(b2._id))!.items).toHaveLength(1);
+    expect(sendGroup).toHaveBeenCalledTimes(count);
+    expect(classify).toHaveBeenCalledTimes(1);
+  });
+
+  it('会话过期后裸回复确认不交给 AI，也不会保存节目', async () => {
+    await groupMsg('报名追光，5分钟');
+    const now = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 11 * 60_000);
+    try {
+      await handleQQEvent('GROUP_MESSAGE_CREATE', groupEvent('确认'));
+      expect(groupText()).toContain('重新发送');
+      expect((await StageSignup.findById(signup._id))!.items).toHaveLength(0);
+      expect(classify).toHaveBeenCalledTimes(1);
+    } finally {
+      now.mockRestore();
+    }
+  });
+
   it('群内预览不落库，确认后网页可见、可审核并导入流程单', async () => {
     await groupMsg('帮小明报名歌曲追光，5分钟，QQ 12345，两个麦克风');
     expect((await StageSignup.findById(signup._id))!.items).toHaveLength(0);

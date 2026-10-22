@@ -7,9 +7,9 @@ import { consumeBindCode, QQ_GROUP_TYPE_KEYS } from './qqbot';
 import { collectDirectMessage, exportMessagesToFile, parseForwardPayload } from './qqChatExport';
 import { appendCollect, cancelCollect, endCollect, getCollect, startCollect } from './qqCollectSession';
 import { sendC2CMessage, sendGroupMessage } from './qqApi';
-import { clearQqIntake, handleQqIntake } from './qqIntake';
-import { serializeQqMessage, type QqMessage } from './qqContext';
-import { beginQqFinance, handleQqFinance } from './qqFinance';
+import { clearQqIntake, handleQqIntake, hasQqIntake } from './qqIntake';
+import { qqControlText, serializeQqMessage, type QqMessage } from './qqContext';
+import { beginQqFinance, handleQqFinance, hasQqFinance } from './qqFinance';
 import { clearQqMaterials, handleQqMaterials, hasQqMaterials } from './qqMaterials';
 
 /**
@@ -340,9 +340,10 @@ async function dispatchQQEvent(t: string, d: unknown, eventId?: string): Promise
         await handleGroupAtMessage((d ?? {}) as GroupAtMessagePayload);
         break;
       case 'GROUP_MESSAGE_CREATE': {
-        // 全量群消息（与 GROUP_AT_MESSAGE_CREATE 字段一致）：mentions 含 bot=true 或该发送者正在上传物料时处理
+        // 普通群消息仅接收本人已有会话的控制回复，其他聊天不进入 AI 或清除草稿。
         const payload = (d ?? {}) as GroupAtMessagePayload;
-        if (payload.mentions?.some((m) => m.bot) || hasQqMaterials(payload)) await handleGroupAtMessage(payload);
+        const pendingReply = qqControlText(payload) !== null && (hasQqIntake(payload) || hasQqFinance(payload));
+        if (payload.mentions?.some((m) => m.bot) || hasQqMaterials(payload) || pendingReply) await handleGroupAtMessage(payload);
         break;
       }
       case 'FRIEND_ADD': {
@@ -381,6 +382,9 @@ async function dispatchQQEvent(t: string, d: unknown, eventId?: string): Promise
 /** 同一会话的下载、绑定和确认按到达顺序处理。 */
 export async function handleQQEvent(t: string, d: unknown, eventId?: string): Promise<void> {
   if (['C2C_MESSAGE_CREATE', 'GROUP_AT_MESSAGE_CREATE', 'GROUP_MESSAGE_CREATE'].includes(t)) {
-    await serializeQqMessage((d ?? {}) as QqMessage, () => dispatchQQEvent(t, d, eventId));
+    const payload = (d ?? {}) as QqMessage;
+    const control = t === 'C2C_MESSAGE_CREATE' ? null : qqControlText(payload);
+    const message = control === null ? d : { ...payload, content: control };
+    await serializeQqMessage(payload, () => dispatchQQEvent(t, message, eventId));
   } else await dispatchQQEvent(t, d, eventId);
 }

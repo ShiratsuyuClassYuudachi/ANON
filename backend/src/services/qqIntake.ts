@@ -23,6 +23,13 @@ type Session = { expiresAt: number; original: QqIntakePayload } & (
 const sessions = new Map<string, Session>();
 const queues = new Map<string, Promise<void>>();
 const TTL_MS = 10 * 60_000;
+
+/** 只用于将同一发送者的群内控制回复交回已有会话；到期仍由处理器给出提示。 */
+export function hasQqIntake(d: QqIntakePayload): boolean {
+  const key = sessionKey(d);
+  return !!key && sessions.has(key);
+}
+
 /** 绑定或进入导出时丢弃草稿；保存前仍会复核身份，不能借旧会话跨账号提交。 */
 export function clearQqIntake(d: QqIntakePayload): void {
   const key = sessionKey(d);

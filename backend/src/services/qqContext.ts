@@ -2,6 +2,7 @@ import { Membership } from '../models/Membership';
 import { Project, type ProjectDoc } from '../models/Project';
 import { User, type IUser, type UserDoc } from '../models/User';
 import { AppError } from '../utils/errors';
+import { config } from '../config';
 
 export interface QqMessage {
   id?: string;
@@ -15,6 +16,39 @@ export interface QqMessage {
 
 export type QqIdentity = NonNullable<QqMessage['author']>;
 export type QqMemberIdentity = Pick<IUser, 'name' | 'qqUnionOpenId' | 'qqMemberIds'>;
+
+/** 仅识别完整控制回复；剥离消息首尾的机器人提及，不改写普通正文中的人员提及。 */
+export function qqControlText(d: QqMessage): string | null {
+  if (typeof d.content !== 'string') return null;
+  let text = d.content.trim();
+  if (d.group_openid) {
+    const tokens = new Set<string>();
+    const addId = (id: string) => {
+      tokens.add(`<@${id}>`);
+      tokens.add(`<@!${id}>`);
+      tokens.add(`@${id}`);
+    };
+    if (config.qq.appId) addId(config.qq.appId);
+    for (const mention of Array.isArray(d.mentions) ? d.mentions : []) {
+      if (!mention.bot) continue;
+      for (const id of [mention.member_openid, mention.union_openid]) {
+        if (typeof id === 'string' && id) addId(id);
+      }
+      if (typeof mention.username === 'string' && mention.username.trim()) tokens.add(`@${mention.username.trim()}`);
+    }
+    // 最长标记优先，避免昵称前缀相同或连续提及留下部分标记。
+    const ordered = [...tokens].sort((a, b) => b.length - a.length);
+    let previous: string;
+    do {
+      previous = text;
+      for (const token of ordered) {
+        if (text.startsWith(token)) text = text.slice(token.length).trim();
+        if (text.endsWith(token)) text = text.slice(0, -token.length).trim();
+      }
+    } while (text !== previous);
+  }
+  return /^(确认|取消|节目报名|待办|记账|\d+)$/.test(text) ? text : null;
+}
 
 /** 待办指派与记账目标共用三层对照；仅用于成员映射，录入者授权仍需稳定绑定。 */
 export function resolveQqMember<T extends QqMemberIdentity>(members: readonly T[], groupOpenid: string | undefined, identity: QqIdentity): T | null {

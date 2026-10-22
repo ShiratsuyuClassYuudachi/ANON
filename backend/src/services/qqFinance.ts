@@ -18,6 +18,11 @@ type State = { expiresAt: number; userId: string; original: QqMessage } & (
 );
 const sessions = new Map<string, State>();
 const TTL = 10 * 60_000;
+export function hasQqFinance(d: QqMessage): boolean {
+  const key = qqSessionKey(d);
+  return !!key && sessions.has(key);
+}
+
 const reply = (d: QqMessage, text: string) => d.group_openid
   ? sendGroupMessage(d.group_openid, text, { msgId: d.id })
   : sendC2CMessage(d.author!.user_openid!, text, { msgId: d.id });

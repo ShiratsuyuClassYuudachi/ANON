@@ -271,6 +271,39 @@ describe('QQ 不明确的平摊对象默认全员', () => {
 });
 
 describe('QQ 文字 AI 记账', () => {
+  it.each(['确认', '<@!robot>\u2005确认'])('全量群消息 %s 消费本人记账草稿，不重新做 AI 分类', async (content) => {
+    await g('记账：我印海报花了120.50元');
+    classify.mockResolvedValue('none');
+    await handleQQEvent('GROUP_MESSAGE_CREATE', payload(content, { mentions: content === '确认' ? [] : [{ member_openid: 'robot', bot: true }] }));
+    expect(await Transaction.countDocuments()).toBe(1);
+    expect(last()).toContain('已记账');
+    expect(classify).toHaveBeenCalledTimes(1);
+  });
+
+  it('全量群其他人的确认和本人普通聊天都不会清除记账草稿', async () => {
+    await g('记账：我印海报花了120.50元');
+    await handleQQEvent('GROUP_MESSAGE_CREATE', payload('确认', { author: { member_openid: 'other' } }));
+    await handleQQEvent('GROUP_MESSAGE_CREATE', payload('大家稍等一下'));
+    expect(await Transaction.countDocuments()).toBe(0);
+    await handleQQEvent('GROUP_MESSAGE_CREATE', payload('确认'));
+    expect(await Transaction.countDocuments()).toBe(1);
+    expect(classify).toHaveBeenCalledTimes(1);
+  });
+
+  it('全量群裸回复可取消记账，过期确认只提示重发', async () => {
+    await g('记账：我印海报花了120.50元');
+    await handleQQEvent('GROUP_MESSAGE_CREATE', payload('取消'));
+    expect(last()).toContain('已取消本次记账');
+    await handleQQEvent('GROUP_MESSAGE_CREATE', payload('确认'));
+    expect(await Transaction.countDocuments()).toBe(0);
+    await g('记账：我印海报花了120.50元');
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 11 * 60_000);
+    await handleQQEvent('GROUP_MESSAGE_CREATE', payload('确认'));
+    expect(last()).toContain('草稿已过期');
+    expect(await Transaction.countDocuments()).toBe(0);
+    expect(classify).toHaveBeenCalledTimes(2);
+  });
+
   it('预览后确认才保存，网页可见、创建人为绑定成员，不产生待办', async () => {
     await g('记账：我印海报花了120.50元');
     expect(last()).toContain('请确认记账'); expect(last()).toContain('默认本人'); expect(last()).toContain('全员');
