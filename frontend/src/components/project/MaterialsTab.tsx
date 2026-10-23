@@ -250,19 +250,21 @@ function ResourceCard({
       )}
 
       <Dialog open={zoom} onOpenChange={setZoom}>
-        <DialogContent className="max-w-3xl p-2">
+        <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-3xl overflow-auto p-2 pt-10 sm:max-w-3xl">
           <DialogTitle className="sr-only">{resource.name}</DialogTitle>
           {kind === 'pdf' && <AuthMedia kind="pdf" src={`${base}/versions/${selected}/preview`} alt={resource.name} className="h-[80vh] w-full" />}
           {kind === 'video' && <AuthMedia kind="video" src={`${base}/versions/${selected}/preview`} className="max-h-[80vh] w-full" />}
           {kind === 'audio' && <AuthMedia kind="audio" src={`${base}/versions/${selected}/preview`} className="w-full" />}
           {kind === 'markdown' && <AuthMedia kind="markdown" src={`${base}/versions/${selected}/preview`} className="max-h-[80vh] w-full overflow-auto p-4 text-sm" />}
           {(!kind || kind === 'image') && (
-            <AuthImg
-              src={`${base}/versions/${selected}/download`}
-              alt={resource.name}
-              style={{ width: '100%' }}
-              onClick={() => setZoom(false)}
-            />
+            <div className="flex min-h-0 min-w-0 items-center justify-center">
+              <AuthImg
+                src={`${base}/versions/${selected}/download`}
+                alt={resource.name}
+                style={{ maxWidth: '100%', maxHeight: 'calc(100dvh - 6rem)', objectFit: 'contain' }}
+                onClick={() => setZoom(false)}
+              />
+            </div>
           )}
         </DialogContent>
       </Dialog>
