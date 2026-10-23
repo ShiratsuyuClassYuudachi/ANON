@@ -738,7 +738,7 @@ interface ResourceVersionItem {
   指定/当前版本的预览。响应 200：有缩略预览回 `image/webp`；无预览但文件 mime 命中内联白名单（位图 / `application/pdf` / `text/markdown` / `video/mp4` / `video/webm` / `video/quicktime` / `audio/mpeg` / `audio/wav` / `audio/ogg`，另 `.md`/`.markdown` 扩展名兜底 `text/plain` 或空 mime）回原始文件流；否则 404 `not_found`。
   `hasPreview`（ResourceItem/ResourceVersionItem）语义 = 预览接口将返回 200。
 
-前端说明：项目工作台新增「物料」Tab（`MaterialsTab.tsx`）：类型筛选、资源卡片、预览图、版本下拉与下载、上传新版本、可见范围编辑（成员多选 + 角色多选）。预览图与原图均需鉴权，前端使用 `AuthImg` 组件（fetch + Blob → objectURL）；点击预览图全屏加载原图。非图片内联预览走 `AuthMedia`：PDF 用 iframe、音/视频用 `<video>`/`<audio>` 标签、Markdown 用 react-markdown 渲染（原始 HTML 按文本转义）；不可预览格式卡片显示文件名，仅可下载。
+前端说明：「物料」Tab（`MaterialsTab.tsx`）提供类型筛选与默认折叠的等高资源卡片，缩略区固定为 80×80；展开详情后可查看描述、文件名、版本下拉与下载。上传新版本、可见范围与删除在卡片管理菜单中，可见范围使用居中表单弹层。预览图与原图均需鉴权，前端使用 `AuthImg` 组件（fetch + Blob → objectURL）；点击小图打开按视口宽高等比缩放的原图，关闭按钮保持在屏幕内。非图片内联预览走 `AuthMedia`：PDF 用 iframe、音/视频用 `<video>`/`<audio>` 标签、Markdown 用 react-markdown 渲染（原始 HTML 按文本转义）；不可预览格式显示同尺寸占位，展开后查看文件名并下载。折叠、尺寸与预览弹窗均为前端展示行为，HTTP 契约不变。
 
 ---
 

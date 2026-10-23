@@ -19,7 +19,7 @@
 | 项目/成员/角色/邀请 | routes/projects.ts、routes/invites.ts、models/{Project,Membership,ProjectInvite}.ts、services/permissions.ts | pages/{Projects,ProjectHome,InviteAccept}.tsx、project/{MembersTab,RolesTab,SettingsTab}.tsx | tests/{projects,invites}.test.ts |
 | 待办（含模板/进度） | routes/todos.ts、models/{Todo,ReminderLog}.ts、services/{template,todos}.ts | project/{TodosTab,TodoFormDialog,TodoActionSheet}.tsx | tests/{todos,todo-complete,todo-updates,template}.test.ts |
 | 财务 | routes/finance.ts、models/Transaction.ts、services/{finance,financeEntries}.ts | project/FinanceTab.tsx | tests/finance.test.ts |
-| 物料/资料库/文件 | routes/{materials,files}.ts、models/{Resource,ResourceType,ResourceVersion,File}.ts、services/{preview,storage}.ts、middleware/upload.ts | project/MaterialsTab.tsx、components/{AuthImg,AuthMedia}.tsx | tests/{materials,files}.test.ts |
+| 物料/资料库/文件 | routes/{materials,files}.ts、models/{Resource,ResourceType,ResourceVersion,File}.ts、services/{preview,storage}.ts、middleware/upload.ts | project/MaterialsTab.tsx（折叠等高卡片/小图与大图预览）、components/{AuthImg,AuthMedia}.tsx | tests/{materials,files}.test.ts |
 | 实物/物资台账 | routes/physical.ts、models/Physical{Category,Item,ItemLog}.ts | project/PhysicalTab.tsx | tests/physical.test.ts |
 | 平台账号（加密） | routes/accounts.ts、models/PlatformAccount.ts、services/platformCrypto.ts | project/AccountsTab.tsx、crypto.ts（浏览器端加密） | tests/accounts.test.ts |
 | 公告 | routes/announcements.ts、models/{Announcement,AnnouncementConfirmation}.ts | project/AnnouncementManager.tsx | tests/announcements.test.ts |
@@ -219,7 +219,7 @@
 - `DashboardTab.tsx` — 仪表盘聚合（内嵌公告/里程碑/阶段卡）
 - `TodosTab.tsx` + `TodoFormDialog.tsx` + `TodoActionSheet.tsx` — 待办列表/表单（日期字段支持开展倒排录入）/完成与进度弹层
 - `FinanceTab.tsx` — 记账/门票/CSV 导出
-- `MaterialsTab.tsx` — 资料分类/版本/实物入口
+- `MaterialsTab.tsx` — 资料分类/版本/实物入口；数字资源默认折叠等高卡片与80×80小图、详情展开/版本切换下载、按视口等比缩放大图、可见范围居中弹窗；帮助截图 public/help/{tab-materials,materials-version-switch,materials-image-preview,materials-pdf-preview,materials-create-with-file}.png
 - `PhysicalTab.tsx` — 实物分类/台账/状态/日志
 - `AccountsTab.tsx` — 平台账号增删/密码揭示
 - `MembersTab.tsx` / `RolesTab.tsx` — 成员邀请/角色权限
