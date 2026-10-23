@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Download, File, FileText, FileType2, MoreHorizontal, Music, Play, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Download, File, FileText, FileType2, MoreHorizontal, Music, Play, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, downloadUrl } from '../../api/client';
 import AuthImg from '../AuthImg';
@@ -75,6 +75,7 @@ function ResourceCard({
   const [versions, setVersions] = useState<ResourceVersionItem[]>([]);
   const [selected, setSelected] = useState<number>(resource.latestVersion);
   const [zoom, setZoom] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [showVis, setShowVis] = useState(false);
   const [note, setNote] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -135,27 +136,52 @@ function ResourceCard({
   const kind = previewKindOf(selectedVersion?.file?.mime, selectedVersion?.file?.filename);
 
   return (
-    <Card>
-      <CardContent className="space-y-2 p-4">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <p className="font-medium">{resource.name}</p>
-            <div className="mt-1 flex flex-wrap gap-1.5">
-              <Badge variant="secondary">{typeName}</Badge>
-              <Badge variant="outline">v{resource.latestVersion || '—'}</Badge>
+    <Card className="min-w-0 gap-0 py-0">
+      <CardContent className="space-y-3 p-4">
+        <div className="flex h-20 items-start gap-3">
+          {selectedVersion?.hasPreview && kind ? (
+            <button
+              type="button"
+              onClick={() => setZoom(true)}
+              aria-label={`预览 ${resource.name}`}
+              className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {kind === 'image' && (
+                <AuthImg
+                  src={`${base}/versions/${selected}/preview`}
+                  alt={resource.name}
+                  style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+                />
+              )}
+              {kind === 'pdf' && <FileText className="size-7 text-muted-foreground" />}
+              {kind === 'video' && <Play className="size-7 text-muted-foreground" />}
+              {kind === 'audio' && <Music className="size-7 text-muted-foreground" />}
+              {kind === 'markdown' && <FileType2 className="size-7 text-muted-foreground" />}
+            </button>
+          ) : (
+            <div className="flex size-20 shrink-0 items-center justify-center rounded-lg border border-dashed bg-muted/40 text-muted-foreground">
+              <File className="size-7" aria-hidden="true" />
+              <span className="sr-only">{resource.latestVersion ? '文件暂无预览' : '暂无版本'}</span>
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="line-clamp-2 h-10 break-all text-sm font-medium leading-5" title={resource.name}>{resource.name}</p>
+            <div className="mt-2 flex min-w-0 items-center gap-1.5">
+              <Badge variant="secondary" className="min-w-0 shrink"><span className="truncate" title={typeName}>{typeName}</span></Badge>
+              <Badge variant="outline" className="shrink-0">v{selected || resource.latestVersion || '—'}</Badge>
             </div>
           </div>
           {canManage && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon"><MoreHorizontal className="size-4" /></Button>
+                <Button variant="ghost" size="icon" className="shrink-0" aria-label={`管理 ${resource.name}`}><MoreHorizontal className="size-4" /></Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => setUploadOpen(true)}>上传新版本</DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => {
-                    if (!showVis) setVisDraft(resource.visibility);
-                    setShowVis(!showVis);
+                    setVisDraft(resource.visibility);
+                    setShowVis(true);
                   }}
                 >
                   可见范围
@@ -165,63 +191,63 @@ function ResourceCard({
             </DropdownMenu>
           )}
         </div>
-        {resource.description && <p className="text-sm text-muted-foreground">{resource.description}</p>}
-        {selectedVersion?.hasPreview && kind === 'image' && (
-          <button onClick={() => setZoom(true)} className="block w-full overflow-hidden rounded-lg border">
-            <AuthImg src={`${base}/versions/${selected}/preview`} alt={resource.name} style={{ width: '100%', display: 'block' }} />
-          </button>
-        )}
-        {selectedVersion?.hasPreview && kind && kind !== 'image' && (
-          <button onClick={() => setZoom(true)} className="flex w-full items-center gap-2 rounded-lg border p-3 text-sm">
-            {kind === 'pdf' && <FileText className="size-5 shrink-0 text-muted-foreground" />}
-            {kind === 'video' && <Play className="size-5 shrink-0 text-muted-foreground" />}
-            {kind === 'audio' && <Music className="size-5 shrink-0 text-muted-foreground" />}
-            {kind === 'markdown' && <FileType2 className="size-5 shrink-0 text-muted-foreground" />}
-            <span className="truncate">{selectedVersion.file?.filename}</span>
-            <span className="ml-auto shrink-0 text-muted-foreground">点击预览</span>
-          </button>
-        )}
-        {selectedVersion?.file && !(selectedVersion.hasPreview && kind) && (
-          <div className="flex w-full items-center gap-2 rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
-            <File className="size-5 shrink-0" />
-            <span className="truncate">{selectedVersion.file.filename}</span>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full"
+          aria-expanded={expanded}
+          aria-controls={`resource-details-${resource.id}`}
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+          {expanded ? '收起详情' : '展开详情'}
+        </Button>
+        {expanded && (
+          <div id={`resource-details-${resource.id}`} className="space-y-3 border-t pt-3">
+            {resource.description && <p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">{resource.description}</p>}
+            {selectedVersion?.file && <p className="break-all text-sm text-muted-foreground">{selectedVersion.file.filename}</p>}
+            {versions.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={String(selected)} onValueChange={(v) => setSelected(Number(v))}>
+                  <SelectTrigger className="w-28" aria-label="选择资源版本"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {versions.map((v) => (
+                      <SelectItem key={v.version} value={String(v.version)}>v{v.version}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!selectedVersion?.file}
+                  onClick={() =>
+                    selectedVersion?.file &&
+                    downloadUrl(`${base}/versions/${selected}/download`, selectedVersion.file.filename).catch((e) =>
+                      toast.error((e as Error).message),
+                    )
+                  }
+                >
+                  <Download className="size-4" /> 下载该版本
+                </Button>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">暂无版本{canManage ? '，可通过右上角菜单上传文件。' : '。'}</p>
+            )}
           </div>
         )}
-        {versions.length > 0 && (
-          <div className="flex items-center gap-2">
-            <Select value={String(selected)} onValueChange={(v) => setSelected(Number(v))}>
-              <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {versions.map((v) => (
-                  <SelectItem key={v.version} value={String(v.version)}>v{v.version}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!selectedVersion?.file}
-              onClick={() =>
-                selectedVersion?.file &&
-                downloadUrl(`${base}/versions/${selected}/download`, selectedVersion.file.filename).catch((e) =>
-                  toast.error((e as Error).message),
-                )
-              }
-            >
-              <Download className="size-4" /> 下载该版本
-            </Button>
-          </div>
-        )}
-        {canManage && showVis && (
-          <ListRow className="space-y-2">
+      </CardContent>
+
+      {canManage && (
+        <FormOverlay open={showVis} onOpenChange={setShowVis} title="资源可见范围">
+          <div className="space-y-3">
             <VisibilityPicker members={members} roles={roles} value={visDraft} onChange={setVisDraft} />
             <div className="flex gap-2">
               <Button size="sm" onClick={saveVisibility}>保存</Button>
               <Button size="sm" variant="ghost" onClick={() => setShowVis(false)}>取消</Button>
             </div>
-          </ListRow>
-        )}
-      </CardContent>
+          </div>
+        </FormOverlay>
+      )}
 
       <Dialog open={zoom} onOpenChange={setZoom}>
         <DialogContent className="max-w-3xl p-2">
@@ -529,7 +555,7 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
         ))}
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid items-start gap-3 md:grid-cols-2">
         {visible.map((r) => (
           <ResourceCard
             key={r.id}
