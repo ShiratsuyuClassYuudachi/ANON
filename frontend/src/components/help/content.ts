@@ -262,26 +262,41 @@ export const HELP_CHAPTERS: HelpChapter[] = [
         image: { src: '/help/materials-create-with-file.png', alt: '新建资源（带文件上传）', caption: '新建资源表单：可同时选择初始版本文件与备注' },
       },
       {
+        heading: '折叠卡片与小图',
+        paragraphs: [
+          '数字资源默认折叠，卡片统一显示 80×80 小图或文件图标、最多两行名称、类型与当前版本，大小一致。点击「展开详情」查看完整描述、文件名及版本操作，点击「收起详情」恢复；刷新后默认折叠。展开一张卡片不会拉高相邻卡片。',
+          '无版本资源也保留同尺寸占位，管理者可通过右上角 ⋯ 菜单上传新版本、设置可见范围或删除资源。',
+        ],
+        image: { src: '/help/tab-materials.png', alt: '默认折叠的物料卡片', caption: '小图、文件图标与无版本资源使用统一尺寸卡片' },
+      },
+      {
         heading: '版本切换与预览',
         paragraphs: [
-          '每次上传版本号 +1；资源卡片上的版本下拉可切换到任意历史版本。',
+          '每次上传版本号 +1；展开资源详情后，可通过版本下拉切换到任意历史版本。',
           '切换版本后，卡片预览图、放大查看、下载均对应该版本的文件，方便对比历史修改。',
           '图片上传时自动生成 WebP 预览图（宽 ≤800px，≤100KB），列表加载快；点击缩略图放大查看原图。',
         ],
-        image: { src: '/help/materials-version-switch.png', alt: '版本切换', caption: '切换版本后预览图随之变化（此例 v1 为红色，v2 为绿色）' },
+        image: { src: '/help/materials-version-switch.png', alt: '版本切换', caption: '展开卡片后切换历史版本，预览与下载随当前版本变化' },
+      },
+      {
+        heading: '大图适配屏幕',
+        paragraphs: [
+          '点击小图查看原图，横图与长图都会按屏幕宽高等比缩放，完整显示在屏幕内。弹窗顶部保留关闭按钮，也可点击图片关闭。',
+        ],
+        image: { src: '/help/materials-image-preview.png', alt: '手机上的大图预览', caption: '长图完整适配屏幕，关闭按钮保持可见' },
       },
       {
         heading: 'PDF、Markdown 与音视频预览',
         paragraphs: [
-          '除图片外，PDF、Markdown 与常见音视频（mp4/webm/mov 视频，mp3/wav/ogg 音频）也支持在线预览：资源卡片显示文件条目，点击后在弹层中翻阅、阅读或播放。mov 能否播放取决于视频内部编码（iPhone 拍摄的 H.264 通常可以）。',
-          'SVG、Office 文档、压缩包等其余格式不生成预览，卡片会显示文件名，请下载后查看。内联预览仅放行上述安全格式，Markdown 中的原始 HTML 按纯文本显示，防止脚本注入。',
+          '除图片外，PDF、Markdown 与常见音视频（mp4/webm/mov 视频，mp3/wav/ogg 音频）也支持在线预览：资源卡片显示对应文件图标，点击后在弹层中翻阅、阅读或播放。mov 能否播放取决于视频内部编码（iPhone 拍摄的 H.264 通常可以）。',
+          'SVG、Office 文档、压缩包等其余格式不生成预览，卡片显示同尺寸文件占位；展开详情查看文件名并下载。内联预览仅放行上述安全格式，Markdown 中的原始 HTML 按纯文本显示，防止脚本注入。',
         ],
-        image: { src: '/help/materials-pdf-preview.png', alt: 'PDF 预览', caption: 'PDF 资源卡片文件条目，点击在弹层中预览' },
+        image: { src: '/help/materials-pdf-preview.png', alt: 'PDF 预览', caption: '点击 PDF 文件图标，在弹层中预览' },
       },
       {
         heading: '可见范围',
         paragraphs: [
-          '类型或资源卡片上点「可见范围」，勾选成员和/或角色后保存；留空 = 全体成员可见。',
+          '类型管理中点「可见范围」；资源卡片从右上角 ⋯ 菜单点「可见范围」，在居中弹窗中勾选成员和/或角色后保存。留空 = 全体成员可见。',
           '可见范围优先于权限点：即使有管理权限，不在范围内也看不到该条目，下载接口同样强制。',
         ],
       },
