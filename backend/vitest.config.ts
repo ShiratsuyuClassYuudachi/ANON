@@ -8,6 +8,7 @@ export default defineConfig({
     hookTimeout: 60000,
     env: { JWT_SECRET: 'test-secret', NODE_ENV: 'test' },
     pool: 'forks',
-    poolOptions: { forks: { singleFork: true } },
+    maxWorkers: 1,
+    fileParallelism: false,
   },
 });
