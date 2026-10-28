@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { ChevronDown, ChevronUp, Download, File, FileText, FileType2, MoreHorizontal, Music, Play, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { api, downloadUrl } from '../../api/client';
+import { api, downloadUrl, uploadMaterial, validateMaterialFile } from '../../api/client';
 import AuthImg from '../AuthImg';
 import AuthMedia, { previewKindOf } from '../AuthMedia';
 import type {
@@ -54,6 +54,33 @@ interface Props {
   myPermissions: string[];
 }
 
+function MaterialUploadProgress({ percent }: { percent: number | null }) {
+  return (
+    <div className="space-y-2" role="status" aria-live="polite">
+      <p className="text-sm text-muted-foreground">
+        {percent === 100 ? '文件已传输，正在保存…' : percent === null ? '正在上传…' : `正在上传 ${percent}%`}
+      </p>
+      <div role="progressbar" aria-label="文件上传进度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent ?? undefined} className="h-2 overflow-hidden rounded-full bg-muted">
+        <div className={`h-full rounded-full bg-primary transition-[width] ${percent === null ? 'animate-pulse' : ''}`} style={{ width: `${percent ?? 100}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function UploadErrorDialog({ message, onClose }: { message: string; onClose: () => void }) {
+  return (
+    <AlertDialog open={!!message} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>文件上传失败</AlertDialogTitle>
+          <AlertDialogDescription className="break-words">{message}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter><AlertDialogAction onClick={onClose}>知道了</AlertDialogAction></AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 function ResourceCard({
   project,
   resource,
@@ -82,6 +109,9 @@ function ResourceCard({
   const [visDraft, setVisDraft] = useState<Visibility>(resource.visibility);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadPercent, setUploadPercent] = useState<number | null>(0);
+  const [uploadError, setUploadError] = useState('');
 
   const loadVersions = useCallback(async () => {
     const d = await api<{ versions: ResourceVersionItem[] }>(`${base}/versions`);
@@ -95,21 +125,22 @@ function ResourceCard({
   }, [resource.latestVersion]);
 
   const uploadVersion = async () => {
+    if (uploading) return;
     if (!file) {
-      toast.error('请选择文件');
+      setUploadError('请选择需要上传的文件');
       return;
     }
+    setUploading(true);
     try {
-      const fd = new FormData();
-      fd.set('note', note);
-      fd.set('file', file);
-      await api(`${base}/versions`, { formData: fd });
+      await uploadMaterial(`${base}/versions`, file, { note }, setUploadPercent);
       setFile(null);
       setNote('');
       setUploadOpen(false);
-      await onChanged();
+      await onChanged().catch((e) => toast.error(`文件已保存，列表刷新失败：${(e as Error).message}`));
     } catch (e) {
-      toast.error((e as Error).message);
+      setUploadError((e as Error).message);
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -269,15 +300,26 @@ function ResourceCard({
         </DialogContent>
       </Dialog>
 
-      <FormOverlay open={uploadOpen} onOpenChange={setUploadOpen} title="上传新版本">
-        <div className="space-y-3">
+      <FormOverlay open={uploadOpen} onOpenChange={(open) => { if (!uploading) setUploadOpen(open); }} title="上传新版本">
+        <fieldset disabled={uploading} className="space-y-3">
           <div className="space-y-1.5">
             <Label htmlFor={`upload-file-${resource.id}`}>文件</Label>
             <Input
               id={`upload-file-${resource.id}`}
               type="file"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              onChange={(e) => {
+                const selectedFile = e.target.files?.[0] ?? null;
+                try {
+                  if (selectedFile) validateMaterialFile(selectedFile);
+                  setFile(selectedFile);
+                } catch (error) {
+                  e.target.value = '';
+                  setFile(null);
+                  setUploadError((error as Error).message);
+                }
+              }}
             />
+            <p className="text-xs text-muted-foreground">单个文件最大 1 GB（1024 MB）</p>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor={`upload-note-${resource.id}`}>版本备注（可选）</Label>
@@ -288,9 +330,12 @@ function ResourceCard({
               onChange={(e) => setNote(e.target.value)}
             />
           </div>
-          <Button className="w-full" onClick={uploadVersion}>上传</Button>
-        </div>
+          {uploading && <MaterialUploadProgress percent={uploadPercent} />}
+          <Button className="w-full" disabled={uploading} onClick={uploadVersion}>{uploading ? '上传中…' : '上传'}</Button>
+        </fieldset>
       </FormOverlay>
+
+      <UploadErrorDialog message={uploadError} onClose={() => setUploadError('')} />
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
@@ -321,6 +366,10 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
   const [resForm, setResForm] = useState({ name: '', typeId: '', description: '' });
   const [resFile, setResFile] = useState<File | null>(null);
   const [resNote, setResNote] = useState('');
+  const resFileInput = useRef<HTMLInputElement>(null);
+  const [creating, setCreating] = useState(false);
+  const [uploadPercent, setUploadPercent] = useState<number | null>(0);
+  const [uploadError, setUploadError] = useState('');
   const [typeVisFor, setTypeVisFor] = useState<string | null>(null);
   const [typeVisDraft, setTypeVisDraft] = useState<Visibility>({ userIds: [], roleNames: [] });
   const [deleteTypeFor, setDeleteTypeFor] = useState<ResourceTypeItem | null>(null);
@@ -353,17 +402,18 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
 
   const createResource = async (e: FormEvent) => {
     e.preventDefault();
+    if (creating) return;
     setErr('');
+    setCreating(true);
     try {
       const url = `/api/projects/${project.id}/materials`;
       if (resFile) {
-        const fd = new FormData();
-        fd.set('name', resForm.name);
-        fd.set('typeId', resForm.typeId || types[0]?.id || '');
-        if (resForm.description) fd.set('description', resForm.description);
-        fd.set('note', resNote);
-        fd.set('file', resFile);
-        await api(url, { formData: fd });
+        await uploadMaterial(url, resFile, {
+          name: resForm.name,
+          typeId: resForm.typeId || types[0]?.id || '',
+          description: resForm.description,
+          note: resNote,
+        }, setUploadPercent);
       } else {
         await api(url, {
           body: {
@@ -375,10 +425,14 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
       }
       setResForm({ name: '', typeId: '', description: '' });
       setResFile(null);
+      if (resFileInput.current) resFileInput.current.value = '';
       setResNote('');
-      await load();
+      await load().catch((error) => toast.error(`资源已创建，列表刷新失败：${(error as Error).message}`));
     } catch (e2) {
-      toast.error((e2 as Error).message);
+      if (resFile) setUploadError((e2 as Error).message);
+      else toast.error((e2 as Error).message);
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -493,45 +547,61 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
           <CardHeader className="pb-2"><CardTitle className="text-base">新建资源</CardTitle></CardHeader>
           <CardContent>
             <form onSubmit={createResource} className="space-y-3">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Input
-                  placeholder="资源名称"
-                  value={resForm.name}
-                  onChange={(e) => setResForm({ ...resForm, name: e.target.value })}
-                  required
+              <fieldset disabled={creating} className="space-y-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Input
+                    placeholder="资源名称"
+                    value={resForm.name}
+                    onChange={(e) => setResForm({ ...resForm, name: e.target.value })}
+                    required
+                  />
+                  <Select
+                    disabled={creating}
+                    value={resForm.typeId || types[0]?.id || ''}
+                    onValueChange={(v) => setResForm({ ...resForm, typeId: v })}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {types.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Textarea
+                  placeholder="描述（可选）"
+                  value={resForm.description}
+                  onChange={(e) => setResForm({ ...resForm, description: e.target.value })}
                 />
-                <Select
-                  value={resForm.typeId || types[0]?.id || ''}
-                  onValueChange={(v) => setResForm({ ...resForm, typeId: v })}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {types.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Textarea
-                placeholder="描述（可选）"
-                value={resForm.description}
-                onChange={(e) => setResForm({ ...resForm, description: e.target.value })}
-              />
-              <div className="space-y-1.5">
-                <Label>初始版本文件（可选）</Label>
-                <Input
-                  type="file"
-                  onChange={(e) => setResFile(e.target.files?.[0] ?? null)}
-                />
-              </div>
-              {resFile && (
-                <Input
-                  placeholder="版本备注（可选）"
-                  value={resNote}
-                  onChange={(e) => setResNote(e.target.value)}
-                />
-              )}
-              <Button type="submit">创建</Button>
+                <div className="space-y-1.5">
+                  <Label>初始版本文件（可选）</Label>
+                  <Input
+                    ref={resFileInput}
+                    type="file"
+                    onChange={(e) => {
+                      const selectedFile = e.target.files?.[0] ?? null;
+                      try {
+                        if (selectedFile) validateMaterialFile(selectedFile);
+                        setResFile(selectedFile);
+                      } catch (error) {
+                        e.target.value = '';
+                        setResFile(null);
+                        setUploadError((error as Error).message);
+                      }
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground">单个文件最大 1 GB（1024 MB）</p>
+                </div>
+                {resFile && (
+                  <Input
+                    placeholder="版本备注（可选）"
+                    value={resNote}
+                    onChange={(e) => setResNote(e.target.value)}
+                  />
+                )}
+                {creating && resFile && <MaterialUploadProgress percent={uploadPercent} />}
+                <Button type="submit" disabled={creating}>{creating ? resFile ? '上传中…' : '创建中…' : '创建'}</Button>
+              </fieldset>
             </form>
           </CardContent>
         </Card>
@@ -572,6 +642,8 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
         ))}
       </div>
       {!visible.length && <p className="text-sm text-muted-foreground">暂无资源。</p>}
+
+      <UploadErrorDialog message={uploadError} onClose={() => setUploadError('')} />
 
       <AlertDialog open={!!deleteTypeFor} onOpenChange={(o) => !o && setDeleteTypeFor(null)}>
         <AlertDialogContent>

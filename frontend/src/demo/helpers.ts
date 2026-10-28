@@ -124,8 +124,38 @@ export function parseDateField(v: unknown): string | null {
 
 // ---------- 文件存取 ----------
 
-/** 会话内上传：转 base64 data URL 入库（小图，sessionStorage 可容） */
+/** 大文件放入浏览器文件库，避免展开为数 GB 的 base64 字符串。 */
+async function demoFileStore<T>(mode: IDBTransactionMode, operation: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+  const db = await new Promise<IDBDatabase>((resolve, reject) => {
+    const req = indexedDB.open('anon-demo-files', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('files');
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  try {
+    return await new Promise<T>((resolve, reject) => {
+      const tx = db.transaction('files', mode);
+      const req = operation(tx.objectStore('files'));
+      tx.oncomplete = () => resolve(req.result);
+      tx.onerror = tx.onabort = () => reject(tx.error ?? req.error);
+    });
+  } finally {
+    db.close();
+  }
+}
+
+/** 小文件沿用 data URL；大文件单独存储，刷新后仍可读取。 */
 export async function storeUpload(db: Db, file: File): Promise<string> {
+  if (file.size > 8 * 1024 * 1024) {
+    const id = uid();
+    try {
+      await demoFileStore('readwrite', (store) => store.put(file, id));
+    } catch {
+      throw badRequest('浏览器存储空间不足或不可用，无法保存文件，请释放空间后重试');
+    }
+    db.files[id] = { filename: file.name, mime: file.type || 'application/octet-stream', size: file.size, dataUrl: `indexeddb:${id}` };
+    return id;
+  }
   const bytes = new Uint8Array(await file.arrayBuffer());
   let bin = '';
   for (const b of bytes) bin += String.fromCharCode(b);
@@ -148,9 +178,15 @@ export async function fileResponse(
 ): Promise<Response> {
   const src = f.asset ?? f.dataUrl;
   if (!src) throw notFound('文件不存在');
-  const r = await origFetch(src);
-  if (!r.ok) throw notFound('文件不存在');
-  const blob = await r.blob();
+  let blob: Blob;
+  if (src.startsWith('indexeddb:')) {
+    blob = await demoFileStore('readonly', (store) => store.get(src.slice('indexeddb:'.length)));
+    if (!(blob instanceof Blob)) throw notFound('文件不存在，请重新上传');
+  } else {
+    const r = await origFetch(src);
+    if (!r.ok) throw notFound('文件不存在');
+    blob = await r.blob();
+  }
   const headers: Record<string, string> = { 'Content-Type': f.mime || blob.type || 'application/octet-stream' };
   if (opts.download) {
     const name = opts.filename ?? f.filename;

@@ -1,13 +1,14 @@
 import { Router, type Request } from 'express';
 import { authRequired } from '../middleware/auth';
 import { loadMembership, requirePermission } from '../middleware/projectAccess';
-import { upload } from '../middleware/upload';
+import { materialChunkUpload, materialUpload } from '../middleware/upload';
 import { File, type FileDoc } from '../models/File';
 import { Resource, type ResourceDoc } from '../models/Resource';
 import { ResourceType, type ResourceTypeDoc } from '../models/ResourceType';
 import { ResourceVersion, type ResourceVersionDoc } from '../models/ResourceVersion';
 import { logActivity } from '../services/activity';
 import { generatePreview } from '../services/preview';
+import { appendMaterialChunk, cancelMaterialUpload, startMaterialUpload, takeMaterialUpload } from '../services/materialUploads';
 import { deleteStored, persistUploads, sendStoredFile } from '../services/storage';
 import { canSee, type Viewer } from '../services/visibility';
 import { ah } from '../utils/async';
@@ -106,6 +107,45 @@ async function latestVersionOf(resourceId: unknown) {
   return ResourceVersion.findOne({ resourceId }).sort({ version: -1 });
 }
 
+// 分片请求保持在 8 MB 内，兼容边缘代理的单请求大小限制。
+materialsRouter.post(
+  '/uploads',
+  ...requirePermission('materials:manage'),
+  ah(async (req, res) => {
+    res.status(201).json(await startMaterialUpload(req.project!._id.toString(), req.userId!, req.body ?? {}));
+  }),
+);
+
+materialsRouter.put(
+  '/uploads/:uploadId',
+  ...requirePermission('materials:manage'),
+  materialChunkUpload.single('file'),
+  ah(async (req, res) => {
+    try {
+      if (!req.file) throw new AppError(400, 'bad_request', '缺少文件分片');
+      res.json(await appendMaterialChunk(req.params.uploadId, req.project!._id.toString(), req.userId!, Number(req.body?.offset), req.file));
+    } finally {
+      if (req.file) await deleteStored(req.file.path);
+    }
+  }),
+);
+
+materialsRouter.delete(
+  '/uploads/:uploadId',
+  ...requirePermission('materials:manage'),
+  ah(async (req, res) => {
+    await cancelMaterialUpload(req.params.uploadId, req.project!._id.toString(), req.userId!);
+    res.json({ ok: true });
+  }),
+);
+
+async function receiveCompletedUpload(req: Request) {
+  if (req.body?.uploadId !== undefined) {
+    if (req.file || typeof req.body.uploadId !== 'string') throw new AppError(400, 'bad_request', '文件与上传会话不能同时提交');
+    req.file = await takeMaterialUpload(req.body.uploadId, req.project!._id.toString(), req.userId!);
+  }
+}
+
 // ---------- 资源类型 ----------
 
 materialsRouter.get(
@@ -201,17 +241,18 @@ materialsRouter.get(
 materialsRouter.post(
   '/',
   ...requirePermission('materials:manage'),
-  upload.single('file'),
+  materialUpload.single('file'),
   ah(async (req, res) => {
-    const { typeId, name, description } = req.body ?? {};
-    if (!name || !String(name).trim()) throw new AppError(400, 'bad_request', '资源名称必填');
-    const type = await ResourceType.findOne({ _id: typeId, projectId: req.project!._id });
-    if (!type) throw new AppError(400, 'bad_request', '资源类型不存在');
-
     let fileDoc: FileDoc | null = null;
     let resourceDoc: ResourceDoc | null = null;
     let previewRef: string | null = null;
     try {
+      const { typeId, name, description } = req.body ?? {};
+      if (!name || !String(name).trim()) throw new AppError(400, 'bad_request', '资源名称必填');
+      const type = await ResourceType.findOne({ _id: typeId, projectId: req.project!._id });
+      if (!type) throw new AppError(400, 'bad_request', '资源类型不存在');
+      if (!canSee(viewerOf(req), type.visibility)) throw new AppError(403, 'forbidden', '该资源类型对你不可见');
+      await receiveCompletedUpload(req);
       const r = await Resource.create({
         projectId: req.project!._id,
         typeId: type._id,
@@ -316,17 +357,14 @@ materialsRouter.delete(
 materialsRouter.post(
   '/:resourceId/versions',
   ...requirePermission('materials:manage'),
-  upload.single('file'),
+  materialUpload.single('file'),
   ah(async (req, res) => {
     // multer 已落盘，后续任何失败都要清理上传文件（及已建的 File 文档），避免孤儿文件
     let fileDoc: FileDoc | null = null;
     let previewRef: string | null = null;
     try {
-      const resource = await Resource.findOne({
-        _id: req.params.resourceId,
-        projectId: req.project!._id,
-      });
-      if (!resource) throw new AppError(404, 'not_found', '资源不存在');
+      const { resource } = await loadVisibleResource(req);
+      await receiveCompletedUpload(req);
       if (!req.file) throw new AppError(400, 'bad_request', '缺少文件');
       previewRef = Object.hasOwn(BITMAP_MIMES, req.file.mimetype)
         ? await generatePreview(req.file.path)
