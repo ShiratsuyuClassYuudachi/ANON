@@ -3497,7 +3497,7 @@ paths:
     post:
       tags: [物料管理]
       summary: 创建资源
-      description: 需 materials:manage 权限。支持 JSON 与 multipart 两种请求体；multipart 附带 file（可选，≤20MB，上传即创建版本 1）与 note（首版本备注），位图文件自动生成 WebP 缩略预览。
+      description: 需 materials:manage 权限。支持 JSON 与 multipart 两种请求体；multipart 附带 file（可选，≤1GB（1024MB），上传即创建版本 1）与 note（首版本备注），位图文件自动生成 WebP 缩略预览。大文件应先用 /materials/uploads 分片上传，再用 JSON uploadId 消费完整会话；file 与 uploadId 不能同时提交。
       parameters:
         - name: id
           in: path
@@ -3514,6 +3514,8 @@ paths:
                 typeId: { type: string }
                 name: { type: string }
                 description: { type: string }
+                uploadId: { type: string, description: 可选，完整上传会话 ID，仅本人同项目可消费一次 }
+                note: { type: string, description: 首版本备注 }
                 visibility: { $ref: '#/components/schemas/Visibility' }
           multipart/form-data:
             schema:
@@ -3529,7 +3531,7 @@ paths:
                 file:
                   type: string
                   format: binary
-                  description: 可选，≤20MB，上传即创建版本 1
+                  description: 可选，≤1GB（1024MB），上传即创建版本 1
                 note: { type: string, description: 首版本备注 }
       responses:
         '201':
@@ -3556,6 +3558,114 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+        '413':
+          description: 文件超过 1GB（file_too_large）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /api/projects/{id}/materials/uploads:
+    post:
+      tags: [物料管理]
+      summary: 初始化物料分片上传
+      description: 需 materials:manage 权限。单文件最大 1GB（1073741824 字节），每片 8MB（8388608 字节）。会话绑定当前用户与项目，每人同时最多 3 个；中断暂存文件 24 小时后回收，服务重启后需重新上传。分片完成后将 uploadId 交给创建资源或上传新版本接口消费。
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [filename, size]
+              properties:
+                filename: { type: string, minLength: 1, maxLength: 255 }
+                mime: { type: string, maxLength: 255, default: application/octet-stream }
+                size: { type: integer, minimum: 1, maximum: 1073741824 }
+      responses:
+        '201':
+          description: 会话已创建
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [uploadId, chunkSize]
+                properties:
+                  uploadId: { type: string }
+                  chunkSize: { type: integer, enum: [8388608] }
+        '400':
+          description: 文件名或大小无效
+        '401':
+          description: 未认证
+        '403':
+          description: 无物料管理权限或非项目成员
+        '413':
+          description: 文件超过 1GB（file_too_large）
+        '429':
+          description: 同时上传的会话超过 3 个（upload_limit）
+  /api/projects/{id}/materials/uploads/{uploadId}:
+    put:
+      tags: [物料管理]
+      summary: 追加物料文件分片
+      description: 需 materials:manage 权限，且会话属于本人同一项目。必须按偏移顺序串行上传，每片恰好 8MB，最后一片为剩余字节；服务端验证每片与累计长度。偏移错误返回 409，长度错误返回 400，不接受超出申报大小的内容。返回 received 是服务端已确认字节数。
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: uploadId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [offset, file]
+              properties:
+                offset: { type: integer, minimum: 0, description: 已确认字节数，首片为 0 }
+                file: { type: string, format: binary, description: 当前文件分片，最多 8MB }
+      responses:
+        '200':
+          description: 分片已保存
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [received]
+                properties:
+                  received: { type: integer }
+        '400':
+          description: 缺少分片或分片长度错误
+        '401':
+          description: 未认证
+        '403':
+          description: 无物料管理权限或非项目成员
+        '404':
+          description: 会话不存在、过期或不属于当前用户与项目
+        '409':
+          description: 偏移不匹配或会话正在处理（upload_offset / upload_busy）
+        '413':
+          description: 分片超过 8MB（file_too_large）
+    delete:
+      tags: [物料管理]
+      summary: 取消物料分片上传
+      description: 需 materials:manage 权限，且会话属于本人同一项目。删除会话及暂存文件，释放上传名额；已经消费或取消的会话返回 404。
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: uploadId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: 已取消
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, enum: [true] }
+        '401':
+          description: 未认证
+        '403':
+          description: 无物料管理权限或非项目成员
+        '404':
+          description: 会话不存在、过期或不属于当前用户与项目
+        '409':
+          description: 会话正在处理（upload_busy）
   /api/projects/{id}/materials/types:
     get:
       tags: [物料管理]
@@ -3935,7 +4045,7 @@ paths:
     post:
       tags: [物料管理]
       summary: 上传新版本
-      description: 需 materials:manage 权限。版本号自动递增并成为当前版；mime 命中位图白名单（png/jpeg/webp/gif）时自动生成 WebP 缩略预览（宽 ≤800px，体积 ≤100KB）。
+      description: 需 materials:manage 权限。支持 multipart 文件或 JSON uploadId（完整上传会话），两者不能同时提交。需通过资源实时可见范围校验。版本号自动递增并成为当前版；mime 命中位图白名单（png/jpeg/webp/gif）时自动生成 WebP 缩略预览（宽 ≤800px，体积 ≤100KB）。
       parameters:
         - name: id
           in: path
@@ -3948,6 +4058,13 @@ paths:
       requestBody:
         required: true
         content:
+          application/json:
+            schema:
+              type: object
+              required: [uploadId]
+              properties:
+                uploadId: { type: string, description: 完整上传会话 ID，仅本人同项目可消费一次 }
+                note: { type: string, description: 版本备注 }
           multipart/form-data:
             schema:
               type: object
@@ -3956,7 +4073,7 @@ paths:
                 file:
                   type: string
                   format: binary
-                  description: 必填，≤20MB
+                  description: 必填，≤1GB（1024MB）
                 note: { type: string, description: 版本备注 }
       responses:
         '201':
@@ -3985,6 +4102,11 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
         '404':
           description: 资源不存在（not_found）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '413':
+          description: 文件超过 1GB（file_too_large）
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
