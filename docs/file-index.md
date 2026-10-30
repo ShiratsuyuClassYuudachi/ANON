@@ -19,7 +19,7 @@
 | 项目/成员/角色/邀请 | routes/projects.ts、routes/invites.ts、models/{Project,Membership,ProjectInvite}.ts、services/permissions.ts | pages/{Projects,ProjectHome,InviteAccept}.tsx、project/{MembersTab,RolesTab,SettingsTab}.tsx | tests/{projects,invites}.test.ts |
 | 待办（含模板/进度） | routes/todos.ts、models/{Todo,ReminderLog}.ts、services/{template,todos}.ts | project/{TodosTab,TodoFormDialog,TodoActionSheet}.tsx | tests/{todos,todo-complete,todo-updates,template}.test.ts |
 | 财务 | routes/finance.ts、models/Transaction.ts、services/{finance,financeEntries}.ts | project/FinanceTab.tsx | tests/finance.test.ts |
-| 物料/资料库/文件 | routes/{materials,files}.ts、models/{Resource,ResourceType,ResourceVersion,File}.ts、services/{preview,storage}.ts、middleware/upload.ts | project/MaterialsTab.tsx（折叠等高卡片/小图与大图预览）、components/{AuthImg,AuthMedia}.tsx | tests/{materials,files}.test.ts |
+| 物料/资料库/文件 | routes/{materials,files}.ts、models/{Resource,ResourceType,ResourceVersion,File}.ts、services/{materialVisibility,materialUploads,preview,storage}.ts、middleware/upload.ts | project/MaterialsTab.tsx（两层类别/联动筛选/类别管理/上传进度/小图与大图预览）、components/{AuthImg,AuthMedia}.tsx | tests/{materials,material-uploads,files}.test.ts |
 | 实物/物资台账 | routes/physical.ts、models/Physical{Category,Item,ItemLog}.ts | project/PhysicalTab.tsx | tests/physical.test.ts |
 | 平台账号（加密） | routes/accounts.ts、models/PlatformAccount.ts、services/platformCrypto.ts | project/AccountsTab.tsx、crypto.ts（浏览器端加密） | tests/accounts.test.ts |
 | 公告 | routes/announcements.ts、models/{Announcement,AnnouncementConfirmation}.ts | project/AnnouncementManager.tsx | tests/announcements.test.ts |
@@ -106,7 +106,7 @@
 - `ReminderLog.ts` — 提醒去重：todoId+kind+targetId（唯一；targetId 必填写入——FerretDB sparse 索引将缺失字段按 null 索引）
 - `QQBindCode.ts` — QQ 绑定码：code 唯一/kind(user|project)/userId|projectId/expiresAt（TTL 自动清理）
 - `Transaction.ts` — 财务：type/amountCents/payerUserId/splitAmong
-- `Resource.ts` / `ResourceType.ts` / `ResourceVersion.ts` / `File.ts` — 资料库四层：类型→资源→版本→文件；ResourceType 导出共用 visibilitySchema
+- `Resource.ts` / `ResourceType.ts` / `ResourceVersion.ts` / `File.ts` — 资料库：两层类别（parentId）→资源→版本→文件；ResourceType 导出共用 visibilitySchema
 - `PhysicalCategory.ts` / `PhysicalItem.ts` / `PhysicalItemLog.ts` — 实物台账：分类(含默认常量)/条目(状态枚举+中文标签)/操作日志
 - `PlatformAccount.ts` — 平台账号：platform/mode/passwordCipher/visibility
 - `Announcement.ts` / `AnnouncementConfirmation.ts` — 公告 + 确认记录（唯一索引）
@@ -138,6 +138,8 @@
 - `permissions.ts` — ALL_PERMISSIONS(15 项) + PRESET_ROLES(4 预设角色) + grantPermissionToAllRoles（新权限点启动迁移，默认授予所有角色）
 - `platformCrypto.ts` — 平台账号密码 AES-256-GCM（iv:tag:data）
 - `preview.ts` — sharp 转 WebP 预览（≤800px、≤100KB）
+- `materialVisibility.ts` — 物料可见范围逐级继承（资源→子类别→一级类别），用于网页、文件直链及 QQ
+- `materialUploads.ts` — 物料 1 GB 分片上传会话、偏移/大小校验、消费与取消、过期暂存清理
 - `risk.ts` — computeRisks 规则探测 + reconcileRisks 落库/通知 + computeHealth
 - `session.ts` — 刷新令牌签发/轮换/吊销（30 天、上限 10）
 - `storage.ts` — S3/本地双后端文件存取
@@ -203,7 +205,7 @@
 - `FormOverlay.tsx` — **弹层规范核心**：所有含输入框的弹层一律经此渲染浮动居中 Dialog（禁底部 Sheet 表单）
 - `AuthImg.tsx` — 鉴权图片（useAuthorizedObjectUrl → objectURL）
 - `AuthMedia.tsx` — 鉴权 PDF/音视频/Markdown 预览（iframe/video/audio/react-markdown + useAuthorizedObjectUrl；previewKindOf 按 mime+扩展名归类）
-- `DemoBadge.tsx` / `DemoBanner.tsx` — 演示站角标 / 横幅（一键还原种子）
+- `DemoBadge.tsx` / `DemoBanner.tsx` — 演示站角标 / 横幅（等待文件清理后还原种子，失败可重试）
 - `TrialBanner.tsx` — 试用横幅（数据销毁倒计时）
 - `PushBanner.tsx` / `PushSettingsCard.tsx` — Push 提示条 / 订阅开关卡
 - `QqBindCard.tsx` — Me 页 QQ 通知卡：未启用提示 / 生成绑定码（大字码+指引）/ 已绑定后生成群绑定码 / 解绑清除页面旧码
@@ -219,7 +221,7 @@
 - `DashboardTab.tsx` — 仪表盘聚合（内嵌公告/里程碑/阶段卡）
 - `TodosTab.tsx` + `TodoFormDialog.tsx` + `TodoActionSheet.tsx` — 待办列表/表单（日期字段支持开展倒排录入）/完成与进度弹层
 - `FinanceTab.tsx` — 记账/门票/CSV 导出
-- `MaterialsTab.tsx` — 资料分类/版本/实物入口；数字资源默认折叠等高卡片与80×80小图、详情展开/版本切换下载、按视口等比缩放大图、可见范围居中弹窗；帮助截图 public/help/{tab-materials,materials-version-switch,materials-image-preview,materials-pdf-preview,materials-create-with-file}.png
+- `MaterialsTab.tsx` — 两层类别联动筛选（忽略过期请求）、名称/描述搜索与排序、独立类别管理、资源编辑、1 GB 上传进度与失败弹窗；数字资源默认折叠等高卡片与80×80小图、详情展开/版本切换下载、按视口等比缩放大图、可见范围居中弹窗；实物入口与帮助截图 public/help/{tab-materials,materials-version-switch,materials-image-preview,materials-pdf-preview,materials-create-with-file}.png
 - `PhysicalTab.tsx` — 实物分类/台账/状态/日志
 - `AccountsTab.tsx` — 平台账号增删/密码揭示
 - `MembersTab.tsx` / `RolesTab.tsx` — 成员邀请/角色权限
@@ -236,10 +238,10 @@
 - `tools/LostFoundTool.tsx` + `LostFoundItemDialog.tsx` + `LostFoundClaimDialog.tsx` — 失物列表/登记表单(multipart 单照片)/认领备注弹层 + 公开分享开关卡
 
 ### 演示站 `src/demo/`（`npm run build:demo`，浏览器内 mock 全部 /api）
-- `install.ts` — installDemo：包装 window.fetch 拦截 /api/*；sessionStorage 内存库
+- `install.ts` — installDemo：包装 window.fetch 拦截 /api/*；恢复 sessionStorage 内存库并清理会话遗留文件；resetDemo 等待在途请求及文件回收后清除会话
 - `router.ts` — def/route：`:param` 模板路由 + 80ms 延迟；Ctx 透传 Authorization 头（open/me 识别 anonk_demo_*）
-- `seed.ts` — buildSeed（DB_VERSION=7）：相对当前时刻生成演示数据（含两条自定义工具种子）
-- `types.ts` / `helpers.ts` — Db/Ctx/Handler 类型 / 错误信封·权限·文件存取
+- `seed.ts` — buildSeed（DB_VERSION=8）：相对当前时刻生成演示数据（含两层物料类别、两条自定义工具种子）
+- `types.ts` / `helpers.ts` — Db/Ctx/Handler 类型 / 错误信封·权限·文件存取；大文件 IndexedDB 持久化、共享锁保护活跃标签页、删除与孤立文件回收
 - `aggregate.ts` — R1–R7 聚合（注释标注移植自后端哪个服务）
 - `handlers/*.ts`（15 个）— 按域复刻后端路由：auth/projects/todos/finance/materials/physical/accounts/dashboard/work/stageRundowns/stageSignups/customTools/open/lostFound + index.ts 合并路由表
 - `pwa-register-stub.ts` — 禁 SW 防缓存干扰 mock

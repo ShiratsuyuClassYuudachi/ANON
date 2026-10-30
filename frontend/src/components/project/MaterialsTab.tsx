@@ -436,26 +436,40 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
   } | null>(null);
   const [savingCategory, setSavingCategory] = useState(false);
   const [deleteTypeFor, setDeleteTypeFor] = useState<ResourceTypeItem | null>(null);
+  const loadSequence = useRef(0);
+  const loadFilters = useRef({ projectId: project.id, filterRoot, filterChild });
+  if (loadFilters.current.projectId !== project.id || loadFilters.current.filterRoot !== filterRoot || loadFilters.current.filterChild !== filterChild) {
+    loadFilters.current = { projectId: project.id, filterRoot, filterChild };
+  }
 
   const load = useCallback(async () => {
+    const filters = loadFilters.current;
+    const { projectId, filterRoot, filterChild } = filters;
+    const sequence = ++loadSequence.current;
     const params = new URLSearchParams();
     if (filterRoot) {
       params.set('typeId', filterChild === 'all' || filterChild === 'direct' ? filterRoot : filterChild);
       if (filterChild === 'all') params.set('includeChildren', 'true');
     }
     const query = params.toString();
-    const [typeResponse, resourceResponse] = await Promise.all([
-      api<{ types: ResourceTypeItem[] }>('/api/projects/' + project.id + '/materials/types'),
-      api<{ resources: ResourceItem[] }>('/api/projects/' + project.id + '/materials' + (query ? '?' + query : '')),
-    ]);
-    setTypes(typeResponse.types);
-    setResources(resourceResponse.resources);
-    setErr('');
-  }, [filterChild, filterRoot, project.id]);
+    try {
+      const [typeResponse, resourceResponse] = await Promise.all([
+        api<{ types: ResourceTypeItem[] }>('/api/projects/' + projectId + '/materials/types'),
+        api<{ resources: ResourceItem[] }>('/api/projects/' + projectId + '/materials' + (query ? '?' + query : '')),
+      ]);
+      if (sequence !== loadSequence.current || filters !== loadFilters.current) return;
+      setTypes(typeResponse.types);
+      setResources(resourceResponse.resources);
+      setErr('');
+    } catch (error) {
+      if (sequence === loadSequence.current && filters === loadFilters.current) throw error;
+    }
+  }, []);
 
   useEffect(() => {
     load().catch((error) => setErr((error as Error).message));
-  }, [load]);
+    return () => { loadSequence.current++; };
+  }, [load, filterChild, filterRoot, project.id]);
 
   const rootOptions = (() => {
     const roots: { id: string; name: string; type: ResourceTypeItem | null; restricted: boolean }[] =

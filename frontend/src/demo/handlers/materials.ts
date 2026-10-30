@@ -1,4 +1,4 @@
-import { badRequest, bodyObj, err, fileResponse, form, getFileOr404, json, notFound, nowIso, parseVis, requireProject, storeUpload, uid } from '../helpers';
+import { badRequest, bodyObj, deleteDemoFiles, err, fileResponse, form, getFileOr404, json, notFound, nowIso, parseVis, requireProject, storeUpload, uid } from '../helpers';
 import { def, type Route } from '../router';
 import type { Ctx, Db, DbResource, DbResourceVersion } from '../types';
 import { MATERIAL_MAX_BYTES } from '../../api/client';
@@ -267,6 +267,8 @@ export const materialRoutes: Route[] = [
     const { db } = ctx;
     requireProject(ctx);
     const resource = findResource(ctx);
+    const fileIds = db.versions.filter((v) => v.resourceId === resource.id).map((v) => v.fileId);
+    await deleteDemoFiles(db, fileIds);
     db.versions = db.versions.filter((v) => v.resourceId !== resource.id);
     db.resources.splice(db.resources.indexOf(resource), 1);
     return json({ ok: true });

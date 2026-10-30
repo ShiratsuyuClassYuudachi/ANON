@@ -144,13 +144,78 @@ async function demoFileStore<T>(mode: IDBTransactionMode, operation: (store: IDB
   }
 }
 
+// 活跃页面为引用的文件持有共享锁；刷新时先恢复引用，再回收无人引用的 Blob。
+// 关闭标签页后浏览器自动释放锁，下次进入演示站时即可回收遗留文件。
+const retainedFiles = new Map<string, () => Promise<void>>();
+const FILE_LOCK_PREFIX = 'anon-demo-file:';
+
+async function retainDemoFile(id: string): Promise<void> {
+  if (retainedFiles.has(id) || !navigator.locks) return;
+  await new Promise<void>((resolve, reject) => {
+    const held = navigator.locks.request(FILE_LOCK_PREFIX + id, { mode: 'shared' }, async () => {
+      await new Promise<void>((release) => {
+        retainedFiles.set(id, async () => { release(); await held; });
+        resolve();
+      });
+    });
+    void held.catch(reject);
+  });
+}
+
+async function releaseDemoFile(id: string) {
+  const release = retainedFiles.get(id);
+  retainedFiles.delete(id);
+  await release?.();
+}
+
+function storedFileId(file: DbFile): string | null {
+  return file.dataUrl?.startsWith('indexeddb:') ? file.dataUrl.slice('indexeddb:'.length) : null;
+}
+
+async function removeUnusedDemoFile(id: IDBValidKey): Promise<void> {
+  const remove = () => demoFileStore('readwrite', (store) => store.delete(id));
+  if (!navigator.locks) return;
+  await navigator.locks.request(FILE_LOCK_PREFIX + String(id), { ifAvailable: true }, async (lock) => {
+    if (lock) await remove();
+  });
+}
+
+/** 恢复当前标签页的引用；其他活跃演示标签页的文件由各自的锁保护。 */
+export async function restoreDemoFiles(db: Db): Promise<void> {
+  await Promise.all(Object.values(db.files).map((file) => {
+    const id = storedFileId(file);
+    return id ? retainDemoFile(id) : Promise.resolve();
+  }));
+  const keys = await demoFileStore('readonly', (store) => store.getAllKeys());
+  await Promise.all(keys.map(removeUnusedDemoFile));
+}
+
+/** 资源删除和重置共用回收路径；失败时保留元数据，允许用户重试。 */
+export async function deleteDemoFiles(db: Db, ids: string[]): Promise<void> {
+  for (const id of ids) {
+    const storedId = db.files[id] && storedFileId(db.files[id]);
+    if (!storedId) continue;
+    await releaseDemoFile(storedId);
+    try {
+      if (navigator.locks) await removeUnusedDemoFile(storedId);
+      else await demoFileStore('readwrite', (store) => store.delete(storedId));
+    } catch (error) {
+      await retainDemoFile(storedId);
+      throw error;
+    }
+  }
+  for (const id of ids) delete db.files[id];
+}
+
 /** 小文件沿用 data URL；大文件单独存储，刷新后仍可读取。 */
 export async function storeUpload(db: Db, file: File): Promise<string> {
   if (file.size > 8 * 1024 * 1024) {
     const id = uid();
     try {
+      await retainDemoFile(id);
       await demoFileStore('readwrite', (store) => store.put(file, id));
     } catch {
+      await releaseDemoFile(id);
       throw badRequest('浏览器存储空间不足或不可用，无法保存文件，请释放空间后重试');
     }
     db.files[id] = { filename: file.name, mime: file.type || 'application/octet-stream', size: file.size, dataUrl: `indexeddb:${id}` };

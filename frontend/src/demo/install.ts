@@ -1,9 +1,15 @@
 import { route } from './router';
 import { buildSeed, DB_VERSION } from './seed';
 import type { Db } from './types';
+import { deleteDemoFiles, err, restoreDemoFiles } from './helpers';
 
 const STORAGE_KEY = 'anon-demo-db';
 const TOKEN_KEY = 'anon-token';
+let resetSession: (() => Promise<void>) | null = null;
+
+export async function resetDemo(): Promise<void> {
+  await resetSession?.();
+}
 
 /**
  * 演示模式安装入口（main.tsx 在渲染前 await）：
@@ -26,6 +32,8 @@ export async function installDemo(): Promise<void> {
   } else {
     db = await buildSeed();
   }
+  // 禁用 IndexedDB 的浏览器仍可浏览种子；实际上传/重置时会报告存储错误。
+  await restoreDemoFiles(db).catch(() => {});
 
   const persist = () => {
     try {
@@ -36,11 +44,32 @@ export async function installDemo(): Promise<void> {
   };
   persist();
 
+  let resetting = false;
+  const pending = new Set<Promise<Response>>();
+  resetSession = async () => {
+    resetting = true;
+    try {
+      await Promise.allSettled([...pending]);
+      await deleteDemoFiles(db, Object.keys(db.files));
+      sessionStorage.removeItem(STORAGE_KEY);
+    } catch (error) {
+      resetting = false;
+      throw error;
+    }
+  };
+
   const origFetch = window.fetch.bind(window);
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = new URL(typeof input === 'string' ? input : input instanceof Request ? input.url : input.href, location.origin);
     if (!url.pathname.startsWith('/api/')) return origFetch(input as never, init);
+    if (resetting) return err(503, 'demo_resetting', '正在还原示例数据，请稍候');
     const method = (init?.method ?? 'GET').toUpperCase();
-    return route(db, method, url, init, (src: string) => origFetch(src), persist);
+    const response = route(db, method, url, init, (src: string) => origFetch(src), persist);
+    pending.add(response);
+    try {
+      return await response;
+    } finally {
+      pending.delete(response);
+    }
   };
 }
