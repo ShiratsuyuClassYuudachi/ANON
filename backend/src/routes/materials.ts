@@ -7,10 +7,11 @@ import { Resource, type ResourceDoc } from '../models/Resource';
 import { ResourceType, type ResourceTypeDoc } from '../models/ResourceType';
 import { ResourceVersion, type ResourceVersionDoc } from '../models/ResourceVersion';
 import { logActivity } from '../services/activity';
+import { canSeeMaterialCategory, canSeeMaterialResource, indexMaterialCategories } from '../services/materialVisibility';
 import { generatePreview } from '../services/preview';
 import { appendMaterialChunk, cancelMaterialUpload, startMaterialUpload, takeMaterialUpload } from '../services/materialUploads';
 import { deleteStored, persistUploads, sendStoredFile } from '../services/storage';
-import { canSee, type Viewer } from '../services/visibility';
+import type { Viewer } from '../services/visibility';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
 
@@ -61,7 +62,7 @@ function parseVisibility(v: unknown): { userIds: string[]; roleNames: string[] }
 }
 
 function typeJson(t: ResourceTypeDoc) {
-  return { id: t._id.toString(), name: t.name, visibility: visibilityJson(t.visibility) };
+  return { id: t._id.toString(), name: t.name, parentId: t.parentId?.toString() ?? null, visibility: visibilityJson(t.visibility) };
 }
 
 function resourceJson(r: ResourceDoc, latest: ResourceVersionDoc | null, latestFile?: { mime: string; filename: string } | null) {
@@ -96,8 +97,11 @@ async function versionJson(v: ResourceVersionDoc) {
 async function loadVisibleResource(req: Request) {
   const resource = await Resource.findOne({ _id: req.params.resourceId, projectId: req.project!._id });
   if (!resource) throw new AppError(404, 'not_found', '资源不存在');
-  const type = await ResourceType.findById(resource.typeId);
-  if (!canSee(viewerOf(req), resource.visibility, type?.visibility)) {
+  const [type, categories] = await Promise.all([
+    ResourceType.findOne({ _id: resource.typeId, projectId: req.project!._id }),
+    ResourceType.find({ projectId: req.project!._id }),
+  ]);
+  if (!canSeeMaterialResource(viewerOf(req), resource.visibility, type, indexMaterialCategories(categories))) {
     throw new AppError(403, 'forbidden', '该资源对你不可见');
   }
   return { resource, type };
@@ -153,7 +157,8 @@ materialsRouter.get(
   ah(async (req, res) => {
     const viewer = viewerOf(req);
     const types = await ResourceType.find({ projectId: req.project!._id }).sort({ createdAt: 1 });
-    res.json({ types: types.filter((t) => canSee(viewer, t.visibility)).map(typeJson) });
+    const categoryMap = indexMaterialCategories(types);
+    res.json({ types: types.filter((t) => canSeeMaterialCategory(viewer, t, categoryMap)).map(typeJson) });
   }),
 );
 
@@ -161,11 +166,23 @@ materialsRouter.post(
   '/types',
   ...requirePermission('materials:manage'),
   ah(async (req, res) => {
-    const { name } = req.body ?? {};
+    const { name, parentId } = req.body ?? {};
     if (!name || !String(name).trim()) throw new AppError(400, 'bad_request', '类型名称必填');
+    let parent: ResourceTypeDoc | null = null;
+    if (parentId !== undefined && parentId !== null) {
+      if (typeof parentId !== 'string') throw new AppError(400, 'bad_request', '上级类别无效');
+      parent = await ResourceType.findOne({ _id: parentId, projectId: req.project!._id });
+      if (!parent) throw new AppError(400, 'bad_request', '上级类别不存在');
+      if (parent.parentId) throw new AppError(400, 'bad_request', '类别最多支持两层');
+      const categories = await ResourceType.find({ projectId: req.project!._id });
+      if (!canSeeMaterialCategory(viewerOf(req), parent, indexMaterialCategories(categories))) {
+        throw new AppError(403, 'forbidden', '上级类别对你不可见');
+      }
+    }
     const t = await ResourceType.create({
       projectId: req.project!._id,
       name: String(name).trim(),
+      parentId: parent?._id ?? null,
       visibility: parseVisibility(req.body?.visibility) ?? { userIds: [], roleNames: [] },
     });
     res.status(201).json({ type: typeJson(t) });
@@ -178,8 +195,34 @@ materialsRouter.patch(
   ah(async (req, res) => {
     const t = await ResourceType.findOne({ _id: req.params.typeId, projectId: req.project!._id });
     if (!t) throw new AppError(404, 'not_found', '资源类型不存在');
-    const { name } = req.body ?? {};
-    if (name !== undefined) t.name = String(name).trim();
+    const { name, parentId } = req.body ?? {};
+    if (name !== undefined) {
+      const normalizedName = String(name).trim();
+      if (!normalizedName) throw new AppError(400, 'bad_request', '类型名称必填');
+      t.name = normalizedName;
+    }
+    if (parentId !== undefined) {
+      let parent: ResourceTypeDoc | null = null;
+      if (parentId !== null) {
+        if (typeof parentId !== 'string') throw new AppError(400, 'bad_request', '上级类别无效');
+        parent = await ResourceType.findOne({ _id: parentId, projectId: req.project!._id });
+        if (!parent) throw new AppError(400, 'bad_request', '上级类别不存在');
+        if (parent.parentId) throw new AppError(400, 'bad_request', '类别最多支持两层');
+        if (parent._id.equals(t._id)) throw new AppError(400, 'bad_request', '不能将类别设为自己的上级');
+        if (!t.parentId?.equals(parent._id)) {
+          const categories = await ResourceType.find({ projectId: req.project!._id });
+          if (!canSeeMaterialCategory(viewerOf(req), parent, indexMaterialCategories(categories))) {
+            throw new AppError(403, 'forbidden', '上级类别对你不可见');
+          }
+        }
+      }
+      const oldParentId = t.parentId?.toString() ?? null;
+      const newParentId = parent?._id.toString() ?? null;
+      if (oldParentId !== newParentId && await ResourceType.exists({ projectId: req.project!._id, parentId: t._id })) {
+        throw new AppError(400, 'bad_request', '含有子类别的一级类别不能调整为二级');
+      }
+      t.parentId = parent?._id ?? null;
+    }
     const vis = parseVisibility(req.body?.visibility);
     if (vis) t.visibility = vis as never;
     await t.save();
@@ -195,6 +238,9 @@ materialsRouter.delete(
     if (!t) throw new AppError(404, 'not_found', '资源类型不存在');
     const inUse = await Resource.exists({ typeId: t._id });
     if (inUse) throw new AppError(400, 'bad_request', '类型下仍有资源，无法删除');
+    if (await ResourceType.exists({ projectId: req.project!._id, parentId: t._id })) {
+      throw new AppError(400, 'bad_request', '类别下仍有子类别，无法删除');
+    }
     await t.deleteOne();
     res.json({ ok: true });
   }),
@@ -207,11 +253,25 @@ materialsRouter.get(
   ah(async (req, res) => {
     const viewer = viewerOf(req);
     const filter: Record<string, unknown> = { projectId: req.project!._id };
-    if (req.query.typeId) filter.typeId = String(req.query.typeId);
+    const requestedTypeId = req.query.typeId ? String(req.query.typeId) : '';
+    let scopedTypeIds: string[] | null = null;
+    if (requestedTypeId) {
+      if (req.query.includeChildren === 'true') {
+        const selectedType = await ResourceType.findOne({ _id: requestedTypeId, projectId: req.project!._id });
+        if (selectedType) {
+          const children = await ResourceType.find({ projectId: req.project!._id, parentId: selectedType._id }).select('_id');
+          scopedTypeIds = [selectedType._id.toString(), ...children.map((child) => child._id.toString())];
+        } else {
+          scopedTypeIds = [];
+        }
+      } else {
+        filter.typeId = requestedTypeId;
+      }
+    }
+    if (scopedTypeIds) filter.typeId = { $in: scopedTypeIds };
     const resources = await Resource.find(filter).sort({ createdAt: -1 });
-    const typeIds = [...new Set(resources.map((r) => r.typeId.toString()))];
-    const types = await ResourceType.find({ _id: { $in: typeIds } });
-    const typeMap = new Map(types.map((t) => [t._id.toString(), t]));
+    const types = await ResourceType.find({ projectId: req.project!._id });
+    const typeMap = indexMaterialCategories(types);
     const versions = await ResourceVersion.find({
       resourceId: { $in: resources.map((r) => r._id) },
     }).sort({ version: -1 });
@@ -220,9 +280,12 @@ materialsRouter.get(
       const key = v.resourceId.toString();
       if (!latestMap.has(key)) latestMap.set(key, v);
     }
-    const visible = resources.filter((r) =>
-      canSee(viewer, r.visibility, typeMap.get(r.typeId.toString())?.visibility),
-    );
+    const visible = resources.filter((r) => canSeeMaterialResource(
+      viewer,
+      r.visibility,
+      typeMap.get(r.typeId.toString()) ?? null,
+      typeMap,
+    ));
     // 无缩略预览的最新版本批量取一次文件信息，供 hasPreview 按内联白名单据实回报
     // （fileId 判空：filePath 时代的历史版本文档没有 fileId，缺文件不应拖垮整个列表）
     const fileIds = [...latestMap.values()].filter((v) => !v.previewPath && v.fileId).map((v) => v.fileId);
@@ -251,7 +314,10 @@ materialsRouter.post(
       if (!name || !String(name).trim()) throw new AppError(400, 'bad_request', '资源名称必填');
       const type = await ResourceType.findOne({ _id: typeId, projectId: req.project!._id });
       if (!type) throw new AppError(400, 'bad_request', '资源类型不存在');
-      if (!canSee(viewerOf(req), type.visibility)) throw new AppError(403, 'forbidden', '该资源类型对你不可见');
+      const categories = await ResourceType.find({ projectId: req.project!._id });
+      if (!canSeeMaterialCategory(viewerOf(req), type, indexMaterialCategories(categories))) {
+        throw new AppError(403, 'forbidden', '该资源类型对你不可见');
+      }
       await receiveCompletedUpload(req);
       const r = await Resource.create({
         projectId: req.project!._id,
@@ -314,9 +380,13 @@ materialsRouter.patch(
     const { name, description, typeId } = req.body ?? {};
     if (name !== undefined) resource.name = String(name).trim();
     if (description !== undefined) resource.description = String(description);
-    if (typeId !== undefined) {
+    if (typeId !== undefined && String(typeId) !== resource.typeId.toString()) {
       const type = await ResourceType.findOne({ _id: typeId, projectId: req.project!._id });
       if (!type) throw new AppError(400, 'bad_request', '资源类型不存在');
+      const categories = await ResourceType.find({ projectId: req.project!._id });
+      if (!canSeeMaterialCategory(viewerOf(req), type, indexMaterialCategories(categories))) {
+        throw new AppError(403, 'forbidden', '该资源类型对你不可见');
+      }
       resource.typeId = type._id;
     }
     const vis = parseVisibility(req.body?.visibility);

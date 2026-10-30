@@ -8,6 +8,7 @@ export interface IVisibility {
 export interface IResourceType {
   projectId: Types.ObjectId;
   name: string;
+  parentId?: Types.ObjectId | null;
   visibility: IVisibility;
 }
 
@@ -25,11 +26,13 @@ const schema = new Schema<IResourceType>(
   {
     projectId: { type: Schema.Types.ObjectId, ref: 'Project', required: true },
     name: { type: String, required: true },
+    parentId: { type: Schema.Types.ObjectId, ref: 'ResourceType', default: null },
     visibility: { type: visibilitySchema, default: () => ({ userIds: [], roleNames: [] }) },
   },
   { timestamps: true },
 );
 schema.index({ projectId: 1 });
+schema.index({ projectId: 1, parentId: 1 });
 
 // vitest 在同一 fork 中跨测试文件复用外部化的 mongoose 实例，模型需幂等注册
 export const ResourceType: Model<IResourceType> =

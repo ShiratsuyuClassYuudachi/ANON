@@ -92,6 +92,7 @@ export interface DbResourceType {
   id: string;
   projectId: string;
   name: string;
+  parentId?: string | null;
   visibility: Visibility;
   createdAt: string;
 }

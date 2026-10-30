@@ -68,7 +68,7 @@ export interface FinanceSummary {
   settlement: { from: TxUser; to: TxUser; amountCents: number }[];
 }
 export interface Visibility { userIds: string[]; roleNames: string[]; }
-export interface ResourceTypeItem { id: string; name: string; visibility: Visibility; }
+export interface ResourceTypeItem { id: string; name: string; parentId: string | null; visibility: Visibility; }
 export interface ResourceItem {
   id: string; typeId: string; name: string; description: string;
   visibility: Visibility; latestVersion: number; hasPreview: boolean; createdAt: string;

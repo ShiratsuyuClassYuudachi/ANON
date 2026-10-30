@@ -4,6 +4,8 @@ import mongoose, { Types } from 'mongoose';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../src/app';
 import { InviteCode } from '../src/models/InviteCode';
+import { ResourceType } from '../src/models/ResourceType';
+import { ResourceVersion } from '../src/models/ResourceVersion';
 import { User } from '../src/models/User';
 import { createSuperAdmin, registerUser } from './helpers';
 
@@ -46,11 +48,11 @@ async function pngBuffer(): Promise<Buffer> {
     .toBuffer();
 }
 
-async function addType(token: string, name = '海报', visibility?: unknown) {
+async function addType(token: string, name = '海报', visibility?: unknown, parentId?: string | null) {
   const res = await request(app)
     .post(`/api/projects/${projectId}/materials/types`)
     .set('Authorization', `Bearer ${token}`)
-    .send({ name, visibility });
+    .send({ name, visibility, parentId });
   expect(res.status).toBe(201);
   return res.body.type as { id: string; name: string };
 }
@@ -126,6 +128,107 @@ describe('materials: 类型与资源 CRUD', () => {
       .delete(`/api/projects/${projectId}/materials/${r.id}`)
       .set('Authorization', `Bearer ${owner.token}`);
     expect(del.status).toBe(200);
+  });
+
+  it('两层类别校验、资源筛选与类别调整', async () => {
+    const root = await addType(owner.token, '视觉设计');
+    const child = await addType(owner.token, '海报', undefined, root.id);
+    const otherRoot = await addType(owner.token, '文档');
+    expect(child.parentId).toBe(root.id);
+
+    const nested = await request(app)
+      .post(`/api/projects/${projectId}/materials/types`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ name: '不可用的第三层', parentId: child.id });
+    expect(nested.status).toBe(400);
+
+    const direct = await addResource(owner.token, root.id, '主视觉源文件');
+    const underChild = await addResource(owner.token, child.id, '海报终稿');
+    expect(await ResourceType.exists({ _id: child.id, parentId: root.id })).toBeTruthy();
+    const renameParent = await request(app)
+      .patch(`/api/projects/${projectId}/materials/types/${root.id}`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ name: '主视觉', parentId: null });
+    expect(renameParent.status).toBe(200);
+    const directOnly = await request(app)
+      .get(`/api/projects/${projectId}/materials?typeId=${root.id}`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    expect(directOnly.body.resources.map((resource: { id: string }) => resource.id)).toEqual([direct.id]);
+
+    const subtree = await request(app)
+      .get(`/api/projects/${projectId}/materials?typeId=${root.id}&includeChildren=true`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    expect(subtree.body.resources.map((resource: { id: string }) => resource.id).sort()).toEqual([direct.id, underChild.id].sort());
+
+    const demoteParent = await request(app)
+      .patch(`/api/projects/${projectId}/materials/types/${root.id}`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ parentId: otherRoot.id });
+    expect(demoteParent.status, JSON.stringify(demoteParent.body)).toBe(400);
+
+    const deleteParent = await request(app)
+      .delete(`/api/projects/${projectId}/materials/types/${root.id}`)
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(deleteParent.status).toBe(400);
+
+    const moveChild = await request(app)
+      .patch(`/api/projects/${projectId}/materials/types/${child.id}`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ parentId: otherRoot.id });
+    expect(moveChild.status).toBe(200);
+    expect(moveChild.body.type.parentId).toBe(otherRoot.id);
+
+    const promoteChild = await request(app)
+      .patch(`/api/projects/${projectId}/materials/types/${child.id}`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ parentId: null });
+    expect(promoteChild.status).toBe(200);
+    expect(promoteChild.body.type.parentId).toBeNull();
+  });
+
+  it('资源可见范围逐级继承并可由子类别或资源覆盖，文件直链同步校验', async () => {
+    const restrictedRoot = await addType(owner.token, '内部资料', { userIds: [artist.user.id], roleNames: [] });
+    const inheritedChild = await addType(owner.token, '内部图稿', undefined, restrictedRoot.id);
+    const publicChild = await addType(owner.token, '公开图稿', { userIds: [staff.user.id], roleNames: [] }, restrictedRoot.id);
+    const inheritedResource = await addResource(owner.token, inheritedChild.id, '内部资源');
+    const categoryOverrideResource = await addResource(owner.token, publicChild.id, '类别开放资源');
+    const resourceOverride = await addResource(
+      owner.token,
+      inheritedChild.id,
+      '资源单独开放',
+      { userIds: [staff.user.id], roleNames: [] },
+    );
+    await uploadVersion(owner.token, inheritedResource.id, Buffer.from('private'), 'private.txt');
+    await uploadVersion(owner.token, categoryOverrideResource.id, Buffer.from('category'), 'category.txt');
+
+    const types = await request(app)
+      .get(`/api/projects/${projectId}/materials/types`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    expect(types.body.types.map((type: { id: string }) => type.id)).toEqual([publicChild.id]);
+    expect(types.body.types[0].parentId).toBe(restrictedRoot.id);
+
+    const visibleList = await request(app)
+      .get(`/api/projects/${projectId}/materials?typeId=${restrictedRoot.id}&includeChildren=true`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    expect(visibleList.body.resources.map((resource: { id: string }) => resource.id).sort()).toEqual([categoryOverrideResource.id, resourceOverride.id].sort());
+
+    const deniedResource = await request(app)
+      .get(`/api/projects/${projectId}/materials/${inheritedResource.id}`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    expect(deniedResource.status).toBe(403);
+    const deniedVersionDownload = await request(app)
+      .get(`/api/projects/${projectId}/materials/${inheritedResource.id}/versions/1/download`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    expect(deniedVersionDownload.status).toBe(403);
+    const inheritedVersion = await ResourceVersion.findOne({ resourceId: inheritedResource.id }).lean();
+    const deniedDirectFile = await request(app)
+      .get(`/api/files/${inheritedVersion!.fileId}`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    expect(deniedDirectFile.status).toBe(403);
+    const allowedDirectFile = await request(app)
+      .get(`/api/files/${(await ResourceVersion.findOne({ resourceId: categoryOverrideResource.id }).lean())!.fileId}`)
+      .set('Authorization', `Bearer ${staff.token}`);
+    expect(allowedDirectFile.status).toBe(200);
   });
 });
 

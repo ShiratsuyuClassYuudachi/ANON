@@ -7,8 +7,8 @@ import { Membership } from '../models/Membership';
 import { Resource } from '../models/Resource';
 import { ResourceType } from '../models/ResourceType';
 import { ResourceVersion } from '../models/ResourceVersion';
+import { canSeeMaterialResource, indexMaterialCategories } from '../services/materialVisibility';
 import { persistUploads, sendStoredFile } from '../services/storage';
-import { canSee } from '../services/visibility';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
 
@@ -49,11 +49,15 @@ filesRouter.get(
       const rv = await ResourceVersion.findOne({ fileId: doc._id }).lean();
       if (rv) {
         const resource = await Resource.findById(rv.resourceId).lean();
-        const type = resource ? await ResourceType.findById(resource.typeId).lean() : null;
-        const visible = canSee(
+        const [type, categories] = resource ? await Promise.all([
+          ResourceType.findOne({ _id: resource.typeId, projectId: doc.projectId }).lean(),
+          ResourceType.find({ projectId: doc.projectId }).lean(),
+        ]) : [null, []];
+        const visible = canSeeMaterialResource(
           { userId: req.userId!, roleName: m.roleName, isSuperAdmin: false },
-          resource?.visibility,
-          type?.visibility,
+          resource?.visibility ?? null,
+          type,
+          indexMaterialCategories(categories),
         );
         if (!visible) throw new AppError(403, 'forbidden', '没有权限访问该文件');
       }

@@ -137,7 +137,7 @@ export const materialRoutes: Route[] = [
     const types = db.resourceTypes
       .filter((t) => t.projectId === params.pid)
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-    return json({ types: types.map((t) => ({ id: t.id, name: t.name, visibility: t.visibility })) });
+    return json({ types: types.map((t) => ({ id: t.id, name: t.name, parentId: t.parentId ?? null, visibility: t.visibility })) });
   }),
 
   def('POST', '/api/projects/:pid/materials/types', async (ctx) => {
@@ -145,9 +145,13 @@ export const materialRoutes: Route[] = [
     requireProject(ctx);
     const b = bodyObj(ctx);
     if (!b.name || !String(b.name).trim()) return badRequest('类型名称必填');
-    const t = { id: uid(), projectId: params.pid, name: String(b.name).trim(), visibility: parseVis(b.visibility), createdAt: nowIso() };
+    const parentId = b.parentId === undefined || b.parentId === null ? null : String(b.parentId);
+    const parent = parentId ? db.resourceTypes.find((x) => x.id === parentId && x.projectId === params.pid) : null;
+    if (parentId && !parent) return badRequest('上级类别不存在');
+    if (parent?.parentId) return badRequest('类别最多支持两层');
+    const t = { id: uid(), projectId: params.pid, name: String(b.name).trim(), parentId, visibility: parseVis(b.visibility), createdAt: nowIso() };
     db.resourceTypes.push(t);
-    return json({ type: { id: t.id, name: t.name, visibility: t.visibility } }, 201);
+    return json({ type: { id: t.id, name: t.name, parentId: t.parentId, visibility: t.visibility } }, 201);
   }),
 
   def('PATCH', '/api/projects/:pid/materials/types/:typeId', async (ctx) => {
@@ -156,9 +160,23 @@ export const materialRoutes: Route[] = [
     const t = db.resourceTypes.find((x) => x.id === params.typeId && x.projectId === params.pid);
     if (!t) return notFound('资源类型不存在');
     const b = bodyObj(ctx);
-    if (b.name !== undefined) t.name = String(b.name).trim();
+    if (b.name !== undefined) {
+      const name = String(b.name).trim();
+      if (!name) return badRequest('类型名称必填');
+      t.name = name;
+    }
+    if (b.parentId !== undefined) {
+      const oldParentId = t.parentId ?? null;
+      const parentId = b.parentId === null ? null : String(b.parentId);
+      const parent = parentId ? db.resourceTypes.find((x) => x.id === parentId && x.projectId === params.pid) : null;
+      if (parentId && !parent) return badRequest('上级类别不存在');
+      if (parent?.parentId) return badRequest('类别最多支持两层');
+      if (parent?.id === t.id) return badRequest('不能将类别设为自己的上级');
+      if (oldParentId !== parentId && db.resourceTypes.some((x) => x.parentId === t.id)) return badRequest('含有子类别的一级类别不能调整为二级');
+      t.parentId = parentId;
+    }
     if (b.visibility !== undefined) t.visibility = parseVis(b.visibility);
-    return json({ type: { id: t.id, name: t.name, visibility: t.visibility } });
+    return json({ type: { id: t.id, name: t.name, parentId: t.parentId ?? null, visibility: t.visibility } });
   }),
 
   def('DELETE', '/api/projects/:pid/materials/types/:typeId', async (ctx) => {
@@ -167,6 +185,7 @@ export const materialRoutes: Route[] = [
     const t = db.resourceTypes.find((x) => x.id === params.typeId && x.projectId === params.pid);
     if (!t) return notFound('资源类型不存在');
     if (db.resources.some((r) => r.typeId === t.id)) return badRequest('类型下仍有资源，无法删除');
+    if (db.resourceTypes.some((x) => x.parentId === t.id)) return badRequest('类别下仍有子类别，无法删除');
     db.resourceTypes.splice(db.resourceTypes.indexOf(t), 1);
     return json({ ok: true });
   }),
@@ -176,9 +195,13 @@ export const materialRoutes: Route[] = [
     const { db, params, query } = ctx;
     requireProject(ctx);
     const typeId = query.get('typeId');
+    const includeChildren = query.get('includeChildren') === 'true';
+    const matchingTypeIds = includeChildren
+      ? db.resourceTypes.filter((t) => t.id === typeId || t.parentId === typeId).map((t) => t.id)
+      : null;
     const resources = db.resources
       .filter((r) => r.projectId === params.pid)
-      .filter((r) => !typeId || r.typeId === typeId)
+      .filter((r) => !typeId || (includeChildren ? matchingTypeIds?.includes(r.typeId) : r.typeId === typeId))
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     return json({ resources: resources.map((r) => resourceJson(db, r)) });
   }),
