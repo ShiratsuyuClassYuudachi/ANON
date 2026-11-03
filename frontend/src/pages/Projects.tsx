@@ -19,6 +19,12 @@ const HEALTH_DOT: Record<HealthStatus, string> = {
   at_risk: 'bg-warning',
   critical: 'bg-destructive',
 };
+const HEALTH_LABEL: Record<HealthStatus, string> = {
+  normal: '正常',
+  attention: '需关注',
+  at_risk: '存在风险',
+  critical: '严重异常',
+};
 
 export default function Projects() {
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
@@ -61,9 +67,9 @@ export default function Projects() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">我的项目</h2>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-2xl font-semibold">我的项目</h2>
         <Button data-tour="new-project" onClick={() => setCreateOpen(true)}>
           <Plus className="size-4" /> 新建项目
         </Button>
@@ -84,9 +90,9 @@ export default function Projects() {
           </Button>
         </Card>
       ) : projects === null ? (
-        <div className="space-y-3">
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-24 w-full" />
+        <div className="grid gap-4 md:grid-cols-2">
+          <Skeleton className="h-[220px] w-full" />
+          <Skeleton className="h-[220px] w-full" />
         </div>
       ) : projects.length === 0 ? (
         <Card className="flex flex-col items-center gap-3 py-12 text-center">
@@ -95,19 +101,19 @@ export default function Projects() {
           <Button onClick={() => setCreateOpen(true)}>新建项目</Button>
         </Card>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2">
           {projects.map((p) => (
-            <Link key={p.id} to={'/p/' + p.id}>
-              <Card className="h-full transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md">
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <span className="truncate">{p.name}</span>
-                    <span className={`size-2.5 shrink-0 rounded-full ${HEALTH_DOT[p.health] ?? 'bg-muted-foreground'}`} />
+            <Link key={p.id} to={'/p/' + p.id} className="rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <Card className="h-full gap-4 py-5 transition-colors duration-150 hover:border-primary/50 hover:bg-accent/30">
+                <CardHeader>
+                  <CardTitle className="flex min-w-0 items-center gap-2 text-lg">
+                    <span className="min-w-0 truncate">{p.name}</span>
+                    <span role="img" aria-label={HEALTH_LABEL[p.health] ?? '健康状态未知'} className={`size-2.5 shrink-0 rounded-full ${HEALTH_DOT[p.health] ?? 'bg-muted-foreground'}`} />
                   </CardTitle>
-                  {p.description && <CardDescription>{p.description}</CardDescription>}
+                  <CardDescription className="min-h-10 line-clamp-2">{p.description}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                     {p.myRole && <Badge variant="secondary">{p.myRole}</Badge>}
                     {(p.startDate || p.endDate) && (
                       <span className={eventCountdown(p.startDate ?? null, p.endDate ?? null).cls}>
@@ -116,10 +122,10 @@ export default function Projects() {
                     )}
                   </div>
                   {p.currentStage && <Badge variant="outline" className="text-xs">{p.currentStage}</Badge>}
-                  <div className="h-1.5 w-full rounded-full bg-muted">
+                  <div role="progressbar" aria-label="待办完成进度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={p.todoCompletionRate} className="h-1.5 w-full rounded-full bg-muted">
                     <div className="h-1.5 rounded-full bg-primary transition-all" style={{ width: `${p.todoCompletionRate}%` }} />
                   </div>
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
                     <span>待办 {p.todoCompletionRate}%</span>
                     <span>阶段 {p.stageProgress.completed}/{p.stageProgress.total}</span>
                     {p.activeRiskCount > 0 && <span className="text-destructive">{p.activeRiskCount} 风险</span>}

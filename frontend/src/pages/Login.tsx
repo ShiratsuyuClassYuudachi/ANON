@@ -61,7 +61,7 @@ export default function Login() {
           </Button>
         </div>
       )}
-      <form onSubmit={submit} className="space-y-3">
+      <form onSubmit={submit} className="space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="email">邮箱</Label>
           <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -70,7 +70,7 @@ export default function Login() {
           <Label htmlFor="password">密码</Label>
           <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
-        {err && <p className="text-sm text-destructive">{err}</p>}
+        {err && <p role="alert" className="rounded-md bg-destructive-soft px-3 py-2 text-sm text-destructive-soft-foreground">{err}</p>}
         <Button type="submit" className="w-full" disabled={busy}>
           {busy ? '登录中…' : '登录'}
         </Button>

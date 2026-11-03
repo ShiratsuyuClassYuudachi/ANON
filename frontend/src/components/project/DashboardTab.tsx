@@ -304,9 +304,9 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
     return (
       <div className="space-y-4">
         <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-40 w-full" />
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20" />)}
+        <Skeleton className="h-11 w-full" />
+        <div className="grid grid-cols-2 gap-2 min-[360px]:grid-cols-3 sm:gap-3 xl:grid-cols-6">
+          {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-20" />)}
         </div>
         <Skeleton className="h-48 w-full" />
       </div>
@@ -322,8 +322,8 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
   return (
     <div className="flex flex-col gap-4">
       {/* 项目头部 */}
-      <Card style={{ order: -3 }}>
-        <CardContent className="space-y-2 p-4">
+      <Card className="py-0" style={{ order: -3 }}>
+        <CardContent className="space-y-4 p-4">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={status.variant}>{status.label}</Badge>
             {project.currentStage && <Badge variant="outline">{project.currentStage}</Badge>}
@@ -357,17 +357,19 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
       </Card>
 
       {/* 视图切换 + 自定义入口 */}
-      <div className="flex items-center gap-2" style={{ order: -2 }}>
-        <div className="flex flex-1 gap-1 rounded-lg bg-muted p-1">
+      <div className="flex flex-wrap items-center gap-2" style={{ order: -2 }}>
+        <div className="flex min-w-[12rem] flex-1 gap-1 rounded-lg bg-muted p-1">
           <button
             onClick={() => switchView('personal')}
-            className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${view === 'personal' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+            aria-pressed={view === 'personal'}
+            className={`min-h-11 flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-9 ${view === 'personal' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
           >
             个人视图
           </button>
           <button
             onClick={() => switchView('project')}
-            className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${view === 'project' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+            aria-pressed={view === 'project'}
+            className={`min-h-11 flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-9 ${view === 'project' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
           >
             项目视图
           </button>
@@ -382,7 +384,7 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
 
       {/* 项目概况指标（项目视图） */}
       {!isPersonal && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6" style={{ order: -1 }}>
+        <div className="grid grid-cols-2 gap-2 min-[360px]:grid-cols-3 sm:gap-3 xl:grid-cols-6" style={{ order: -1 }}>
           <MetricCard label="待办完成率" value={`${summary.metrics.todoCompletionRate}%`} onClick={() => onNavigate('todos')} />
           <MetricCard label="逾期待办" value={String(summary.metrics.overdueCount)} alert={summary.metrics.overdueCount > 0} onClick={() => onNavigate('todos')} />
           {summary.metrics.budgetUsageRate !== null && (
@@ -463,6 +465,7 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
         title="风险与异常"
         icon={AlertTriangle}
         count={risks.risks.length > 0 ? risks.risks.length : undefined}
+        countVariant="destructive"
         collapsed={isCollapsed('risks')}
         onToggle={() => toggleCollapse('risks')}
         style={{ order: orderOf('risks') }}
@@ -834,10 +837,11 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
   );
 }
 
-function CollapsibleCard({ title, icon: Icon, count, collapsed, onToggle, headerExtra, style, children }: {
+function CollapsibleCard({ title, icon: Icon, count, countVariant = 'secondary', collapsed, onToggle, headerExtra, style, children }: {
   title: string;
   icon: typeof ListTodo;
   count?: number;
+  countVariant?: 'secondary' | 'destructive';
   collapsed: boolean;
   onToggle: () => void;
   headerExtra?: React.ReactNode;
@@ -848,11 +852,11 @@ function CollapsibleCard({ title, icon: Icon, count, collapsed, onToggle, header
     <Card style={style}>
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center justify-between gap-2 text-base">
-          <button onClick={onToggle} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+          <button onClick={onToggle} aria-expanded={!collapsed} className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-9">
             <Icon className="size-4 shrink-0 text-muted-foreground" />
             <span className="truncate">{title}</span>
-            {count !== undefined && count > 0 && <Badge variant="destructive">{count}</Badge>}
-            <ChevronDown className={`size-4 shrink-0 text-muted-foreground transition-transform ${collapsed ? '-rotate-90' : ''}`} />
+            {count !== undefined && count > 0 && <Badge variant={countVariant}>{count}</Badge>}
+            <ChevronDown className={`size-4 shrink-0 text-muted-foreground motion-safe:transition-transform ${collapsed ? '-rotate-90' : ''}`} />
           </button>
           {headerExtra}
         </CardTitle>
@@ -877,6 +881,7 @@ function RiskCard({ risk, onIgnore }: { risk: RiskItem; onIgnore?: () => void })
           size="sm"
           variant="outline"
           className="h-11 shrink-0 px-3"
+          aria-label={'忽略风险：' + risk.title}
           onClick={onIgnore}
         >
           <ShieldOff className="size-4" />
@@ -891,10 +896,10 @@ function MetricCard({ label, value, alert, onClick }: { label: string; value: st
   return (
     <Comp
       onClick={onClick}
-      className={`rounded-lg border p-3 text-left ${onClick ? 'transition-colors hover:bg-accent/50' : ''}`}
+      className={`min-w-0 rounded-lg border bg-card p-3 text-left ${onClick ? 'transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring' : ''}`}
     >
-      <p className={`text-xl font-semibold ${alert ? 'text-destructive' : ''}`}>{value}</p>
-      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className={`text-xl font-semibold tabular-nums ${alert ? 'text-destructive' : ''}`}>{value}</p>
+      <p className="text-xs leading-[18px] text-muted-foreground">{label}</p>
     </Comp>
   );
 }

@@ -45,7 +45,7 @@ export default function Register() {
       description="凭邀请码注册新账号"
       footer={<>已有账号？<Link to="/login" className="text-primary hover:underline">直接登录</Link></>}
     >
-      <form onSubmit={submit} className="space-y-3">
+      <form onSubmit={submit} className="space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="inviteCode">邀请码</Label>
           <Input id="inviteCode" placeholder="向管理员索取" required value={form.inviteCode} onChange={set('inviteCode')} />
@@ -62,7 +62,7 @@ export default function Register() {
           <Label htmlFor="password">密码</Label>
           <Input id="password" type="password" placeholder="至少 8 位" required minLength={8} value={form.password} onChange={set('password')} />
         </div>
-        {err && <p className="text-sm text-destructive">{err}</p>}
+        {err && <p role="alert" className="rounded-md bg-destructive-soft px-3 py-2 text-sm text-destructive-soft-foreground">{err}</p>}
         <Button type="submit" className="w-full" disabled={busy}>
           {busy ? '注册中…' : '注册'}
         </Button>

@@ -44,6 +44,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 
@@ -423,6 +424,7 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<'newest' | 'oldest' | 'name'>('newest');
   const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(true);
   const [resourceOpen, setResourceOpen] = useState(false);
   const [resForm, setResForm] = useState({ name: '', typeId: '', description: '' });
   const [resFile, setResFile] = useState<File | null>(null);
@@ -446,6 +448,7 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
     const filters = loadFilters.current;
     const { projectId, filterRoot, filterChild } = filters;
     const sequence = ++loadSequence.current;
+    setLoading(true);
     const params = new URLSearchParams();
     if (filterRoot) {
       params.set('typeId', filterChild === 'all' || filterChild === 'direct' ? filterRoot : filterChild);
@@ -463,6 +466,8 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
       setErr('');
     } catch (error) {
       if (sequence === loadSequence.current && filters === loadFilters.current) throw error;
+    } finally {
+      if (sequence === loadSequence.current && filters === loadFilters.current) setLoading(false);
     }
   }, []);
 
@@ -662,13 +667,13 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
                 {!children.length && root.restricted && <CardContent className="pt-0 text-sm text-muted-foreground">暂无可见子类别。</CardContent>}
               </Card>
             );
-          }) : <Card className="p-4 text-sm text-muted-foreground">还没有类别，先新建一级类别。</Card>}
+          }) : !loading && !err && <Card className="p-4 text-sm text-muted-foreground">还没有类别，先新建一级类别。</Card>}
         </div>
       ) : (
         <>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative min-w-48 flex-1 sm:max-w-sm">
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+              <div className="relative min-w-0 w-full sm:flex-1 sm:max-w-sm">
                 <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input aria-label="搜索物料资源" placeholder="搜索名称或描述" className="pl-9" value={search} onChange={(event) => setSearch(event.target.value)} />
               </div>
@@ -680,24 +685,24 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
               </Select>
             </div>
             {canManage && (
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" onClick={() => setCategoryView(true)}>类别管理</Button>
-                <Button size="sm" disabled={!types.length} onClick={openNewResource}><Plus className="size-4" /> 新建资源</Button>
+                <Button size="sm" disabled={loading || !types.length} onClick={openNewResource}><Plus className="size-4" /> 新建资源</Button>
               </div>
             )}
           </div>
 
           <Card className="space-y-3 p-3">
             <div className="grid gap-2 sm:grid-cols-2">
-              <Select value={filterRoot || 'all'} onValueChange={(value) => { setFilterRoot(value === 'all' ? '' : value); setFilterChild('all'); }}>
-                <SelectTrigger aria-label="一级类别"><SelectValue placeholder="全部一级类别" /></SelectTrigger>
+              <Select value={filterRoot || 'all'} onValueChange={(value) => { const next = value === 'all' ? '' : value; if (next !== filterRoot || filterChild !== 'all') setLoading(true); setFilterRoot(next); setFilterChild('all'); }}>
+                <SelectTrigger className="w-full min-w-0" aria-label="一级类别"><SelectValue placeholder="全部一级类别" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">全部一级类别</SelectItem>
                   {rootOptions.map((root) => <SelectItem key={root.id} value={root.id}>{root.name}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Select value={filterChild} disabled={!filterRoot} onValueChange={setFilterChild}>
-                <SelectTrigger aria-label="二级类别"><SelectValue /></SelectTrigger>
+              <Select value={filterChild} disabled={!filterRoot} onValueChange={(value) => { if (value !== filterChild) setLoading(true); setFilterChild(value); }}>
+                <SelectTrigger className="w-full min-w-0" aria-label="二级类别"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">全部（含一级直属）</SelectItem>
                   <SelectItem value="direct">{selectedRoot?.name ?? '一级类别'}直属资源</SelectItem>
@@ -706,17 +711,19 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
               </Select>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-              <span className="text-muted-foreground" role="status">找到 {visible.length} 项</span>
-              <Button variant="ghost" size="sm" disabled={!filterRoot && !search && sort === 'newest'} onClick={() => { setFilterRoot(''); setFilterChild('all'); setSearch(''); setSort('newest'); }}>清空筛选</Button>
+              <span className="text-muted-foreground" role="status" aria-busy={loading}>{loading ? '加载中…' : `找到 ${visible.length} 项`}</span>
+              <Button variant="ghost" size="sm" disabled={!filterRoot && !search && sort === 'newest'} onClick={() => { if (filterRoot || filterChild !== 'all') setLoading(true); setFilterRoot(''); setFilterChild('all'); setSearch(''); setSort('newest'); }}>清空筛选</Button>
             </div>
           </Card>
 
-          <div className="grid items-start gap-3 md:grid-cols-2">
-            {visible.map((resource) => (
+          <div className="grid items-start gap-3 md:grid-cols-2" aria-busy={loading}>
+            {loading ? (
+              <><Skeleton className="h-40 w-full" /><Skeleton className="h-40 w-full" /></>
+            ) : !err && visible.map((resource) => (
               <ResourceCard key={resource.id} project={project} resource={resource} categories={types} members={members} roles={roles} canManage={canManage} onChanged={load} />
             ))}
           </div>
-          {!visible.length && <p className="py-6 text-center text-sm text-muted-foreground">{search.trim() ? '没有符合搜索条件的资源。' : '暂无资源。'}</p>}
+          {!loading && !err && !visible.length && <p className="py-6 text-center text-sm text-muted-foreground">{search.trim() ? '没有符合搜索条件的资源。' : '暂无资源。'}</p>}
         </>
       )}
 

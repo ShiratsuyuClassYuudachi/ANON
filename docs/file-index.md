@@ -179,7 +179,7 @@
 - `src/theme.tsx` — ThemeProvider/ModeToggle：日夜 × 简洁/明快
 - `src/crypto.ts` — PBKDF2(60万次)+AES-GCM 浏览器端加密（平台账号 user 模式）
 - `src/types.ts` — 全部 API 共享类型
-- `src/index.css` — Tailwind v4 主题变量与全局样式
+- `src/index.css` — Tailwind v4 四主题语义色、对比度令牌、圆角与减少动态效果全局规则
 - `src/vite-env.d.ts` — Vite / vite-plugin-pwa 客户端类型引用
 - `src/lib/datetime.ts` — 本地时间格式化 + 活动倒计时 + 开展倒排换算（daysBeforeLocal）
 - `src/lib/offlineQueue.ts` — 离线 POST 队列（现场模式用）
@@ -190,13 +190,13 @@
 - `src/lib/utils.ts` — cn() 类名合并
 
 ### 页面 `src/pages/`
-- `Login.tsx` / `Register.tsx` — 登录 / 邀请码注册（演示模式一键进入；与 InviteAccept 共用 AuthShell 品牌壳）
-- `Projects.tsx` — 项目列表：健康度/阶段/倒计时卡片 + 新建
-- `ProjectHome.tsx` — 项目主页：10 个按权限过滤的 Tab + 现场模式入口；移动端底部导航「更多」Sheet（现场模式/溢出 Tab/「安装应用」PWA 入口，指引弹层挂 Sheet 外由本页持有）
+- `Login.tsx` / `Register.tsx` — 登录 / 邀请码注册（演示模式一键进入、表单错误提示；与 InviteAccept 共用 AuthShell）
+- `Projects.tsx` — 项目列表：健康度无障碍名称、进度、阶段与倒计时卡片及新建
+- `ProjectHome.tsx` — 项目主页：按权限过滤的导航、选中语义与可滚动移动端更多 Sheet；PWA 指引由本页持有
 - `OnsitePage.tsx` — 现场模式：签到/完成/异常上报（离线入队）、舞台执行卡（Rundown 开始/推进/顺延，按 tools:manage 显隐）、失物登记入口（复用 LostFoundItemDialog，按 myPermissions 显隐）、30s 轮询
 - `WorkSheetPrint.tsx` — 任务单打印页（按人/全员）
 - `DownloadFile.tsx` — 导出文件下载页（QQ 聊天记录导出链接落点）：进入即带登录态触发下载，失败可重试
-- `Me.tsx` — 个人资料/联系方式/推送设置/QQ 通知绑定（QqBindCard）/API 密钥（ApiKeysCard）/界面偏好
+- `Me.tsx` — 个人资料及响应式联系方式表单、推送设置/QQ 通知绑定/API 密钥/界面偏好
 - `Admin.tsx` — 超管邀请码管理
 - `InviteAccept.tsx` — 接受项目邀请（AuthShell 壳，错误/信息/加载三态在壳内）
 - `PublicLostFound.tsx` — 失物招领免登录公开查找页（/lf/:token，搜索+状态筛选+照片；头部品牌行）
@@ -204,27 +204,27 @@
 - `DocsPage.tsx` — 帮助中心：章节切换/全文搜索/截图缩放
 
 ### 通用组件 `src/components/`
-- `Layout.tsx` — 主布局：顶栏（项目切换/主题/用户菜单）+ 各横幅挂载点
+- `Layout.tsx` — 主布局：响应式顶栏（项目切换/主题/用户菜单）+ 各横幅挂载点
 - `FormOverlay.tsx` — **弹层规范核心**：所有含输入框的弹层一律经此渲染浮动居中 Dialog（禁底部 Sheet 表单）
 - `AuthImg.tsx` — 鉴权图片（useAuthorizedObjectUrl → objectURL）
 - `AuthMedia.tsx` — 鉴权 PDF/音视频/Markdown 预览（iframe/video/audio/react-markdown + useAuthorizedObjectUrl；previewKindOf 按 mime+扩展名归类）
-- `DemoBadge.tsx` / `DemoBanner.tsx` — 演示站角标 / 横幅（等待文件清理后还原种子，失败可重试）
+- `DemoBadge.tsx` / `DemoBanner.tsx` — 演示站避让移动导航且指针穿透的角标 / 响应式横幅与示例数据还原
 - `TrialBanner.tsx` — 试用横幅（数据销毁倒计时）
 - `PushBanner.tsx` / `PushSettingsCard.tsx` — Push 提示条 / 订阅开关卡
 - `QqBindCard.tsx` — Me 页 QQ 通知卡：未启用提示 / 生成绑定码（大字码+指引）/ 已绑定后生成群绑定码 / 解绑清除页面旧码
 - `PwaInstallGuide.tsx` — PWA 手动安装指引弹层（iOS 分享路径 / 浏览器菜单路径两版；由 ProjectHome 挂在「更多」Sheet 外）
 - `ApiKeysCard.tsx` — Me 页 API 密钥卡：自助生成（项目+实有权限点+30 天/永久）、一次性原文展示复制、列表与撤销
 - `Toaster.tsx` — sonner 封装；`Logo.tsx` — 品牌标识（应用图标 /icons/icon-192.png + ANON 字样，size/wordmarkClassName props，顶栏/AuthShell/公开页共用）
-  `AuthShell.tsx` — 认证/邀请页共用壳：≥lg 左侧品牌区（bg-primary 随主题主色 + radial 高光）+ 右侧表单卡，<lg 紧凑品牌头；Login/Register/InviteAccept 接入
+  `AuthShell.tsx` — 认证/邀请页共用壳：桌面柔和品牌区与居中表单、移动端左对齐品牌头
 - `help/content.ts` — HELP_CHAPTERS 帮助文案（11 章，含 QQ 帮助菜单入口、报名/记账/物料与群授权指引；对应 public/help/qq-group-settings.png、qq-personal-binding.png 截图）
 - `onboarding/OnboardingDialog.tsx` — 首登三页幻灯；`onboarding/tour.ts` — driver.js 分步高亮（data-tour 锚点）
-- `ui/*.tsx`（21 个）— shadcn/radix 基础组件封装；表单一律用 dialog.tsx（经 FormOverlay），sheet.tsx 仅限无输入纯操作面板；badge.tsx 含 success/success-soft/warning/warning-soft 状态变体（语义令牌见 index.css），button.tsx 基础串含 active:scale-[0.98] 触感，input.tsx 原生支持 file: 样式（文件选择直接用 `<Input type="file">`）；list-row.tsx 为列表行共享容器（rounded-lg border p-3）
+- `ui/*.tsx`（21 个）— shadcn/radix 基础组件封装；输入弹层经 FormOverlay，sheet 仅供无输入操作；共享响应式触控尺寸、语义色、卡片间距和弹层关闭控件；badge 含状态变体，list-row 为列表行共享容器
 
 ### 项目 Tab `src/components/project/`（挂在 ProjectHome，直调对应后端域）
-- `DashboardTab.tsx` — 仪表盘聚合（内嵌公告/里程碑/阶段卡）
-- `TodosTab.tsx` + `TodoFormDialog.tsx` + `TodoActionSheet.tsx` — 待办列表/表单（日期字段支持开展倒排录入）/完成与进度弹层
-- `FinanceTab.tsx` — 记账/门票/CSV 导出
-- `MaterialsTab.tsx` — 两层类别联动筛选（忽略过期请求）、名称/描述搜索与排序、独立类别管理、资源编辑、1 GB 上传进度与失败弹窗；数字资源默认折叠等高卡片与80×80小图、详情展开/版本切换下载、按视口等比缩放大图、可见范围居中弹窗；实物入口与帮助截图 public/help/{tab-materials,materials-version-switch,materials-image-preview,materials-pdf-preview,materials-create-with-file}.png
+- `DashboardTab.tsx` — 仪表盘聚合、持久化卡片顺序/折叠/隐藏、响应式指标与风险计数语义（内嵌公告/里程碑/阶段卡）
+- `TodosTab.tsx` + `TodoFormDialog.tsx` + `TodoActionSheet.tsx` — 待办列表响应式筛选、错误/加载/空态、任务操作及表单（日期支持开展倒排）
+- `FinanceTab.tsx` — 响应式财务汇总、结算与账目列表，记账/门票/CSV 导出
+- `MaterialsTab.tsx` — 两层类别联动筛选（序列与筛选双重保护加载状态）、搜索排序、类别管理、资源编辑上传与预览；数字资源两列卡、版本切换与可见范围弹窗；实物入口及帮助截图 public/help/materials-*.png
 - `PhysicalTab.tsx` — 实物分类/台账/状态/日志
 - `AccountsTab.tsx` — 平台账号增删/密码揭示
 - `MembersTab.tsx` / `RolesTab.tsx` — 成员邀请/角色权限

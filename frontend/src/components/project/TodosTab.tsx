@@ -233,30 +233,34 @@ export default function TodosTab({ project, members, externalMembers, myPermissi
       </div>
 
       {canCreate && (
-        <form onSubmit={quickCreate} className="flex gap-2">
+        <form onSubmit={quickCreate} className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2">
           <Input
+            className="col-span-3 min-w-0 sm:col-span-1"
             placeholder="快速新建：输入标题，回车创建"
             value={quickTitle}
             onChange={(e) => setQuickTitle(e.target.value)}
           />
-          <Button type="submit" size="sm" className="shrink-0" disabled={!quickTitle.trim()}>
-            <Plus className="size-4" /> 创建
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="shrink-0"
-            onClick={() => setFormInitial({ title: quickTitle })}
-          >
-            详细
-          </Button>
+          <div className="col-span-3 flex justify-end gap-2 sm:col-span-2">
+            <Button type="submit" size="sm" className="shrink-0" disabled={!quickTitle.trim()}>
+              <Plus className="size-4" /> 创建
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={() => setFormInitial({ title: quickTitle })}
+            >
+              详细
+            </Button>
+          </div>
         </form>
       )}
 
-      <Card>
+      <Card className="py-0">
         <CardContent className="grid grid-cols-2 gap-2 p-3 md:grid-cols-4">
           <Input
+            className="w-full min-w-0"
             placeholder="按类别筛选"
             list="todo-filter-categories"
             value={filters.category}
@@ -269,7 +273,7 @@ export default function TodosTab({ project, members, externalMembers, myPermissi
             value={filters.assignee || 'all'}
             onValueChange={(v) => setFilters({ ...filters, assignee: v === 'all' ? '' : v })}
           >
-            <SelectTrigger><SelectValue placeholder="指派人" /></SelectTrigger>
+            <SelectTrigger className="w-full min-w-0"><SelectValue placeholder="指派人" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部指派人</SelectItem>
               {members.map((m) => <SelectItem key={m.userId} value={m.userId}>{m.name}</SelectItem>)}
@@ -280,7 +284,7 @@ export default function TodosTab({ project, members, externalMembers, myPermissi
             value={filters.status || 'all'}
             onValueChange={(v) => setFilters({ ...filters, status: v === 'all' ? '' : v })}
           >
-            <SelectTrigger><SelectValue placeholder="状态" /></SelectTrigger>
+            <SelectTrigger className="w-full min-w-0"><SelectValue placeholder="状态" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部状态</SelectItem>
               <SelectItem value="open">进行中</SelectItem>
@@ -291,7 +295,7 @@ export default function TodosTab({ project, members, externalMembers, myPermissi
             value={`${filters.sort}:${filters.order}`}
             onValueChange={(v) => { const [sort, order] = v.split(':'); setFilters({ ...filters, sort, order }); }}
           >
-            <SelectTrigger><SelectValue placeholder="排序" /></SelectTrigger>
+            <SelectTrigger className="w-full min-w-0"><SelectValue placeholder="排序" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="createdAt:desc">最新创建</SelectItem>
               <SelectItem value="dueAt:asc">到期时间↑</SelectItem>
@@ -301,9 +305,10 @@ export default function TodosTab({ project, members, externalMembers, myPermissi
         </CardContent>
       </Card>
 
-      {err && <Card className="p-4 text-sm text-destructive">{err}</Card>}
 
-      {loading ? (
+      {err ? (
+        <Card className="p-4 text-sm text-destructive">{err}</Card>
+      ) : loading ? (
         <>
           <Skeleton className="h-28 w-full" />
           <Skeleton className="h-28 w-full" />
@@ -319,13 +324,14 @@ export default function TodosTab({ project, members, externalMembers, myPermissi
                 <Badge variant="secondary">{items.length}</Badge>
               </div>
               {items.map((t) => (
-                <Card key={t.id}>
+                <Card key={t.id} className="py-0">
                   <CardContent className="space-y-2 p-4">
                     <div className="flex items-start gap-2">
                       {/* 客户端不预检完成权限，服务端 403 由 toast 呈现 */}
                       {t.status === 'open' ? (
                         <button
-                          className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full border text-muted-foreground hover:text-primary"
+                          aria-label={`完成待办：${t.title}`}
+                          className="mt-0.5 flex size-11 shrink-0 items-center justify-center rounded-full border text-muted-foreground hover:text-primary"
                           onClick={() => setSheet({ kind: 'complete', id: t.id })}
                         >
                           <Circle className="size-4" />
@@ -334,7 +340,7 @@ export default function TodosTab({ project, members, externalMembers, myPermissi
                         <CheckCircle2 className="mt-0.5 size-8 shrink-0 p-1.5 text-success" />
                       )}
                       <div className="min-w-0 flex-1 space-y-1">
-                        <p className={`font-medium ${t.status === 'done' ? 'text-muted-foreground line-through' : ''}`}>{t.title}</p>
+                        <p className={`break-words font-medium ${t.status === 'done' ? 'text-muted-foreground line-through' : ''}`}>{t.title}</p>
                         <div className="flex flex-wrap gap-1.5">
                           {t.category && <Badge variant="secondary">{t.category}</Badge>}
                           {t.status === 'done' ? (
@@ -348,7 +354,7 @@ export default function TodosTab({ project, members, externalMembers, myPermissi
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon"><MoreHorizontal className="size-4" /></Button>
+                          <Button variant="ghost" size="icon" aria-label={`待办操作：${t.title}`}><MoreHorizontal className="size-4" /></Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           {t.status === 'open' && canManage && (
@@ -363,18 +369,18 @@ export default function TodosTab({ project, members, externalMembers, myPermissi
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      {(t.assignees.length > 0 || !!t.externalAssignees?.length) && <p>指派：{[...t.assignees.map((a) => a.name), ...(t.externalAssignees ?? []).map((a) => `${a.name}（${a.archivedAt ? '已归档' : '未注册'}）`)].join('、')}</p>}
+                    <div className="break-words text-sm text-muted-foreground">
+                      {(t.assignees.length > 0 || !!t.externalAssignees?.length) && <p className="break-words">指派：{[...t.assignees.map((a) => a.name), ...(t.externalAssignees ?? []).map((a) => `${a.name}（${a.archivedAt ? '已归档' : '未注册'}）`)].join('、')}</p>}
                       {t.nodeAt && <p>节点：{fmt(t.nodeAt)}</p>}
                       {t.dueAt && <p>到期：{fmt(t.dueAt)}</p>}
                     </div>
-                    {t.note && <p className="text-sm">{t.note}</p>}
-                    {t.completionNote && <p className="text-sm text-muted-foreground">完成备注:{t.completionNote}</p>}
+                    {t.note && <p className="break-words text-sm">{t.note}</p>}
+                    {t.completionNote && <p className="break-words text-sm text-muted-foreground">完成备注:{t.completionNote}</p>}
                     {t.attachments.length > 0 && (
                       <div className="flex flex-wrap gap-1.5">
                         {t.attachments.map((a) => (
-                          <Button key={a.id} variant="outline" size="sm" onClick={() => downloadFile(a.id, a.filename)}>
-                            <Paperclip className="size-3.5" /> {a.filename}
+                          <Button key={a.id} variant="outline" size="sm" className="max-w-full" onClick={() => downloadFile(a.id, a.filename)}>
+                            <Paperclip className="size-3.5" /> <span className="min-w-0 truncate" title={a.filename}>{a.filename}</span>
                           </Button>
                         ))}
                       </div>
@@ -390,12 +396,12 @@ export default function TodosTab({ project, members, externalMembers, myPermissi
                           {visible.map((u, i) => (
                             <div key={i} className="space-y-1">
                               <p className="text-xs text-muted-foreground">{u.createdByName} · {fmt(u.createdAt)}</p>
-                              {u.note && <p className="text-sm">{u.note}</p>}
+                              {u.note && <p className="break-words text-sm">{u.note}</p>}
                               {u.attachments.length > 0 && (
                                 <div className="flex flex-wrap gap-1.5">
                                   {u.attachments.map((a) => (
-                                    <Button key={a.id} variant="outline" size="sm" onClick={() => downloadFile(a.id, a.filename)}>
-                                      <Paperclip className="size-3.5" /> {a.filename}
+                                    <Button key={a.id} variant="outline" size="sm" className="max-w-full" onClick={() => downloadFile(a.id, a.filename)}>
+                                      <Paperclip className="size-3.5" /> <span className="min-w-0 truncate" title={a.filename}>{a.filename}</span>
                                     </Button>
                                   ))}
                                 </div>

@@ -42,8 +42,8 @@ export default function Layout() {
   }, [id]);
   const current = projects?.find((p) => p.id === id);
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur">
+    <div className="min-h-dvh bg-background">
+      <header className="sticky top-0 z-40 border-b bg-background">
         <div className="mx-auto flex h-14 w-full max-w-3xl items-center gap-2 px-4 md:max-w-5xl">
           <Link
             to={id ? `/p/${id}` : '/projects'}
@@ -53,18 +53,18 @@ export default function Layout() {
             <Logo />
           </Link>
           {current && (
-            <div className="flex min-w-0 max-w-44 items-stretch overflow-hidden rounded-md border md:max-w-64">
+            <div className="flex min-w-0 max-w-44 shrink items-stretch overflow-hidden rounded-md border md:max-w-64">
               <button
                 onClick={() => nav(`/p/${id}`)}
                 aria-label="返回看板"
                 title={`${current.name} — 点击回看板`}
-                className="min-w-0 flex-1 truncate px-2.5 py-1.5 text-sm font-medium hover:bg-muted"
+                className="min-w-0 flex-1 truncate px-2.5 py-1.5 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               >
                 {current.name}
               </button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button aria-label="切换项目" title="切换项目" className="border-l bg-muted/60 px-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
+                  <button aria-label="切换项目" title="切换项目" className="flex size-11 shrink-0 items-center justify-center border-l bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
                     <ChevronDown className="size-4" />
                   </button>
                 </DropdownMenuTrigger>
@@ -90,7 +90,7 @@ export default function Layout() {
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button data-tour="user-menu" aria-label="用户菜单" className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <button data-tour="user-menu" aria-label="用户菜单" className="flex size-11 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 <Avatar className="size-8 ring-1 ring-border">
                   <AvatarFallback className="bg-primary/10 font-semibold text-primary">
                     {(user?.name ?? '?').slice(0, 1)}
@@ -135,7 +135,7 @@ export default function Layout() {
           </DropdownMenu>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-3xl px-4 py-4 md:max-w-5xl">
+      <main className="mx-auto w-full max-w-3xl px-4 py-6 md:max-w-5xl">
         <DemoBanner />
         <TrialBanner />
         <PushBanner />
