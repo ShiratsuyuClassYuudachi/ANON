@@ -1,3 +1,4 @@
+import { loadProjectPeople } from './projectPeople';
 import { Types } from 'mongoose';
 import type { ProjectDoc } from '../models/Project';
 import { Resource } from '../models/Resource';
@@ -31,6 +32,7 @@ export function computeHealth(activeRisks: { level: string }[]): HealthStatus {
 
 export async function computeRisks(project: ProjectDoc): Promise<void> {
   const projectId = project._id;
+  const people = await loadProjectPeople(projectId);
   const now = new Date();
   const detected: DetectedRisk[] = [];
 
@@ -56,7 +58,7 @@ export async function computeRisks(project: ProjectDoc): Promise<void> {
         description: `「${todo.title}」已超过截止时间`,
       });
     }
-    if (todo.assigneeIds.length === 0) {
+    if (people.todoUserIds(todo).length + people.todoExternalIds(todo).length === 0) {
       detected.push({
         ruleCode: 'todo:no_assignee',
         level: 'info',
@@ -112,7 +114,9 @@ export async function computeRisks(project: ProjectDoc): Promise<void> {
 
   // --- Work risks ---
   for (const wm of workModules) {
-    if (wm.assignees.length < wm.requiredCount) {
+    const all = people.workAssignments(wm);
+    const assignees = [...all.registered, ...all.external];
+    if (assignees.length < wm.requiredCount) {
       detected.push({
         ruleCode: 'work:staff_shortage',
         level: 'critical',
@@ -120,10 +124,10 @@ export async function computeRisks(project: ProjectDoc): Promise<void> {
         sourceId: wm._id,
         fingerprint: `work:${wm._id}:staff_shortage`,
         title: '现场人员不足',
-        description: `「${wm.name}」需要 ${wm.requiredCount} 人，目前仅分配 ${wm.assignees.length} 人`,
+        description: `「${wm.name}」需要 ${wm.requiredCount} 人，目前仅分配 ${assignees.length} 人`,
       });
     }
-    if (wm.assignees.length === 0) {
+    if (assignees.length === 0) {
       detected.push({
         ruleCode: 'work:no_assignees',
         level: 'warning',
@@ -138,7 +142,7 @@ export async function computeRisks(project: ProjectDoc): Promise<void> {
     if (project.startDate) {
       const daysUntil = (project.startDate.getTime() - now.getTime()) / 86400000;
       if (daysUntil >= 0 && daysUntil <= 3) {
-        const unconfirmed = wm.assignees.filter((a) => !a.confirmedAt);
+        const unconfirmed = assignees.filter((a) => !a.confirmedAt);
         if (unconfirmed.length > 0) {
           detected.push({
             ruleCode: 'work:unconfirmed_near_event',

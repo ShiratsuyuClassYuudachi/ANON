@@ -217,7 +217,7 @@ export default function DocsPage() {
                   >
                     {s.heading && <h3 className="text-base font-semibold">{s.heading}</h3>}
                     {s.paragraphs.map((p, j) => (
-                      <p key={j} className="text-sm leading-7">
+                      <p key={j} className="break-words text-sm leading-7">
                         {p}
                       </p>
                     ))}

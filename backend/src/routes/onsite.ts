@@ -4,13 +4,13 @@ import { authRequired } from '../middleware/auth';
 import { loadMembership, requirePermission } from '../middleware/projectAccess';
 import { Announcement } from '../models/Announcement';
 import { Incident, INCIDENT_CATEGORIES, type IncidentCategory } from '../models/Incident';
-import { Membership } from '../models/Membership';
 import { StageRundown, type IStageExecution, type StageRundownDoc } from '../models/StageRundown';
 import { User } from '../models/User';
 import { WorkModule } from '../models/WorkModule';
 import { logActivity } from '../services/activity';
 import { notify, projectManagerIds } from '../services/notifications';
 import { canSee, type Viewer } from '../services/visibility';
+import { loadProjectPeople } from '../services/projectPeople';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
 
@@ -93,8 +93,9 @@ onsiteRouter.get(
     const dayAgo = new Date(now.getTime() - 24 * 3600_000);
     const dayAhead = new Date(now.getTime() + 24 * 3600_000);
 
-    const [moduleDocs, announcementDocs, memberships, incidents, rundownDocs] = await Promise.all([
-      WorkModule.find({ projectId, 'assignees.userId': userId }).lean(),
+    const people = await loadProjectPeople(projectId);
+    const [moduleDocs, announcementDocs, incidents, rundownDocs] = await Promise.all([
+      WorkModule.find({ projectId, ...people.workFilter(userId) }).lean(),
       Announcement.find({
         projectId,
         type: { $in: ['emergency', 'important'] },
@@ -103,9 +104,6 @@ onsiteRouter.get(
         .sort({ isPinned: -1, publishedAt: -1 })
         .limit(20)
         .lean(),
-      Membership.find({ projectId }).populate<{
-        userId: { _id: Types.ObjectId; name: string; contacts: { platform: string; value: string }[] };
-      }>('userId', 'name contacts'),
       buildIncidents(projectId, userId, permissions),
       // 执行中的 rundown 恒在列；未开始的仅取 ±24h 窗口内（旧文档无 execution 字段按 idle 对待）
       StageRundown.find({
@@ -122,7 +120,7 @@ onsiteRouter.get(
 
     const myModules = moduleDocs
       .map((m) => {
-        const mine = m.assignees.find((a) => String(a.userId) === userId);
+        const mine = people.workAssignments(m).registered.find((a) => String(a.userId) === userId);
         const state: ModuleState = mine?.completedAt
           ? 'done'
           : m.startAt && m.startAt <= now && (!m.endAt || m.endAt >= now)
@@ -160,14 +158,7 @@ onsiteRouter.get(
         publishedAt: a.publishedAt.toISOString(),
       }));
 
-    const contacts = memberships
-      .filter((m) => (m.userId.contacts?.length ?? 0) > 0)
-      .map((m) => ({
-        userId: String(m.userId._id),
-        name: m.userId.name,
-        roleName: m.roleName ?? null,
-        contacts: m.userId.contacts.map((c) => ({ platform: c.platform, value: c.value })),
-      }));
+    const contacts = people.contacts();
 
     const rundowns = rundownDocs.slice(0, 5).map((d) => {
       // 旧文档无 execution 字段按 idle 对待（不落库）

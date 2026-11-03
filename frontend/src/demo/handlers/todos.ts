@@ -1,3 +1,4 @@
+import { externalIds, normalizeTodo, todoUsers, todoExternals, linkedUser, requirePeoplePermission } from '../people';
 import { badRequest, bodyObj, err, form, formFiles, formStr, json, nameOf, notFound, nowIso, parseDateField, requireProject, storeUpload, uid } from '../helpers';
 import { def, type Route } from '../router';
 import type { Ctx, Db, DbTodo } from '../types';
@@ -11,7 +12,8 @@ function todoJson(db: Db, t: DbTodo) {
     id: t.id,
     title: t.title,
     category: t.category,
-    assignees: t.assigneeIds
+    externalAssignees: todoExternals(db, t).map((id) => { const m = db.externalMembers.find((x) => x.id === id && x.projectId === t.projectId); return { externalMemberId: id, name: m?.name ?? '未知', archivedAt: m?.archivedAt ?? null }; }),
+    assignees: todoUsers(db, t)
       .map((id) => ({ userId: id, name: nameOf(db, id) }))
       .filter((a) => !!a.name),
     nodeAt: t.nodeAt,
@@ -63,7 +65,8 @@ export const todoRoutes: Route[] = [
     const todos = db.todos
       .filter((t) => t.projectId === params.pid)
       .filter((t) => !category || t.category === category)
-      .filter((t) => !assignee || t.assigneeIds.includes(assignee))
+      .filter((t) => !assignee || todoUsers(db, t).includes(assignee))
+      .filter((t) => { const id = query.get('externalAssignee'); return !id || (linkedUser(db, t.projectId, id) ? todoUsers(db, t).includes(linkedUser(db, t.projectId, id)!) : todoExternals(db, t).includes(id)); })
       // 与后端一致：status 仅接受 open/done，其他值（如 all）忽略
       .filter((t) => (status === 'open' || status === 'done') ? t.status === status : true)
       .sort((a, b) => {
@@ -79,6 +82,7 @@ export const todoRoutes: Route[] = [
   }),
 
   def('POST', '/api/projects/:pid/todos', async (ctx) => {
+    requirePeoplePermission(ctx, 'todo:create');
     const { db, params } = ctx;
     requireProject(ctx);
     const b = bodyObj(ctx);
@@ -92,6 +96,7 @@ export const todoRoutes: Route[] = [
       title: String(b.title).trim(),
       category: String(b.category ?? ''),
       assigneeIds,
+      externalAssigneeIds: externalIds(ctx, b.externalAssigneeIds ?? []),
       nodeAt: parseDateField(b.nodeAt),
       dueAt: parseDateField(b.dueAt),
       remindAt: parseDateField(b.remindAt),
@@ -165,10 +170,14 @@ export const todoRoutes: Route[] = [
   }),
 
   def('PATCH', '/api/projects/:pid/todos/:tid', async (ctx) => {
+    requirePeoplePermission(ctx, 'todo:manage');
     const { db } = ctx;
     requireProject(ctx);
-    const todo = findTodo(ctx);
+    const original = findTodo(ctx);
+    const todo = structuredClone(original);
     const b = bodyObj(ctx);
+    const keptExternal = [...(todo.externalAssigneeIds ?? [])];
+    normalizeTodo(db, todo);
     if (b.title !== undefined) todo.title = String(b.title).trim();
     if (b.category !== undefined) todo.category = String(b.category);
     if (b.note !== undefined) todo.note = String(b.note);
@@ -190,6 +199,9 @@ export const todoRoutes: Route[] = [
       if (assigneeIds.some((id) => !members.some((m) => m.userId === id))) return badRequest('指派人必须是项目成员');
       todo.assigneeIds = assigneeIds;
     }
+    if (b.externalAssigneeIds !== undefined) todo.externalAssigneeIds = externalIds(ctx, b.externalAssigneeIds, keptExternal);
+    normalizeTodo(db, todo);
+    Object.assign(original, todo);
     return json({ todo: todoJson(db, todo) });
   }),
 
@@ -205,6 +217,9 @@ export const todoRoutes: Route[] = [
     const { db } = ctx;
     requireProject(ctx);
     const todo = findTodo(ctx);
+    const { project, membership } = requireProject(ctx);
+    const perms = new Set(project.roles.find((r) => r.name === membership.roleName)?.permissions ?? []);
+    if (!perms.has('project:manage') && !perms.has('todo:manage') && !(perms.has('todo:complete') && todoUsers(db, todo).includes(db.currentUserId))) return err(403, 'forbidden', '没有权限完成该待办');
     if (todo.status === 'done') return err(409, 'already_done', '待办已完成');
     const fd = form(ctx);
     todo.status = 'done';
@@ -219,6 +234,9 @@ export const todoRoutes: Route[] = [
     const { db } = ctx;
     requireProject(ctx);
     const todo = findTodo(ctx);
+    const { project, membership } = requireProject(ctx);
+    const perms = new Set(project.roles.find((r) => r.name === membership.roleName)?.permissions ?? []);
+    if (!perms.has('project:manage') && !perms.has('todo:manage') && !(perms.has('todo:complete') && todoUsers(db, todo).includes(db.currentUserId))) return err(403, 'forbidden', '没有权限完成该待办');
     if (todo.status === 'done') return err(409, 'already_done', '待办已完成');
     const fd = form(ctx);
     const note = formStr(fd, 'note').trim();

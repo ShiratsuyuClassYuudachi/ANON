@@ -17,7 +17,7 @@ import { sendC2CMessage, sendGroupMessage } from './qqApi';
 import { checkedQqProject, qqProjects, qqSessionKey, resolveQqUser, serializeQqMessage, type QqMessage } from './qqContext';
 import { generatePreview } from './preview';
 import { deleteStored, storeBuffer } from './storage';
-import { canSee } from './visibility';
+import { canSeeMaterialCategory, indexMaterialCategories } from './materialVisibility';
 
 type Staged = { filename: string; mime: string; size: number; path: string };
 type Draft = { userId: string; files: Staged[]; description: string; seenIds: Set<string> } & (
@@ -66,7 +66,20 @@ function save(d: QqMessage, data: Draft): void {
 async function visibleTypes(user: UserDoc, project: ProjectDoc) {
   const member = await Membership.findOne({ projectId: project._id, userId: user._id }).lean();
   const types = await ResourceType.find({ projectId: project._id }).sort({ createdAt: 1, _id: 1 });
-  return types.filter((t) => canSee({ userId: String(user._id), roleName: member?.roleName ?? null, isSuperAdmin: user.isSuperAdmin }, t.visibility));
+  const viewer = { userId: String(user._id), roleName: member?.roleName ?? null, isSuperAdmin: user.isSuperAdmin };
+  const categoryMap = indexMaterialCategories(types);
+  return types.filter((t) => canSeeMaterialCategory(viewer, t, categoryMap));
+}
+
+function materialTypeLabel(
+  type: Awaited<ReturnType<typeof visibleTypes>>[number],
+  categories: Awaited<ReturnType<typeof visibleTypes>>,
+  visibleCategories: Awaited<ReturnType<typeof visibleTypes>>,
+): string {
+  if (!type.parentId) return type.name;
+  const parent = categories.find((category) => String(category._id) === String(type.parentId));
+  const visibleParent = parent && visibleCategories.some((category) => String(category._id) === String(parent._id));
+  return `${visibleParent ? parent.name : '受限类别'} / ${type.name}`;
 }
 
 async function beginCollect(d: QqMessage, user: UserDoc, project: ProjectDoc, typeId: string | null): Promise<void> {
@@ -79,8 +92,9 @@ async function chooseType(d: QqMessage, user: UserDoc, project: ProjectDoc): Pro
     throw new AppError(403, 'forbidden', '本项目暂无对你可见的物料分类，请先在网页创建或调整可见范围。');
   }
   if (types.length <= 1) { await beginCollect(d, user, project, types[0] ? String(types[0]._id) : null); return; }
+  const categories = await ResourceType.find({ projectId: project._id }).sort({ createdAt: 1, _id: 1 });
   save(d, { step: 'type', userId: String(user._id), projectId: String(project._id), typeIds: types.map((t) => String(t._id)), files: [], description: '', seenIds: new Set(d.id ? [d.id] : []) });
-  await reply(d, `请选择物料分类，回复序号（0 取消）：\n${types.map((t, i) => `${i + 1}. ${t.name}`).join('\n')}`);
+  await reply(d, `请选择物料分类，回复序号（0 取消）：\n${types.map((t, i) => `${i + 1}. ${materialTypeLabel(t, categories, types)}`).join('\n')}`);
 }
 
 async function persistMaterial(file: Staged, description: string, user: UserDoc, project: ProjectDoc, typeId: string): Promise<void> {

@@ -16,6 +16,7 @@ import { File } from '../models/File';
 import { Incident } from '../models/Incident';
 import { LostFoundItem } from '../models/LostFoundItem';
 import { LostFoundShare } from '../models/LostFoundShare';
+import { ExternalMember } from '../models/ExternalMember';
 import { Membership } from '../models/Membership';
 import { Milestone } from '../models/Milestone';
 import { PhysicalCategory } from '../models/PhysicalCategory';
@@ -177,13 +178,17 @@ export async function seedDemoData(opts: DemoSeedOptions): Promise<DemoSeedResul
   await db.collection('transactions').insertMany(transactions);
 
   // --- Resource Types & Resources ---
+  const rtDesign = oid();
   const rtPoster = oid();
+  const rtCopy = oid();
   const rtDoc = oid();
   const rtVenue = oid();
   await db.collection('resourcetypes').insertMany([
-    { _id: rtPoster, projectId, name: '海报与宣传图', visibility: { userIds: [], roleNames: [] }, createdAt: now, updatedAt: now },
-    { _id: rtDoc, projectId, name: '策划文档', visibility: { userIds: [], roleNames: [] }, createdAt: now, updatedAt: now },
-    { _id: rtVenue, projectId, name: '场地资料', visibility: { userIds: [adminId, logId], roleNames: [] }, createdAt: now, updatedAt: now },
+    { _id: rtDesign, projectId, name: '视觉设计', parentId: null, visibility: { userIds: [], roleNames: [] }, createdAt: now, updatedAt: now },
+    { _id: rtPoster, projectId, name: '海报', parentId: rtDesign, visibility: { userIds: [], roleNames: [] }, createdAt: now, updatedAt: now },
+    { _id: rtCopy, projectId, name: '宣传文案', parentId: rtDesign, visibility: { userIds: [], roleNames: [] }, createdAt: now, updatedAt: now },
+    { _id: rtDoc, projectId, name: '策划文档', parentId: null, visibility: { userIds: [], roleNames: [] }, createdAt: now, updatedAt: now },
+    { _id: rtVenue, projectId, name: '场地资料', parentId: null, visibility: { userIds: [adminId, logId], roleNames: [] }, createdAt: now, updatedAt: now },
   ]);
 
   const resPoster = oid();
@@ -480,7 +485,7 @@ export async function deleteDemoData(ref: {
   });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const projectScoped: Model<any>[] = [
-    ResourceType, Todo, Transaction, PlatformAccount, WorkModule, Announcement,
+    ExternalMember, ResourceType, Todo, Transaction, PlatformAccount, WorkModule, Announcement,
     AnnouncementConfirmation, Activity, Milestone, RiskInstance, DashboardPreference,
     Incident, PhysicalCategory, PhysicalItem, PhysicalItemLog, ProjectInvite, WeeklyReportLog,
     StageRundown, StageScreenShare, StageSignup, LostFoundItem, LostFoundShare,

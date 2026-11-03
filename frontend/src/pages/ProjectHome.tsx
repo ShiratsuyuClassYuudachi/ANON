@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ClipboardList,
@@ -29,7 +29,7 @@ import SettingsTab from '../components/project/SettingsTab';
 import TodosTab from '../components/project/TodosTab';
 import ToolsTab from '../components/project/ToolsTab';
 import WorkTab from '../components/project/WorkTab';
-import type { Member, ProjectDetail } from '../types';
+import type { ExternalMember, Member, ProjectDetail } from '../types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -39,6 +39,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 interface Detail {
   project: ProjectDetail;
   members: Member[];
+  externalMembers?: ExternalMember[];
   myRole: string;
   myPermissions: string[];
 }
@@ -74,6 +75,7 @@ export default function ProjectHome() {
   );
   const [err, setErr] = useState('');
   const [moreOpen, setMoreOpen] = useState(false);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
   const [installGuideOpen, setInstallGuideOpen] = useState(false);
   const pwa = usePwaInstall();
 
@@ -129,14 +131,15 @@ export default function ProjectHome() {
     : (visibleTabs[0]?.key ?? 'todos');
 
   return (
-    <div className="pb-20 md:flex md:gap-6 md:pb-0">
+    <div className="pb-[calc(5rem+env(safe-area-inset-bottom))] md:flex md:gap-6 md:pb-0">
       <aside className="hidden md:block md:w-44 md:shrink-0">
         <div className="sticky top-18 space-y-1">
           {visibleTabs.map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm ${activeTab === t.key ? 'bg-primary/10 font-medium text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+              aria-current={activeTab === t.key ? 'page' : undefined}
+              className={`flex min-h-10 w-full items-center gap-3 rounded-md px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeTab === t.key ? 'bg-accent font-medium text-accent-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
             >
               <t.icon className="size-4" />
               {t.label}
@@ -149,8 +152,8 @@ export default function ProjectHome() {
       </aside>
 
       <div className="min-w-0 flex-1">
-      <div className="mb-3 flex items-center gap-2">
-        <h2 className="text-xl font-semibold">{detail.project.name}</h2>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <h2 className="min-w-0 break-words text-2xl font-semibold">{detail.project.name}</h2>
         <Badge variant="secondary">{detail.myRole}</Badge>
       </div>
 
@@ -165,7 +168,7 @@ export default function ProjectHome() {
           />
         )}
         {activeTab === 'todos' && (
-          <TodosTab project={detail.project} members={detail.members} myPermissions={detail.myPermissions} />
+          <TodosTab project={detail.project} externalMembers={detail.externalMembers ?? []} members={detail.members} myPermissions={detail.myPermissions} />
         )}
         {activeTab === 'finance' && (
           <FinanceTab project={detail.project} members={detail.members} myPermissions={detail.myPermissions} />
@@ -177,13 +180,14 @@ export default function ProjectHome() {
           <AccountsTab project={detail.project} members={detail.members} myPermissions={detail.myPermissions} />
         )}
         {activeTab === 'work' && (
-          <WorkTab project={detail.project} members={detail.members} myPermissions={detail.myPermissions} />
+          <WorkTab project={detail.project} externalMembers={detail.externalMembers ?? []} members={detail.members} myPermissions={detail.myPermissions} />
         )}
         {activeTab === 'tools' && (
           <ToolsTab project={detail.project} myPermissions={detail.myPermissions} />
         )}
         {activeTab === 'members' && (
           <MembersTab
+            externalMembers={detail.externalMembers ?? []}
             project={detail.project}
             members={detail.members}
             myPermissions={detail.myPermissions}
@@ -200,7 +204,7 @@ export default function ProjectHome() {
       </div>
 
       {/* 移动端底部导航 */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-background pb-[env(safe-area-inset-bottom)] md:hidden">
         <div
           className="grid"
           style={{ gridTemplateColumns: `repeat(${mainTabs.length + (moreTabs.length > 0 ? 1 : 0)}, minmax(0, 1fr))` }}
@@ -209,7 +213,8 @@ export default function ProjectHome() {
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`flex flex-col items-center gap-0.5 py-2 text-xs ${activeTab === t.key ? 'text-primary' : 'text-muted-foreground'}`}
+              aria-current={activeTab === t.key ? 'page' : undefined}
+              className={`flex min-h-14 flex-col items-center justify-center gap-0.5 py-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${activeTab === t.key ? 'text-primary' : 'text-muted-foreground'}`}
             >
               <t.icon className="size-5" />
               {t.label}
@@ -217,8 +222,11 @@ export default function ProjectHome() {
           ))}
           {moreTabs.length > 0 && (
             <button
+              ref={moreButtonRef}
               onClick={() => setMoreOpen(true)}
-              className={`flex flex-col items-center gap-0.5 py-2 text-xs ${moreTabs.some((t) => t.key === activeTab) ? 'text-primary' : 'text-muted-foreground'}`}
+              aria-expanded={moreOpen}
+              aria-haspopup="dialog"
+              className={`flex min-h-14 flex-col items-center justify-center gap-0.5 py-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${moreTabs.some((t) => t.key === activeTab) ? 'text-primary' : 'text-muted-foreground'}`}
             >
               <MoreHorizontal className="size-5" />
               更多
@@ -228,11 +236,11 @@ export default function ProjectHome() {
       </nav>
 
       <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
-        <SheetContent side="bottom" className="rounded-t-2xl">
-          <SheetHeader>
+        <SheetContent side="bottom" className="max-h-[85dvh] rounded-t-2xl" onCloseAutoFocus={(event) => { event.preventDefault(); if (!installGuideOpen) moreButtonRef.current?.focus(); }}>
+          <SheetHeader className="shrink-0">
             <SheetTitle>更多</SheetTitle>
           </SheetHeader>
-          <div className="grid gap-2 p-4">
+          <div className="grid min-h-0 gap-2 overflow-y-auto overscroll-contain px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
             <Button
               variant="outline"
               className="justify-start"

@@ -7,6 +7,7 @@ import { WorkModule } from '../models/WorkModule';
 import { logActivity } from '../services/activity';
 import { notify } from '../services/notifications';
 import { memberNameMap, moduleJson } from '../services/workModules';
+import { loadProjectPeople, parseAssigneeIds, assertExternalAssignees } from '../services/projectPeople';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
 
@@ -21,10 +22,11 @@ interface BodyShape {
   endAt?: unknown;
   requiredCount?: unknown;
   assigneeIds?: unknown;
+  externalAssigneeIds?: unknown;
 }
 
 /** 解析并校验 body；返回净化后的字段（assigneeIds 已校验全是项目成员）。 */
-async function parseBody(projectId: Types.ObjectId, body: BodyShape) {
+async function parseBody(projectId: Types.ObjectId, body: BodyShape, keptExternalIds: string[] = []) {
   const out: {
     name?: string;
     description?: string;
@@ -33,6 +35,7 @@ async function parseBody(projectId: Types.ObjectId, body: BodyShape) {
     endAt?: Date | null;
     requiredCount?: number;
     assigneeIds?: Types.ObjectId[];
+    externalAssigneeIds?: Types.ObjectId[];
   } = {};
   if (body.name !== undefined) {
     const name = String(body.name ?? '').trim();
@@ -62,6 +65,11 @@ async function parseBody(projectId: Types.ObjectId, body: BodyShape) {
     const cnt = await Membership.countDocuments({ projectId, userId: { $in: ids } });
     if (cnt !== ids.length) throw new AppError(400, 'bad_request', 'assigneeIds 含非项目成员');
     out.assigneeIds = ids.map((x) => new Types.ObjectId(x));
+  }
+  if (body.externalAssigneeIds !== undefined) {
+    const ids = parseAssigneeIds(body.externalAssigneeIds);
+    await assertExternalAssignees(projectId, ids, keptExternalIds);
+    out.externalAssigneeIds = ids.map((id) => new Types.ObjectId(id));
   }
   return out;
 }
@@ -113,6 +121,7 @@ workModulesRouter.post(
       endAt: p.endAt ?? undefined,
       requiredCount: p.requiredCount ?? 1,
       assignees: (p.assigneeIds ?? []).map((userId) => ({ userId })),
+      externalAssignees: (p.externalAssigneeIds ?? []).map((externalMemberId) => ({ externalMemberId })),
       createdBy: new Types.ObjectId(req.userId!),
     });
     const names = await memberNameMap(req.project!._id);
@@ -138,7 +147,11 @@ workModulesRouter.patch(
   ...requirePermission('work:manage'),
   ah(async (req, res) => {
     const m = await findInProject(req);
-    const p = await parseBody(req.project!._id, req.body);
+    const people = await loadProjectPeople(req.project!._id);
+    const previousExternal = (m.externalAssignees ?? []).map((a) => ({ externalMemberId: a.externalMemberId, confirmedAt: a.confirmedAt, confirmedBy: a.confirmedBy, checkedInAt: a.checkedInAt, completedAt: a.completedAt }));
+    const keptExternalIds = previousExternal.map((a) => String(a.externalMemberId));
+    const p = await parseBody(req.project!._id, req.body, keptExternalIds);
+    people.normalizeWork(m);
     if (p.name !== undefined) m.name = p.name;
     if (p.description !== undefined) m.description = p.description;
     if (p.location !== undefined) m.location = p.location;
@@ -164,6 +177,13 @@ workModulesRouter.patch(
           : { userId };
       });
     }
+    if (p.externalAssigneeIds !== undefined) {
+      m.externalAssignees = p.externalAssigneeIds.map((externalMemberId) => {
+        const kept = m.externalAssignees.find((a) => String(a.externalMemberId) === String(externalMemberId)) ?? previousExternal.find((a) => String(a.externalMemberId) === String(externalMemberId));
+        return kept ?? { externalMemberId };
+      });
+    }
+    people.normalizeWork(m);
     await m.save();
     const names = await memberNameMap(req.project!._id);
     logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'work:update', message: `${req.user!.name}调整了现场任务「${m.name}」`, sourceType: 'work', sourceId: m._id });
@@ -198,15 +218,23 @@ workModulesRouter.delete(
 /** confirm/checkin/finish 等共用：解析目标 userId 并做权限判断，返回模块与目标 assignee */
 async function resolveConfirmTarget(req: Request, action = '确认') {
   const m = await findInProject(req);
-  const target = req.body.userId ? String(req.body.userId) : req.userId!;
-  const managing = target !== req.userId;
+  const people = await loadProjectPeople(req.project!._id);
+  people.normalizeWork(m);
+  if (req.body.userId && req.body.externalMemberId) throw new AppError(400, 'bad_request', '只能指定一种成员身份');
+  const externalId = req.body.externalMemberId ? String(req.body.externalMemberId) : null;
+  if ((externalId && !isValidObjectId(externalId)) || (req.body.userId && !isValidObjectId(req.body.userId))) throw new AppError(400, 'bad_request', '成员 ID 非法');
+  const linked = externalId ? people.links.get(externalId) : undefined;
+  const target = linked ?? (externalId || (req.body.userId ? String(req.body.userId) : req.userId!));
+  const managing = !!externalId || target !== req.userId;
   if (managing) {
     const perms = req.myPermissions ?? new Set<string>();
     if (!perms.has('project:manage') && !perms.has('work:manage')) {
       throw new AppError(403, 'forbidden', `无权代他人${action}`);
     }
   }
-  const a = m.assignees.find((x) => String(x.userId) === target);
+  const a = externalId && !linked
+    ? m.externalAssignees.find((x) => String(x.externalMemberId) === target)
+    : m.assignees.find((x) => String(x.userId) === target);
   if (!a) throw new AppError(400, 'bad_request', '该成员未被分配到此模块');
   return { m, a, target };
 }

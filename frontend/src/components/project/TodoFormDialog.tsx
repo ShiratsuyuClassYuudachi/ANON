@@ -3,10 +3,10 @@ import { ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
 import { daysBeforeLocal } from '../../lib/datetime';
-import type { Member, TodoItem } from '../../types';
+import { TaskAssigneePicker } from './TaskAssigneePicker';
+import type { ExternalMember, Member, TodoItem } from '../../types';
 import { FormOverlay } from '@/components/FormOverlay';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -19,6 +19,7 @@ interface Props {
   /** 项目开展日期 ISO；为 null 时日期字段不显示「开展倒排」开关 */
   startDate: string | null;
   members: Member[];
+  externalMembers: ExternalMember[];
   knownCategories: string[];
   /** 完整 TodoItem = 编辑模式；{ title } = 创建模式（可预填标题） */
   initial?: TodoItem | { title: string };
@@ -128,10 +129,11 @@ function isEdit(initial?: TodoItem | { title: string }): initial is TodoItem {
   return !!initial && 'id' in initial;
 }
 
-export function TodoFormDialog({ open, onOpenChange, projectId, startDate, members, knownCategories, initial, onSaved }: Props) {
+export function TodoFormDialog({ open, onOpenChange, projectId, startDate, members, externalMembers, knownCategories, initial, onSaved }: Props) {
   const editTarget = isEdit(initial) ? initial : null;
   const [title, setTitle] = useState('');
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const [externalAssigneeIds, setExternalAssigneeIds] = useState<string[]>([]);
   const [category, setCategory] = useState('');
   const [nodeAt, setNodeAt] = useState('');
   const [dueAt, setDueAt] = useState('');
@@ -144,6 +146,7 @@ export function TodoFormDialog({ open, onOpenChange, projectId, startDate, membe
     if (!open) return;
     setTitle(editTarget?.title ?? initial?.title ?? '');
     setAssigneeIds(editTarget ? editTarget.assignees.map((a) => a.userId) : []);
+    setExternalAssigneeIds(editTarget?.externalAssignees?.map((a) => a.externalMemberId) ?? []);
     setCategory(editTarget?.category ?? '');
     setNodeAt(toLocalInput(editTarget?.nodeAt));
     setDueAt(toLocalInput(editTarget?.dueAt));
@@ -160,6 +163,7 @@ export function TodoFormDialog({ open, onOpenChange, projectId, startDate, membe
         ? {
             title: title.trim(),
             assigneeIds,
+            externalAssigneeIds,
             category: category.trim(),
             note: note.trim(),
             nodeAt: nodeAt ? new Date(nodeAt).toISOString() : '',
@@ -169,6 +173,7 @@ export function TodoFormDialog({ open, onOpenChange, projectId, startDate, membe
         : {
             title: title.trim(),
             assigneeIds,
+            externalAssigneeIds,
             category: category.trim() || undefined,
             note: note.trim() || undefined,
             nodeAt: toIso(nodeAt),
@@ -204,26 +209,9 @@ export function TodoFormDialog({ open, onOpenChange, projectId, startDate, membe
         </div>
         <div className="space-y-1.5">
           <Label>指派人</Label>
-          <div className="flex flex-wrap gap-1.5">
-            {members.map((m) => (
-              <label
-                key={m.userId}
-                className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-sm ${
-                  assigneeIds.includes(m.userId)
-                    ? 'border-primary bg-accent text-accent-foreground'
-                    : 'border-border text-muted-foreground'
-                }`}
-              >
-                <Checkbox
-                  checked={assigneeIds.includes(m.userId)}
-                  onCheckedChange={(c) =>
-                    setAssigneeIds(c ? [...assigneeIds, m.userId] : assigneeIds.filter((x) => x !== m.userId))
-                  }
-                />
-                {m.name}
-              </label>
-            ))}
-          </div>
+          <TaskAssigneePicker members={members} externalMembers={externalMembers} assigneeIds={assigneeIds} externalAssigneeIds={externalAssigneeIds}
+            keptExternalIds={editTarget?.externalAssignees?.map((a) => a.externalMemberId) ?? []}
+            onUsersChange={setAssigneeIds} onExternalChange={setExternalAssigneeIds} />
         </div>
         <TodoDateField id="todo-form-due" label="到期时间" value={dueAt} onChange={setDueAt} startDate={startDate} />
 

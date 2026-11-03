@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
 import { useAuth } from '../../auth';
-import type { Member, ProjectDetail, WorkModuleItem } from '../../types';
+import { TaskAssigneePicker } from './TaskAssigneePicker';
+import type { ExternalMember, Member, ProjectDetail, WorkModuleItem } from '../../types';
 import { FormOverlay } from '@/components/FormOverlay';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -13,7 +14,6 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -25,6 +25,7 @@ import { Textarea } from '@/components/ui/textarea';
 interface Props {
   project: ProjectDetail;
   members: Member[];
+  externalMembers: ExternalMember[];
   myPermissions: string[];
 }
 
@@ -34,7 +35,7 @@ const fmt = (iso: string | null) => (iso ? fmtLocal(iso) : '');
 const fmtRange = (m: WorkModuleItem) =>
   m.startAt || m.endAt ? `${fmt(m.startAt) || '…'} ~ ${fmt(m.endAt) || '…'}` : '';
 
-export default function WorkTab({ project, members, myPermissions }: Props) {
+export default function WorkTab({ project, members, externalMembers, myPermissions }: Props) {
   const { user } = useAuth();
   const nav = useNavigate();
   const canManage = myPermissions.includes('project:manage') || myPermissions.includes('work:manage');
@@ -46,6 +47,7 @@ export default function WorkTab({ project, members, myPermissions }: Props) {
   const [deleting, setDeleting] = useState<WorkModuleItem | null>(null);
   const [form, setForm] = useState({ name: '', description: '', location: '', startAt: '', endAt: '', requiredCount: '1' });
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const [externalAssigneeIds, setExternalAssigneeIds] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     const d = await api<{ modules: WorkModuleItem[] }>(`/api/projects/${project.id}/work-modules`);
@@ -60,6 +62,7 @@ export default function WorkTab({ project, members, myPermissions }: Props) {
     setEditing(null);
     setForm({ name: '', description: '', location: '', startAt: '', endAt: '', requiredCount: '1' });
     setAssigneeIds([]);
+    setExternalAssigneeIds([]);
     setEditOpen(true);
   };
 
@@ -74,6 +77,7 @@ export default function WorkTab({ project, members, myPermissions }: Props) {
       requiredCount: String(m.requiredCount),
     });
     setAssigneeIds(m.assignees.map((a) => a.userId));
+    setExternalAssigneeIds(m.externalAssignees?.map((a) => a.externalMemberId) ?? []);
     setEditOpen(true);
   };
 
@@ -87,6 +91,7 @@ export default function WorkTab({ project, members, myPermissions }: Props) {
       endAt: form.endAt ? new Date(form.endAt).toISOString() : undefined,
       requiredCount: Number(form.requiredCount) || 1,
       assigneeIds,
+      externalAssigneeIds,
     };
     try {
       if (editing) {
@@ -123,6 +128,14 @@ export default function WorkTab({ project, members, myPermissions }: Props) {
     } catch (e2) {
       toast.error((e2 as Error).message);
     }
+  };
+
+  const actFor = async (mid: string, action: string, target: { userId?: string; externalMemberId?: string }) => {
+    try {
+      await api(`/api/projects/${project.id}/work-modules/${mid}/${action}`, { body: target });
+      await load();
+      toast.success('现场状态已更新');
+    } catch (e) { toast.error((e as Error).message); }
   };
 
   const printSheet = (u: string) => nav(`/p/${project.id}/work-sheet/print?user=${u}`);
@@ -188,7 +201,7 @@ export default function WorkTab({ project, members, myPermissions }: Props) {
           )}
           <div className="grid gap-3 md:grid-cols-2">
             {modules.map((m) => {
-              const shortage = m.requiredCount - m.assignees.length;
+              const shortage = m.requiredCount - (m.assignees.length + (m.externalAssignees?.length ?? 0));
               return (
                 <Card key={m.id}>
                   <CardContent className="space-y-2 p-4">
@@ -197,7 +210,7 @@ export default function WorkTab({ project, members, myPermissions }: Props) {
                         <p className="font-medium">{m.name}</p>
                         <div className="mt-1 flex flex-wrap gap-1.5">
                           <Badge variant="secondary">需 {m.requiredCount} 人</Badge>
-                          <Badge variant="outline">已分配 {m.assignees.length}</Badge>
+                          <Badge variant="outline">已分配 {(m.assignees.length + (m.externalAssignees?.length ?? 0))}</Badge>
                           {shortage > 0 && <Badge variant="destructive">缺 {shortage}</Badge>}
                         </div>
                       </div>
@@ -215,15 +228,18 @@ export default function WorkTab({ project, members, myPermissions }: Props) {
                       <p className="text-sm text-muted-foreground">{[fmtRange(m), m.location].filter(Boolean).join(' ｜ ')}</p>
                     )}
                     {m.description && <p className="text-sm">{m.description}</p>}
-                    {m.assignees.length > 0 && (
+                    {(m.assignees.length + (m.externalAssignees?.length ?? 0)) > 0 && (
                       <div className="flex flex-wrap gap-1.5">
-                        {m.assignees.map((a) => (
-                          <Badge
-                            key={a.userId}
-                            variant={a.confirmedAt ? 'success' : 'outline'}
-                          >
-                            {a.confirmedAt && <Check />}{a.name}
-                          </Badge>
+                        {[...m.assignees.map((a) => ({ ...a, key: a.userId, target: { userId: a.userId }, label: a.name })),
+                          ...(m.externalAssignees ?? []).map((a) => ({ ...a, key: `external:${a.externalMemberId}`, target: { externalMemberId: a.externalMemberId }, label: `${a.name}（${a.archivedAt ? '已归档' : '未注册'}）` }))].map((a) => (
+                          <DropdownMenu key={a.key}>
+                            <DropdownMenuTrigger asChild><Button variant="outline" size="sm" className="max-w-full whitespace-normal text-left">{a.confirmedAt && <Check className="size-4" />}{a.label}{a.completedAt ? ' · 已完成' : a.checkedInAt ? ' · 已签到' : ''}<MoreHorizontal className="size-3" /></Button></DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                              <DropdownMenuItem onClick={() => actFor(m.id, a.confirmedAt ? 'unconfirm' : 'confirm', a.target)}>{a.confirmedAt ? '代取消确认' : '代确认'}</DropdownMenuItem>
+                              <DropdownMenuItem disabled={!!a.checkedInAt} onClick={() => actFor(m.id, 'checkin', a.target)}>代签到</DropdownMenuItem>
+                              <DropdownMenuItem disabled={!!a.completedAt} onClick={() => actFor(m.id, 'finish', a.target)}>代完成</DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         ))}
                       </div>
                     )}
@@ -253,6 +269,13 @@ export default function WorkTab({ project, members, myPermissions }: Props) {
                   <Button variant="ghost" size="sm" onClick={() => printSheet(mb.userId)}>任务单</Button>
                 </div>
               );
+            })}
+            {externalMembers.filter((mb) => (!mb.linkedUserId || !members.some((u) => u.userId === mb.linkedUserId)) && (!mb.archivedAt || modules.some((m) => m.externalAssignees?.some((a) => a.externalMemberId === mb.id)))).map((mb) => {
+              const cnt = modules.filter((m) => m.externalAssignees?.some((a) => a.externalMemberId === mb.id)).length;
+              return <div key={mb.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+                <span>{mb.name} <span className="text-muted-foreground">（{mb.archivedAt ? '已归档' : '未注册'} · {cnt} 项任务）</span></span>
+                <Button variant="ghost" size="sm" onClick={() => printSheet(`external:${mb.id}`)}>任务单</Button>
+              </div>;
             })}
           </CardContent>
         </Card>
@@ -286,25 +309,10 @@ export default function WorkTab({ project, members, myPermissions }: Props) {
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label>分配成员（{assigneeIds.length}）</Label>
-            <div className="flex flex-wrap gap-1.5">
-              {members.map((mb) => (
-                <label
-                  key={mb.userId}
-                  className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-sm ${
-                    assigneeIds.includes(mb.userId) ? 'border-primary bg-accent text-accent-foreground' : 'border-border text-muted-foreground'
-                  }`}
-                >
-                  <Checkbox
-                    checked={assigneeIds.includes(mb.userId)}
-                    onCheckedChange={(c) =>
-                      setAssigneeIds(c ? [...assigneeIds, mb.userId] : assigneeIds.filter((x) => x !== mb.userId))
-                    }
-                  />
-                  {mb.name}
-                </label>
-              ))}
-            </div>
+            <Label>分配成员（{assigneeIds.length + externalAssigneeIds.length}）</Label>
+            <TaskAssigneePicker members={members} externalMembers={externalMembers} assigneeIds={assigneeIds} externalAssigneeIds={externalAssigneeIds}
+              keptExternalIds={editing?.externalAssignees?.map((a) => a.externalMemberId) ?? []}
+              onUsersChange={setAssigneeIds} onExternalChange={setExternalAssigneeIds} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="wm-desc">工作内容</Label>

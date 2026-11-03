@@ -3,7 +3,8 @@ import { toast } from 'sonner';
 import { Link2, UserMinus } from 'lucide-react';
 import { api } from '../../api/client';
 import { useAuth } from '../../auth';
-import type { Member, ProjectDetail } from '../../types';
+import ExternalMembersPanel from './ExternalMembersPanel';
+import type { ExternalMember, Member, ProjectDetail } from '../../types';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,11 +37,12 @@ import {
 interface Props {
   project: ProjectDetail;
   members: Member[];
+  externalMembers: ExternalMember[];
   myPermissions: string[];
   onChanged: () => Promise<void>;
 }
 
-export default function MembersTab({ project, members, myPermissions, onChanged }: Props) {
+export default function MembersTab({ project, members, externalMembers, myPermissions, onChanged }: Props) {
   const { user } = useAuth();
   const canManage = myPermissions.includes('project:manage') || myPermissions.includes('member:manage');
   const [roleName, setRoleName] = useState(
@@ -66,6 +68,7 @@ export default function MembersTab({ project, members, myPermissions, onChanged 
 
   return (
     <div className="space-y-3">
+      <ExternalMembersPanel projectId={project.id} members={members} externalMembers={externalMembers} canManage={canManage} onChanged={onChanged} />
       {canManage && (
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-base">邀请成员</CardTitle></CardHeader>
@@ -95,6 +98,10 @@ export default function MembersTab({ project, members, myPermissions, onChanged 
             <div className="min-w-0 flex-1">
               <p className="truncate font-medium">{m.name}</p>
               <p className="truncate text-sm text-muted-foreground">{m.email}</p>
+              {m.externalProfiles?.map((profile) => <div key={profile.id} className="break-words text-sm text-muted-foreground">
+                {profile.duty && <p>岗位：{profile.duty}</p>}
+                {profile.contacts.map((c, i) => <p key={i}>{c.platform}：{c.value}</p>)}
+              </div>)}
             </div>
             <Select
               disabled={!canManage}

@@ -204,9 +204,9 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-lg font-semibold">财务</h3>
-        <div className="flex gap-2">
+        <div className="flex w-full flex-wrap justify-end gap-2 sm:w-auto">
           {canManage && (
             <Button variant="outline" size="sm" onClick={openTicket}>
               门票设置
@@ -246,10 +246,10 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
                 { label: '总支出', value: yuan(summary.expenseCents), cls: '', sub: '' },
                 { label: '盈亏', value: signed(summary.profitCents), cls: summary.profitCents < 0 ? 'text-destructive' : 'text-success', sub: '' },
               ].map((s) => (
-                <Card key={s.label}>
-                  <CardContent className="p-3">
+                <Card key={s.label} className="py-0">
+                  <CardContent className="p-4">
                     <p className="text-xs text-muted-foreground">{s.label}</p>
-                    <p className={`mt-1 text-lg font-semibold tabular-nums ${s.cls}`}>¥{s.value}</p>
+                    <p className={`mt-1 break-words text-lg font-semibold tabular-nums ${s.cls}`}>¥{s.value}</p>
                     {s.sub && <p className="mt-0.5 truncate text-xs text-muted-foreground" title={s.sub}>{s.sub}</p>}
                   </CardContent>
                 </Card>
@@ -257,35 +257,37 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
             })()}
           </div>
 
-          <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-base">按人净额</CardTitle></CardHeader>
-            <CardContent className="divide-y">
-              {summary.perUser.map((u) => (
-                <div key={u.userId} className="flex items-center justify-between py-2 text-sm">
-                  <span>{u.name}</span>
-                  <span className={`tabular-nums ${u.netCents < 0 ? 'text-destructive' : ''}`}>{signed(u.netCents)}</span>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+          <div className="grid items-start gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-base">按人净额</CardTitle></CardHeader>
+              <CardContent className="divide-y">
+                {summary.perUser.map((u) => (
+                  <div key={u.userId} className="flex items-center justify-between py-2 text-sm">
+                    <span>{u.name}</span>
+                    <span className={`min-w-0 break-words text-right tabular-nums ${u.netCents < 0 ? 'text-destructive' : ''}`}>{signed(u.netCents)}</span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-base">建议转账</CardTitle></CardHeader>
-            <CardContent className="space-y-1.5">
-              {summary.settlement.length === 0 ? (
-                <p className="text-sm text-muted-foreground">无需转账</p>
-              ) : (
-                summary.settlement.map((s, i) => (
-                  <p key={i} className="text-sm">
-                    {s.from.name} <ArrowRight className="inline size-3.5" /> {s.to.name}：
-                    <span className="font-medium tabular-nums">¥{yuan(s.amountCents)}</span>
-                  </p>
-                ))
-              )}
-            </CardContent>
-          </Card>
-        </>
-      )}
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-base">建议转账</CardTitle></CardHeader>
+              <CardContent className="space-y-1.5">
+                {summary.settlement.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">无需转账</p>
+                ) : (
+                  summary.settlement.map((s, i) => (
+                    <p key={i} className="break-words text-sm">
+                      {s.from.name} <ArrowRight className="inline size-3.5" /> {s.to.name}：
+                      <span className="break-words font-medium tabular-nums">¥{yuan(s.amountCents)}</span>
+                    </p>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </div>
+          </>
+        )}
 
       {loading && (
         <>
@@ -294,21 +296,21 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
         </>
       )}
       {transactions.map((t) => (
-        <Card key={t.id}>
+        <Card key={t.id} className="py-0">
           <CardContent className="space-y-2 p-4">
             <div className="flex items-start justify-between gap-2">
-              <div className="flex items-center gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
                 {t.type === 'income' ? (
                   <Badge variant="success-soft">收入</Badge>
                 ) : (
                   <Badge variant="destructive">支出</Badge>
                 )}
-                <span className="font-semibold tabular-nums">¥{yuan(t.amountCents)}</span>
+                <span className="min-w-0 break-words font-semibold tabular-nums">¥{yuan(t.amountCents)}</span>
               </div>
               {(canManage || (canAdd && t.createdBy === user?.id)) && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon"><MoreHorizontal className="size-4" /></Button>
+                    <Button variant="ghost" size="icon" aria-label="账目操作"><MoreHorizontal className="size-4" /></Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem variant="destructive" onClick={() => setDeletingId(t.id)}>删除</DropdownMenuItem>
@@ -327,8 +329,9 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
             {t.attachments.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {t.attachments.map((a) => (
-                  <Button key={a.id} variant="outline" size="sm" onClick={() => downloadFile(a.id, a.filename)}>
-                    <Paperclip className="size-3.5" /> {a.filename}
+                  <Button key={a.id} variant="outline" size="sm" className="max-w-full" onClick={() => downloadFile(a.id, a.filename)}>
+                    <Paperclip className="size-3.5" />
+                    <span className="min-w-0 truncate" title={a.filename}>{a.filename}</span>
                   </Button>
                 ))}
               </div>
@@ -336,7 +339,7 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
           </CardContent>
         </Card>
       ))}
-      {!loading && !transactions.length && (
+      {!loading && !err && !transactions.length && (
         <Card className="p-8 text-center text-sm text-muted-foreground">暂无账目。</Card>
       )}
 

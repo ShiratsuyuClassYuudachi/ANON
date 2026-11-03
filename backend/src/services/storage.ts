@@ -86,13 +86,17 @@ export async function initStorage(retries = 5): Promise<void> {
   }
 }
 
-async function putWithBucketRetry(key: string, body: PutObjectCommand['input']['Body'], mime: string) {
+async function putWithBucketRetry(key: string, body: PutObjectCommand['input']['Body'] | (() => PutObjectCommand['input']['Body']), mime: string, length?: number) {
+  const send = () => client().send(new PutObjectCommand({
+    Bucket: config.s3.bucket, Key: key, Body: typeof body === 'function' ? body() : body,
+    ContentType: mime, ContentLength: length,
+  }));
   try {
-    await client().send(new PutObjectCommand({ Bucket: config.s3.bucket, Key: key, Body: body, ContentType: mime }));
+    await send();
   } catch (e) {
     if (e instanceof S3ServiceException && e.name === 'NoSuchBucket') {
       await client().send(new CreateBucketCommand({ Bucket: config.s3.bucket }));
-      await client().send(new PutObjectCommand({ Bucket: config.s3.bucket, Key: key, Body: body, ContentType: mime }));
+      await send();
       return;
     }
     throw e;
@@ -113,7 +117,8 @@ async function storeLocal(key: string, buf: Buffer): Promise<string> {
  */
 export async function storeFile(tmpPath: string, key: string, mime: string): Promise<string> {
   if (!s3Enabled()) return path.resolve(tmpPath);
-  await putWithBucketRetry(key, fs.createReadStream(tmpPath), mime);
+  const stat = await fs.promises.stat(tmpPath);
+  await putWithBucketRetry(key, () => fs.createReadStream(tmpPath), mime, stat.size);
   await fs.promises.unlink(tmpPath).catch(() => {});
   return S3_PREFIX + key;
 }

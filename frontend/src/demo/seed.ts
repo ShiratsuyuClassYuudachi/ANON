@@ -2,7 +2,7 @@ import { encryptWithPassphrase } from '../crypto';
 import type { Db, DbProject, DbStage, DbUser } from './types';
 
 /** 种子结构版本：变更时递增，旧会话数据自动作废重种，防 schema 漂移 */
-export const DB_VERSION = 7;
+export const DB_VERSION = 9;
 
 // 种子数据：全部日期相对构建时刻（new Date()）计算，保证演示站任何时候打开都「正在进行中」。
 
@@ -147,6 +147,7 @@ export async function buildSeed(): Promise<Db> {
     // ---- 已完成 6 ----
     {
       id: 't-01', projectId: 'p-demo', title: '确定主视觉风格', category: '宣传',
+      externalAssigneeIds: ['ext-01'],
       assigneeIds: ['u-01'], nodeAt: rel(-16), dueAt: rel(-12), remindAt: null,
       status: 'done', note: '三版方向选一，定稿后同步物料组', createdBy: 'u-demo', createdAt: rel(-16),
       completedAt: rel(-12), completedBy: 'u-01', completionNote: '终稿采用暖色系方案，已同步物料组',
@@ -264,18 +265,22 @@ export async function buildSeed(): Promise<Db> {
   ];
 
   const resourceTypes: Db['resourceTypes'] = [
-    { id: 'rt-1', projectId: 'p-demo', name: '视觉设计', visibility: { userIds: [], roleNames: [] }, createdAt: rel(-16) },
-    { id: 'rt-2', projectId: 'p-demo', name: '场地资料', visibility: { userIds: [], roleNames: [] }, createdAt: rel(-16) },
-    { id: 'rt-3', projectId: 'p-demo', name: '周边', visibility: { userIds: [], roleNames: [] }, createdAt: rel(-10) },
+    { id: 'rt-1', projectId: 'p-demo', name: '视觉设计', parentId: null, visibility: { userIds: [], roleNames: [] }, createdAt: rel(-16) },
+    { id: 'rt-2', projectId: 'p-demo', name: '场地资料', parentId: null, visibility: { userIds: [], roleNames: [] }, createdAt: rel(-16) },
+    { id: 'rt-3', projectId: 'p-demo', name: '周边', parentId: null, visibility: { userIds: [], roleNames: [] }, createdAt: rel(-10) },
+    { id: 'rt-4', projectId: 'p-demo', name: '海报', parentId: 'rt-1', visibility: { userIds: [], roleNames: [] }, createdAt: rel(-16) },
+    { id: 'rt-5', projectId: 'p-demo', name: '宣传文案', parentId: 'rt-1', visibility: { userIds: [], roleNames: [] }, createdAt: rel(-16) },
+    { id: 'rt-6', projectId: 'p-demo', name: '场地平面图', parentId: 'rt-2', visibility: { userIds: [], roleNames: [] }, createdAt: rel(-16) },
+    { id: 'rt-7', projectId: 'p-demo', name: '摊位信息', parentId: 'rt-2', visibility: { userIds: [], roleNames: [] }, createdAt: rel(-16) },
   ];
 
   const resources: Db['resources'] = [
-    { id: 'r-01', projectId: 'p-demo', typeId: 'rt-1', name: '主视觉海报', description: '终稿为 v2，A2 印刷用', visibility: { userIds: [], roleNames: [] }, createdAt: rel(-8) },
-    { id: 'r-02', projectId: 'p-demo', typeId: 'rt-2', name: '场地平面图', description: 'B2 馆官方平面图，标注摊位 A-12', visibility: { userIds: [], roleNames: [] }, createdAt: rel(-5) },
-    { id: 'r-03', projectId: 'p-demo', typeId: 'rt-2', name: '摊位号表', description: '全部参展社团摊位分配', visibility: { userIds: [], roleNames: [] }, createdAt: rel(-4) },
+    { id: 'r-01', projectId: 'p-demo', typeId: 'rt-4', name: '主视觉海报', description: '终稿为 v2，A2 印刷用', visibility: { userIds: [], roleNames: [] }, createdAt: rel(-8) },
+    { id: 'r-02', projectId: 'p-demo', typeId: 'rt-6', name: '场地平面图', description: 'B2 馆官方平面图，标注摊位 A-12', visibility: { userIds: [], roleNames: [] }, createdAt: rel(-5) },
+    { id: 'r-03', projectId: 'p-demo', typeId: 'rt-7', name: '摊位号表', description: '全部参展社团摊位分配', visibility: { userIds: [], roleNames: [] }, createdAt: rel(-4) },
     { id: 'r-04', projectId: 'p-demo', typeId: 'rt-3', name: '周边清单', description: '待阿桔整理打样数量后上传', visibility: { userIds: [], roleNames: [] }, createdAt: rel(-2) },
-    { id: 'r-05', projectId: 'p-demo', typeId: 'rt-1', name: '宣传文案', description: '开票公告与日常宣发文案', visibility: { userIds: [], roleNames: [] }, createdAt: rel(-6) },
-    { id: 'r-06', projectId: 'p-demo', typeId: 'rt-2', name: '参展指南 PDF', description: '观众入场须知与摊位地图（PDF 在线预览示例）', visibility: { userIds: [], roleNames: [] }, createdAt: rel(-3) },
+    { id: 'r-05', projectId: 'p-demo', typeId: 'rt-5', name: '宣传文案', description: '开票公告与日常宣发文案', visibility: { userIds: [], roleNames: [] }, createdAt: rel(-6) },
+    { id: 'r-06', projectId: 'p-demo', typeId: 'rt-6', name: '参展指南 PDF', description: '观众入场须知与摊位地图（PDF 在线预览示例）', visibility: { userIds: [], roleNames: [] }, createdAt: rel(-3) },
   ];
 
   const versions: Db['versions'] = [
@@ -313,6 +318,7 @@ export async function buildSeed(): Promise<Db> {
     {
       id: 'wm-01', projectId: 'p-demo', name: '布展', description: '卸货、搭建摊位、布置展品',
       location: '展馆 B2 卸货区', startAt: dayAt(21, 7), endAt: dayAt(21, 9), requiredCount: 4,
+      externalAssignees: [{ externalMemberId: 'ext-01', confirmedAt: null, confirmedBy: null, checkedInAt: null, completedAt: null }],
       assignees: [
         { userId: 'u-demo', confirmedAt: rel(-3), confirmedBy: 'u-demo', checkedInAt: null, completedAt: null },
         { userId: 'u-04', confirmedAt: rel(-2), confirmedBy: 'u-04', checkedInAt: null, completedAt: null },
@@ -515,6 +521,7 @@ export async function buildSeed(): Promise<Db> {
     users,
     projects: [p1, p2],
     memberships,
+    externalMembers: [{ id: 'ext-01', projectId: 'p-demo', name: '小夏', duty: '检票、舞台协助', contacts: [{ platform: 'QQ', value: '123456789' }], archivedAt: null, linkedUserId: null, linkedAt: null }],
     todos,
     transactions,
     resourceTypes,

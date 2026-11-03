@@ -1,4 +1,4 @@
-import type { IncidentCategory, PhysicalItemStatus, ProjectStatus, TicketType, Visibility } from '../types';
+import type { ExternalMember, IncidentCategory, PhysicalItemStatus, ProjectStatus, TicketType, Visibility } from '../types';
 
 // 演示站内存库：全部字段可 JSON 序列化（日期一律 ISO-8601 字符串），
 // 整体持久化到 sessionStorage（key anon-demo-db），按标签页隔离。
@@ -61,6 +61,7 @@ export interface DbTodo {
   title: string;
   category: string;
   assigneeIds: string[];
+  externalAssigneeIds?: string[];
   nodeAt: string | null;
   dueAt: string | null;
   remindAt: string | null;
@@ -92,6 +93,7 @@ export interface DbResourceType {
   id: string;
   projectId: string;
   name: string;
+  parentId?: string | null;
   visibility: Visibility;
   createdAt: string;
 }
@@ -160,6 +162,7 @@ export interface DbWorkModule {
   endAt: string | null;
   requiredCount: number;
   assignees: DbWorkAssignee[];
+  externalAssignees?: (Omit<DbWorkAssignee, 'userId'> & { externalMemberId: string })[];
   createdBy: string;
   createdAt: string;
 }
@@ -404,6 +407,7 @@ export interface Db {
   users: DbUser[];
   projects: DbProject[];
   memberships: DbMembership[];
+  externalMembers: (ExternalMember & { projectId: string })[];
   todos: DbTodo[];
   transactions: DbTransaction[];
   resourceTypes: DbResourceType[];

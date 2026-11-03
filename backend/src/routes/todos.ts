@@ -10,6 +10,7 @@ import { notify } from '../services/notifications';
 import { persistUploads } from '../services/storage';
 import { applyTemplate, buildTemplate } from '../services/template';
 import { assertAssigneesAreMembers, createTodo, todoAssignBody, todoLink } from '../services/todos';
+import { loadProjectPeople, parseAssigneeIds, assertExternalAssignees, type ProjectPeople } from '../services/projectPeople';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
 
@@ -27,8 +28,10 @@ todosRouter.use(authRequired, loadMembership);
 
 const SORTS: Record<string, string> = { dueAt: 'dueAt', nodeAt: 'nodeAt', createdAt: 'createdAt' };
 
-async function todoJson(t: TodoDoc) {
-  const userIds = new Set<string>(t.assigneeIds.map((id) => id.toString()));
+async function todoJson(t: TodoDoc, directory?: ProjectPeople) {
+  const people = directory ?? await loadProjectPeople(t.projectId);
+  const assigned = people.todoUserIds(t);
+  const userIds = new Set<string>(assigned);
   const fileIds = new Set<string>(t.attachments.map((id) => id.toString()));
   for (const u of t.updates) {
     userIds.add(u.createdBy.toString());
@@ -44,7 +47,8 @@ async function todoJson(t: TodoDoc) {
     id: t._id.toString(),
     title: t.title,
     category: t.category,
-    assignees: t.assigneeIds
+    externalAssignees: people.todoExternalIds(t).map((id) => ({ externalMemberId: id, name: people.externals.get(id)?.name ?? '未知', archivedAt: people.externals.get(id)?.archivedAt?.toISOString() ?? null })),
+    assignees: assigned
       .map((id) => ({ userId: id.toString(), name: userMap.get(id.toString()) ?? '' }))
       .filter((a) => !!a.name),
     nodeAt: t.nodeAt ?? null,
@@ -85,12 +89,20 @@ todosRouter.get(
     const { category, assignee, status, sort, order } = req.query;
     const filter: Record<string, unknown> = { projectId: req.project!._id };
     if (category) filter.category = String(category);
-    if (assignee) filter.assigneeIds = String(assignee);
+    const people = await loadProjectPeople(req.project!._id);
+    if (assignee) Object.assign(filter, people.todoFilter(String(assignee)));
+    if (req.query.externalAssignee) {
+      const id = String(req.query.externalAssignee);
+      if (!people.externals.has(id)) throw new AppError(400, 'bad_request', '成员不存在');
+      if (assignee) throw new AppError(400, 'bad_request', '负责人筛选不能同时指定两种身份');
+      const linked = people.links.get(id);
+      Object.assign(filter, linked ? people.todoFilter(linked) : { externalAssigneeIds: id });
+    }
     if (status === 'open' || status === 'done') filter.status = status;
     const sortField = SORTS[String(sort)] ?? 'createdAt';
     const dir = order === 'asc' ? 1 : -1;
     const todos = await Todo.find(filter).sort({ [sortField]: dir, _id: dir });
-    res.json({ todos: await Promise.all(todos.map(todoJson)) });
+    res.json({ todos: await Promise.all(todos.map((t) => todoJson(t, people))) });
   }),
 );
 
@@ -104,7 +116,8 @@ todosRouter.post(
       projectId: req.project!._id,
       title: String(title).trim(),
       category: String(category ?? ''),
-      assigneeIds: Array.isArray(assigneeIds) ? assigneeIds.map(String) : [],
+      assigneeIds: assigneeIds === undefined ? [] : parseAssigneeIds(assigneeIds, 'assigneeIds'),
+      externalAssigneeIds: req.body.externalAssigneeIds === undefined ? [] : parseAssigneeIds(req.body.externalAssigneeIds),
       nodeAt: parseDate(nodeAt),
       dueAt: parseDate(dueAt),
       remindAt: parseDate(remindAt),
@@ -166,25 +179,25 @@ todosRouter.patch(
         todo.completedBy = undefined;
       }
     }
+    let assignedAdded: string[] = [];
+    const people = await loadProjectPeople(req.project!._id);
+    const oldExternalIds = (todo.externalAssigneeIds ?? []).map(String);
+    people.normalizeTodo(todo);
+    if (req.body.externalAssigneeIds !== undefined) {
+      const ids = parseAssigneeIds(req.body.externalAssigneeIds);
+      await assertExternalAssignees(req.project!._id, ids, oldExternalIds);
+      todo.externalAssigneeIds = ids as never;
+    }
     if (assigneeIds !== undefined) {
-      const assignees: string[] = Array.isArray(assigneeIds) ? assigneeIds.map(String) : [];
+      const assignees = parseAssigneeIds(assigneeIds, 'assigneeIds');
       await assertAssigneesAreMembers(req.project!._id, assignees);
       const added = assignees.filter((id) => !todo.assigneeIds.some((x) => x.toString() === id));
       todo.assigneeIds = assignees as never;
-      if (added.length) {
-        notify({
-          projectId: req.project!._id,
-          type: 'todo:assigned',
-          title: `你被指派了待办：${todo.title}`,
-          body: todoAssignBody(todo),
-          link: todoLink(req.project!._id),
-          metadata: { todoId: todo._id.toString() },
-          recipients: added,
-          actorId: req.userId!,
-        });
-      }
+      assignedAdded = added;
     }
+    people.normalizeTodo(todo);
     await todo.save();
+    if (assignedAdded.length) notify({ projectId: req.project!._id, type: 'todo:assigned', title: `你被指派了待办：${todo.title}`, body: todoAssignBody(todo), link: todoLink(req.project!._id), metadata: { todoId: String(todo._id) }, recipients: assignedAdded, actorId: req.userId! });
     logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'todo:update', message: `${req.user!.name}修改了待办「${todo.title}」`, sourceType: 'todo', sourceId: todo._id });
     res.json({ todo: await todoJson(todo) });
   }),
@@ -207,7 +220,8 @@ const loadActionableTodo = ah(async (req, _res, next) => {
   const todo = await Todo.findOne({ _id: req.params.todoId, projectId: req.project!._id });
   if (!todo) throw new AppError(404, 'not_found', '待办不存在');
   const perms = req.myPermissions!;
-  const isAssignee = todo.assigneeIds.some((id) => id.toString() === req.userId);
+  const people = await loadProjectPeople(req.project!._id);
+  const isAssignee = people.todoUserIds(todo).includes(req.userId!);
   const allowed =
     perms.has('project:manage') || perms.has('todo:manage') || (isAssignee && perms.has('todo:complete'));
   if (!allowed) throw new AppError(403, 'forbidden', '没有权限完成该待办');
@@ -234,7 +248,8 @@ todosRouter.post(
     });
     await todo.save();
     logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'todo:progress', message: `${req.user!.name}提交了待办「${todo.title}」的进度`, sourceType: 'todo', sourceId: todo._id });
-    const others = todo.assigneeIds.map((id) => id.toString()).filter((id) => id !== req.userId);
+    const people = await loadProjectPeople(req.project!._id);
+    const others = people.todoUserIds(todo).filter((id) => id !== req.userId);
     if (others.length) {
       notify({
         projectId: req.project!._id,
@@ -268,7 +283,8 @@ todosRouter.post(
     todo.attachments.push(...fileDocs.map((f) => f._id));
     await todo.save();
     logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'todo:complete', message: `${req.user!.name}完成了待办「${todo.title}」`, sourceType: 'todo', sourceId: todo._id });
-    const others = todo.assigneeIds.map((id) => id.toString()).filter((id) => id !== req.userId);
+    const people = await loadProjectPeople(req.project!._id);
+    const others = people.todoUserIds(todo).filter((id) => id !== req.userId);
     if (others.length) {
       notify({
         projectId: req.project!._id,

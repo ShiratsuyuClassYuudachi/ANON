@@ -20,6 +20,7 @@ import { customToolsRouter } from '../src/routes/customTools';
 import { dashboardRouter } from '../src/routes/dashboard';
 import { filesRouter, projectFilesRouter } from '../src/routes/files';
 import { financeRouter } from '../src/routes/finance';
+import { externalMembersRouter } from '../src/routes/externalMembers';
 import { invitesRouter } from '../src/routes/invites';
 import { lostFoundRouter, publicLostFoundRouter } from '../src/routes/lostFound';
 import { materialsRouter } from '../src/routes/materials';
@@ -51,6 +52,7 @@ const mounts: Array<[string, unknown]> = [
   ['/api/invites', invitesRouter],
   ['/api/projects/:id/files', projectFilesRouter],
   ['/api/projects/:id/todos', todosRouter],
+  ['/api/projects/:id/external-members', externalMembersRouter],
   ['/api/projects/:id/work-modules', workModulesRouter],
   ['/api/projects/:id/work-sheet', workSheetRouter],
   ['/api/projects/:id/finance', financeRouter],

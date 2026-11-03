@@ -35,13 +35,13 @@ export default function Me() {
   };
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-xl font-semibold">个人资料</h2>
+    <div className="mx-auto w-full max-w-3xl space-y-6">
+      <h2 className="text-2xl font-semibold">个人资料</h2>
       <Card>
         <CardContent>
           <form onSubmit={submit} className="space-y-3">
-            <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              {user.email}
+            <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <span className="break-all">{user.email}</span>
               {user.isSuperAdmin && <Badge variant="secondary">超级管理员</Badge>}
             </p>
             <div className="space-y-1.5">
@@ -51,9 +51,9 @@ export default function Me() {
             <div className="space-y-1.5">
               <Label>联系方式（会展示给项目成员）</Label>
               {contacts.map((c, i) => (
-                <div className="flex items-center gap-2" key={i}>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:grid-cols-[112px_minmax(0,1fr)_44px]" key={i}>
                   <Input
-                    className="w-28"
+                    className="col-span-2 w-full sm:col-span-1 sm:w-28"
                     placeholder="平台（如 QQ）"
                     value={c.platform}
                     onChange={(e) =>
@@ -61,7 +61,7 @@ export default function Me() {
                     }
                   />
                   <Input
-                    className="flex-1"
+                    className="min-w-0 w-full sm:col-start-2"
                     placeholder="账号"
                     value={c.value}
                     onChange={(e) =>
@@ -72,6 +72,7 @@ export default function Me() {
                     type="button"
                     variant="ghost"
                     size="icon"
+                    className="size-11 sm:col-start-3"
                     aria-label="删除联系方式"
                     onClick={() => setContacts(contacts.filter((_, j) => j !== i))}
                   >
@@ -104,7 +105,7 @@ export default function Me() {
           <CardTitle className="text-base">界面偏好</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant={style === 'minimal' ? 'default' : 'outline'} onClick={() => setStyle('minimal')}>
               简洁
             </Button>

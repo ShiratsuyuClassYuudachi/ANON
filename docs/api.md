@@ -186,6 +186,32 @@ interface FileMeta { id: string; filename: string; mime: string; size: number }
 - **DELETE /api/projects/:id/members/:userId**（需 `member:manage`）
   → 200 `{ members: Member[] }`；400 不能移除自己
 
+### 未注册成员档案
+
+未入项、无账号的成员（临时工、外部协作者）也可建档并参与指派。档案不创建账号、不授予登录权限，也不按 QQ 号投递机器人通知。查看对项目成员开放，增删改需 `member:manage` 或 `project:manage`。
+
+```ts
+interface ExternalMember {
+  id: string; name: string; duty: string;
+  contacts: { platform: string; value: string }[];
+  archivedAt: string | null; linkedUserId: string | null;
+  createdAt: string; updatedAt: string;
+}
+```
+
+- **GET /api/projects/:id/external-members**（成员）
+  查询参数：`includeArchived`、`includeLinked`（默认只返回未归档且未关联的档案）→ 200 `{ externalMembers: ExternalMember[] }`
+- **POST /api/projects/:id/external-members**（member:manage）
+  请求 `{ name: string, duty?: string, contacts?: {platform,value}[] }`（姓名必填）→ 201 `{ externalMember: ExternalMember }`
+- **PATCH /api/projects/:id/external-members/:memberId**（member:manage）
+  请求（均可选）`{ name?, duty?, contacts?, archived? }`；`archived: true` 归档（保留历史任务与状态，停止出现在新指派候选与现场联系人），`false` 恢复。
+- **POST /api/projects/:id/external-members/:memberId/link**（member:manage）
+  请求 `{ userId: string }` → 200 `{ externalMember: ExternalMember }`；目标账号必须已加入本项目。保留岗位、联系方式、任务与现场状态，不修改账号角色或个人资料；重复关联同一账号幂等，改绑为其他账号返回 409。
+- **GET /api/projects/:id/work-sheet/external/:memberId**（`work:manage` 或 `project:manage`）
+  返回该档案的任务单（已关联档案返回目标账号合并后的任务单）。
+
+混合指派：待办 `assigneeIds` / `externalAssigneeIds` 与现场模块同名字段两组独立替换、省略保留；关联账号后按真实身份合并负责人与状态，重复身份去重，保留实际操作者。现场 `confirm` / `unconfirm` / `checkin` / `finish` 可传 `externalMemberId` 代未注册成员操作（与 `userId` 互斥，需 `work:manage` 或 `project:manage`）。
+
 ### 邀请
 
 - **POST /api/projects/:id/invites**（需 `member:manage`）
@@ -686,7 +712,7 @@ interface Visibility { userIds: string[]; roleNames: string[] }
 ### 数据类型
 
 ```ts
-interface ResourceTypeItem { id: string; name: string; visibility: Visibility }
+interface ResourceTypeItem { id: string; name: string; parentId: string | null; visibility: Visibility }
 interface ResourceItem {
   id: string; typeId: string; name: string; description: string;
   visibility: Visibility; latestVersion: number; hasPreview: boolean; createdAt: string;
@@ -700,22 +726,27 @@ interface ResourceVersionItem {
 
 ### 资源类型
 
+类别最多两层：`parentId` 为 null 表示一级类别，否则指向所属一级类别。子类别相同时可同时挂资源，资源直接放在哪个类别就只属于哪个类别。
+
 - **GET /api/projects/:id/materials/types**（成员）
-  列出可见类型。响应 200：`{ types: ResourceTypeItem[] }`
+  列出可见类型。响应 200：`{ types: ResourceTypeItem[] }`；不可见父类别只返回子类别本身，不额外暴露父类别名称。
 - **POST /api/projects/:id/materials/types**（materials:manage）
-  请求 `{ name: string, visibility?: Visibility }` → 201 `{ type: ResourceTypeItem }`
+  请求 `{ name: string, parentId?: string | null, visibility?: Visibility }` → 201 `{ type: ResourceTypeItem }`
+  `parentId` 省略或 null 建一级类别；传一级类别 ID 建子类别。父类别须可见；不允许第三层（400）。
 - **PATCH /api/projects/:id/materials/types/:typeId**（materials:manage）
-  请求（均可选）`{ name?: string, visibility?: Visibility }` → 200 `{ type: ResourceTypeItem }`
+  请求（均可选）`{ name?: string, parentId?: string | null, visibility?: Visibility }` → 200 `{ type: ResourceTypeItem }`
+  `parentId` 省略保留归属；null 提升为一级类别；一级类别 ID 表示移动为该类别子类。禁止自身作上级、跨项目归属和第三层；含子类别的一级类别不能降为二级。
 - **DELETE /api/projects/:id/materials/types/:typeId**（materials:manage）
-  → 200 `{ ok: true }`；400 类型下仍有资源
+  → 200 `{ ok: true }`；400 类型下仍有资源或子类别
 
 ### 资源
 
 - **GET /api/projects/:id/materials**（成员）
-  列出可见资源。查询参数：`typeId`（可选，按类型筛选）。响应 200：`{ resources: ResourceItem[] }`
+  列出可见资源（可见范围按资源 → 子类别 → 一级类别取第一个非空）。查询参数：`typeId`（按类别精确筛选，一级与子类别都可直接放资源）、`includeChildren`（配合 `typeId`，true 时含该类别直属资源及其子类别资源，省略或 false 仅直属）。响应 200：`{ resources: ResourceItem[] }`
 - **POST /api/projects/:id/materials**（materials:manage）
-  请求 `{ typeId: string, name: string, description?: string, visibility?: Visibility }`；也可用 multipart/form-data 附带 `file`（可选，≤20MB，上传即创建版本 1）与 `note`（首版本备注）；位图文件自动生成 WebP 缩略预览。400 名称为空/类型不存在。
-  响应 201：`{ resource: ResourceItem }`
+  请求 `{ typeId: string, name: string, description?: string, uploadId?: string, visibility?: Visibility }`；也可用 multipart/form-data 附带 `file`（≤1GB）与 `note`（首版本备注）。`file` 与 `uploadId` 不能同时提交，位图自动生成 WebP 缩略预览。
+  大文件先用 `POST /materials/uploads` 建会话、按 8MB 分片上传，完成后把 `uploadId` 交给本接口消费（一次性，仅本人同项目可用）。
+  响应 201：`{ resource: ResourceItem }`；400 名称为空/类型不存在/同时提交 file 与 uploadId。
 - **GET /api/projects/:id/materials/:resourceId**
   响应 200：`{ resource: ResourceItem }`；不可见返回 403
 - **PATCH /api/projects/:id/materials/:resourceId**（materials:manage）
@@ -726,7 +757,7 @@ interface ResourceVersionItem {
 ### 版本
 
 - **POST /api/projects/:id/materials/:resourceId/versions**（materials:manage）
-  multipart 上传新版本，字段：`file`（必填，≤20MB）、`note`（可选）。版本号自动递增并成为当前版。
+  multipart 上传新版本，字段：`file`（必填，≤1GB）、`note`（可选）；也可改用 JSON `{ uploadId }` 消费完整分片会话（与 file 二选一）。版本号自动递增并成为当前版。
   mime 命中位图白名单（png/jpeg/webp/gif）时自动生成 WebP 缩略预览（宽 ≤800px，体积 ≤100KB，存 `uploads/previews/`）。
   响应 201：`{ version: ResourceVersionItem }`
 - **GET /api/projects/:id/materials/:resourceId/versions**（成员 + 可见范围）
@@ -737,6 +768,21 @@ interface ResourceVersionItem {
 - **GET /api/projects/:id/materials/:resourceId/preview**（成员 + 可见范围，取最新版本）
   指定/当前版本的预览。响应 200：有缩略预览回 `image/webp`；无预览但文件 mime 命中内联白名单（位图 / `application/pdf` / `text/markdown` / `video/mp4` / `video/webm` / `video/quicktime` / `audio/mpeg` / `audio/wav` / `audio/ogg`，另 `.md`/`.markdown` 扩展名兜底 `text/plain` 或空 mime）回原始文件流；否则 404 `not_found`。
   `hasPreview`（ResourceItem/ResourceVersionItem）语义 = 预览接口将返回 200。
+
+### 分片上传（大文件）
+
+单文件最大 1GB，按 8MB 分片串行上传；会话绑定当前用户与项目，每人同时最多 3 个，中断暂存文件 24 小时后回收，服务重启需重传。
+
+- **POST /api/projects/:id/materials/uploads**（materials:manage）
+  请求 `{ filename: string, mime?: string, size: number }` → 201 `{ uploadId: string, chunkSize: 8388608 }`
+  错误：400 文件名/大小无效、413 `file_too_large`（>1GB）、429 `upload_limit`（并发会话超 3）
+- **PUT /api/projects/:id/materials/uploads/:uploadId**（materials:manage）
+  multipart `offset`（已确认字节数，首片 0）+ `file`（当前分片 ≤8MB）→ 200 `{ received: number }`
+  必须按偏移顺序串行；偏移不匹配或会话占用 409（`upload_offset` / `upload_busy`），分片长度错误 400
+- **DELETE /api/projects/:id/materials/uploads/:uploadId**（materials:manage）
+  → 200 `{ ok: true }`，删除会话与暂存文件并释放名额；已消费或已取消 404
+
+完成后把 `uploadId` 交给 `POST /materials` 或 `POST /materials/:resourceId/versions` 消费。
 
 前端说明：「物料」Tab（`MaterialsTab.tsx`）提供类型筛选与默认折叠的等高资源卡片，缩略区固定为 80×80；展开详情后可查看描述、文件名、版本下拉与下载。上传新版本、可见范围与删除在卡片管理菜单中，可见范围使用居中表单弹层。预览图与原图均需鉴权，前端使用 `AuthImg` 组件（fetch + Blob → objectURL）；点击小图打开按视口宽高等比缩放的原图，关闭按钮保持在屏幕内。非图片内联预览走 `AuthMedia`：PDF 用 iframe、音/视频用 `<video>`/`<audio>` 标签、Markdown 用 react-markdown 渲染（原始 HTML 按文本转义）；不可预览格式显示同尺寸占位，展开后查看文件名并下载。折叠、尺寸与预览弹窗均为前端展示行为，HTTP 契约不变。
 

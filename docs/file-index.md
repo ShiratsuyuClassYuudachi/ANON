@@ -16,10 +16,10 @@
 | 功能域 | 后端 | 前端 | 测试 |
 |---|---|---|---|
 | 认证/注册/会话 | routes/auth.ts、middleware/auth.ts、services/session.ts、utils/jwt.ts、models/{User,RefreshToken,InviteCode}.ts | pages/{Login,Register}.tsx、auth.tsx、api/client.ts | tests/auth.test.ts |
-| 项目/成员/角色/邀请 | routes/projects.ts、routes/invites.ts、models/{Project,Membership,ProjectInvite}.ts、services/permissions.ts | pages/{Projects,ProjectHome,InviteAccept}.tsx、project/{MembersTab,RolesTab,SettingsTab}.tsx | tests/{projects,invites}.test.ts |
+| 项目/成员/角色/邀请 | routes/projects.ts、routes/invites.ts、models/{Project,Membership,ProjectInvite,ExternalMember}.ts、routes/externalMembers.ts、services/{permissions,projectPeople}.ts | pages/{Projects,ProjectHome,InviteAccept}.tsx、project/{MembersTab,ExternalMembersPanel,TaskAssigneePicker,RolesTab,SettingsTab}.tsx | tests/{projects,invites,external-members}.test.ts |
 | 待办（含模板/进度） | routes/todos.ts、models/{Todo,ReminderLog}.ts、services/{template,todos}.ts | project/{TodosTab,TodoFormDialog,TodoActionSheet}.tsx | tests/{todos,todo-complete,todo-updates,template}.test.ts |
 | 财务 | routes/finance.ts、models/Transaction.ts、services/{finance,financeEntries}.ts | project/FinanceTab.tsx | tests/finance.test.ts |
-| 物料/资料库/文件 | routes/{materials,files}.ts、models/{Resource,ResourceType,ResourceVersion,File}.ts、services/{preview,storage}.ts、middleware/upload.ts | project/MaterialsTab.tsx（折叠等高卡片/小图与大图预览）、components/{AuthImg,AuthMedia}.tsx | tests/{materials,files}.test.ts |
+| 物料/资料库/文件 | routes/{materials,files}.ts、models/{Resource,ResourceType,ResourceVersion,File}.ts、services/{materialVisibility,materialUploads,preview,storage}.ts、middleware/upload.ts | project/MaterialsTab.tsx（两层类别/联动筛选/类别管理/上传进度/小图与大图预览）、components/{AuthImg,AuthMedia}.tsx | tests/{materials,material-uploads,files}.test.ts |
 | 实物/物资台账 | routes/physical.ts、models/Physical{Category,Item,ItemLog}.ts | project/PhysicalTab.tsx | tests/physical.test.ts |
 | 平台账号（加密） | routes/accounts.ts、models/PlatformAccount.ts、services/platformCrypto.ts | project/AccountsTab.tsx、crypto.ts（浏览器端加密） | tests/accounts.test.ts |
 | 公告 | routes/announcements.ts、models/{Announcement,AnnouncementConfirmation}.ts | project/AnnouncementManager.tsx | tests/announcements.test.ts |
@@ -63,7 +63,7 @@
 
 ### 路由挂载（app.ts）
 - 顶级：`/api/qq`(webhook 回调，全局 json() 前挂载取原始 body)、`/api/auth`(限流 50/15min)、`/api/admin`、`/api/me`、`/api/open`、`/api/push`、`/api/invites`、`/api/files`、`/api/cron`、`/api/projects`、`/api/public/lostfound` 与 `/api/public/rundown-screen`(免登录,限流 300/min)
-- 项目域 `/api/projects/:id/`：`files` `todos` `work-modules` `work-sheet` `finance` `materials` `physical` `accounts` `dashboard` `onsite` `risks` `announcements` `activities` `stages` `stage-rundowns` `stage-signups` `custom-tools` `lostfound` `milestones`
+- 项目域 `/api/projects/:id/`：`files` `todos` `external-members` `work-modules` `work-sheet` `finance` `materials` `physical` `accounts` `dashboard` `onsite` `risks` `announcements` `activities` `stages` `stage-rundowns` `stage-signups` `custom-tools` `lostfound` `milestones`
 
 ### 路由 `src/routes/`（28 个，一文件一业务域）
 - `qqWebhook.ts` — POST /api/qq/webhook：QQ 事件回调（op13 地址验证签名回包、op0 验签+去重+异步分发 handleQQEvent；须在全局 json() 前挂载取原始 body）
@@ -71,6 +71,7 @@
 - `admin.ts` — 超管邀请码 POST/GET /invite-codes
 - `me.ts` — 个人资料 GET/PATCH /（GET 响应含 qq:{enabled,bound}）、POST /onboarded、QQ 绑定 POST /qq-bind-code、DELETE /qq-binding
 - `projects.ts` — 项目 CRUD + roles/members/invites 子资源 + QQ 群绑定 POST /:id/qq-bind-code、DELETE/PATCH /:id/qq-binding/:groupOpenId（project:manage；PATCH 配置逐群订阅类型与 allowStageSignup 舞台授权）
+- `externalMembers.ts` — 未注册成员建档/查询/编辑/归档恢复、手动关联已入项账号；member:manage 管理，项目内成员可读
 - `invites.ts` — GET /:token 查询、POST /:token/accept
 - `todos.ts` — 待办 CRUD、模板 import/export、POST /:todoId/complete|updates
 - `finance.ts` — 账目 CRUD、PATCH /ticket、GET /export(CSV)
@@ -83,7 +84,7 @@
 - `risks.ts` — GET /、POST /evaluate、POST /:riskId/ignore|restore
 - `onsite.ts` — GET / 现场聚合（含 rundowns 舞台执行：running 恒在列 + ±24h 窗口 idle）、GET/POST /incidents、POST /incidents/:iid/resolve
 - `workModules.ts` — 工作模块 CRUD、POST /:mid/confirm|unconfirm|checkin|finish
-- `workSheet.ts` — GET / 本人任务单、GET /:userId（work:manage）
+- `workSheet.ts` — GET / 本人任务单、GET /:userId、GET /external/:memberId（work:manage）
 - `stages.ts` — 阶段 CRUD、PATCH /reorder
 - `stageRundowns.ts` — 流程单 CRUD、节目 items、reorder（执行中仅未执行节目槽位可重排，动已演/在演位置 409）、execution 执行控制（start/advance/jump/shift/finish/reset）、screen-share 开关、publicRundownScreenRouter 公开大屏（token + 白名单）
 - `stageSignups.ts` — 报名批次/节目、PUT|DELETE review 投票、POST /:sid/import
@@ -100,13 +101,14 @@
 - `RefreshToken.ts` — 会话：tokenHash(sha256 唯一)、expiresAt
 - `InviteCode.ts` — 注册邀请码：code/createdBy/usedBy/usedAt
 - `Project.ts` — 项目：name/status/stages/roles/ticketTypes/qqGroups[{groupOpenId,types,allowStageSignup}]（QQ 多群投递目标、逐群订阅与舞台授权，授权默认关闭）；导出默认阶段
+- `ExternalMember.ts` — 项目内未注册成员档案：姓名/岗位/联系方式/归档/账号关联；不创建 User、不授予登录权限
 - `Membership.ts` — 成员：projectId+userId+roleName（唯一索引）
 - `ProjectInvite.ts` — 项目邀请：token/roleName/expiresAt
 - `Todo.ts` — 待办：title/assigneeIds/dueAt/status/qqSourceGroupOpenId（QQ 群@录单来源群，节点/到期提醒只回该群）
 - `ReminderLog.ts` — 提醒去重：todoId+kind+targetId（唯一；targetId 必填写入——FerretDB sparse 索引将缺失字段按 null 索引）
 - `QQBindCode.ts` — QQ 绑定码：code 唯一/kind(user|project)/userId|projectId/expiresAt（TTL 自动清理）
 - `Transaction.ts` — 财务：type/amountCents/payerUserId/splitAmong
-- `Resource.ts` / `ResourceType.ts` / `ResourceVersion.ts` / `File.ts` — 资料库四层：类型→资源→版本→文件；ResourceType 导出共用 visibilitySchema
+- `Resource.ts` / `ResourceType.ts` / `ResourceVersion.ts` / `File.ts` — 资料库：两层类别（parentId）→资源→版本→文件；ResourceType 导出共用 visibilitySchema
 - `PhysicalCategory.ts` / `PhysicalItem.ts` / `PhysicalItemLog.ts` — 实物台账：分类(含默认常量)/条目(状态枚举+中文标签)/操作日志
 - `PlatformAccount.ts` — 平台账号：platform/mode/passwordCipher/visibility
 - `Announcement.ts` / `AnnouncementConfirmation.ts` — 公告 + 确认记录（唯一索引）
@@ -125,6 +127,7 @@
 - `ApiKey.ts` — API 密钥：keyHash(sha256 唯一)/userId/projectId/toolId(可选，工具兑换来源)/scopes/expiresAt(可空=永久)/lastUsedAt
 
 ### 服务 `src/services/`
+- `projectPeople.ts` — 统一负责人解析：档案关联到项目现有账号、重复身份去重、最早现场状态合并；供任务/联系人/统计/风险/通知复用
 - `activity.ts` — logActivity 异步写操作日志
 - `dashboard.ts` — buildSummary/buildMyActions/buildSchedule 仪表盘聚合
 - `demoSeed.ts` — seedDemoData/deleteDemoData（CLI 与试用共用）
@@ -138,6 +141,8 @@
 - `permissions.ts` — ALL_PERMISSIONS(15 项) + PRESET_ROLES(4 预设角色) + grantPermissionToAllRoles（新权限点启动迁移，默认授予所有角色）
 - `platformCrypto.ts` — 平台账号密码 AES-256-GCM（iv:tag:data）
 - `preview.ts` — sharp 转 WebP 预览（≤800px、≤100KB）
+- `materialVisibility.ts` — 物料可见范围逐级继承（资源→子类别→一级类别），用于网页、文件直链及 QQ
+- `materialUploads.ts` — 物料 1 GB 分片上传会话、偏移/大小校验、消费与取消、过期暂存清理
 - `risk.ts` — computeRisks 规则探测 + reconcileRisks 落库/通知 + computeHealth
 - `session.ts` — 刷新令牌签发/轮换/吊销（30 天、上限 10）
 - `storage.ts` — S3/本地双后端文件存取
@@ -174,7 +179,7 @@
 - `src/theme.tsx` — ThemeProvider/ModeToggle：日夜 × 简洁/明快
 - `src/crypto.ts` — PBKDF2(60万次)+AES-GCM 浏览器端加密（平台账号 user 模式）
 - `src/types.ts` — 全部 API 共享类型
-- `src/index.css` — Tailwind v4 主题变量与全局样式
+- `src/index.css` — Tailwind v4 四主题语义色、对比度令牌、圆角与减少动态效果全局规则
 - `src/vite-env.d.ts` — Vite / vite-plugin-pwa 客户端类型引用
 - `src/lib/datetime.ts` — 本地时间格式化 + 活动倒计时 + 开展倒排换算（daysBeforeLocal）
 - `src/lib/offlineQueue.ts` — 离线 POST 队列（现场模式用）
@@ -185,13 +190,13 @@
 - `src/lib/utils.ts` — cn() 类名合并
 
 ### 页面 `src/pages/`
-- `Login.tsx` / `Register.tsx` — 登录 / 邀请码注册（演示模式一键进入；与 InviteAccept 共用 AuthShell 品牌壳）
-- `Projects.tsx` — 项目列表：健康度/阶段/倒计时卡片 + 新建
-- `ProjectHome.tsx` — 项目主页：10 个按权限过滤的 Tab + 现场模式入口；移动端底部导航「更多」Sheet（现场模式/溢出 Tab/「安装应用」PWA 入口，指引弹层挂 Sheet 外由本页持有）
+- `Login.tsx` / `Register.tsx` — 登录 / 邀请码注册（演示模式一键进入、表单错误提示；与 InviteAccept 共用 AuthShell）
+- `Projects.tsx` — 项目列表：健康度无障碍名称、进度、阶段与倒计时卡片及新建
+- `ProjectHome.tsx` — 项目主页：按权限过滤的导航、选中语义与可滚动移动端更多 Sheet；PWA 指引由本页持有
 - `OnsitePage.tsx` — 现场模式：签到/完成/异常上报（离线入队）、舞台执行卡（Rundown 开始/推进/顺延，按 tools:manage 显隐）、失物登记入口（复用 LostFoundItemDialog，按 myPermissions 显隐）、30s 轮询
 - `WorkSheetPrint.tsx` — 任务单打印页（按人/全员）
 - `DownloadFile.tsx` — 导出文件下载页（QQ 聊天记录导出链接落点）：进入即带登录态触发下载，失败可重试
-- `Me.tsx` — 个人资料/联系方式/推送设置/QQ 通知绑定（QqBindCard）/API 密钥（ApiKeysCard）/界面偏好
+- `Me.tsx` — 个人资料及响应式联系方式表单、推送设置/QQ 通知绑定/API 密钥/界面偏好
 - `Admin.tsx` — 超管邀请码管理
 - `InviteAccept.tsx` — 接受项目邀请（AuthShell 壳，错误/信息/加载三态在壳内）
 - `PublicLostFound.tsx` — 失物招领免登录公开查找页（/lf/:token，搜索+状态筛选+照片；头部品牌行）
@@ -199,30 +204,30 @@
 - `DocsPage.tsx` — 帮助中心：章节切换/全文搜索/截图缩放
 
 ### 通用组件 `src/components/`
-- `Layout.tsx` — 主布局：顶栏（项目切换/主题/用户菜单）+ 各横幅挂载点
+- `Layout.tsx` — 主布局：响应式顶栏（项目切换/主题/用户菜单）+ 各横幅挂载点
 - `FormOverlay.tsx` — **弹层规范核心**：所有含输入框的弹层一律经此渲染浮动居中 Dialog（禁底部 Sheet 表单）
 - `AuthImg.tsx` — 鉴权图片（useAuthorizedObjectUrl → objectURL）
 - `AuthMedia.tsx` — 鉴权 PDF/音视频/Markdown 预览（iframe/video/audio/react-markdown + useAuthorizedObjectUrl；previewKindOf 按 mime+扩展名归类）
-- `DemoBadge.tsx` / `DemoBanner.tsx` — 演示站角标 / 横幅（一键还原种子）
+- `DemoBadge.tsx` / `DemoBanner.tsx` — 演示站避让移动导航且指针穿透的角标 / 响应式横幅与示例数据还原
 - `TrialBanner.tsx` — 试用横幅（数据销毁倒计时）
 - `PushBanner.tsx` / `PushSettingsCard.tsx` — Push 提示条 / 订阅开关卡
 - `QqBindCard.tsx` — Me 页 QQ 通知卡：未启用提示 / 生成绑定码（大字码+指引）/ 已绑定后生成群绑定码 / 解绑清除页面旧码
 - `PwaInstallGuide.tsx` — PWA 手动安装指引弹层（iOS 分享路径 / 浏览器菜单路径两版；由 ProjectHome 挂在「更多」Sheet 外）
 - `ApiKeysCard.tsx` — Me 页 API 密钥卡：自助生成（项目+实有权限点+30 天/永久）、一次性原文展示复制、列表与撤销
 - `Toaster.tsx` — sonner 封装；`Logo.tsx` — 品牌标识（应用图标 /icons/icon-192.png + ANON 字样，size/wordmarkClassName props，顶栏/AuthShell/公开页共用）
-  `AuthShell.tsx` — 认证/邀请页共用壳：≥lg 左侧品牌区（bg-primary 随主题主色 + radial 高光）+ 右侧表单卡，<lg 紧凑品牌头；Login/Register/InviteAccept 接入
+  `AuthShell.tsx` — 认证/邀请页共用壳：桌面柔和品牌区与居中表单、移动端左对齐品牌头
 - `help/content.ts` — HELP_CHAPTERS 帮助文案（11 章，含 QQ 帮助菜单入口、报名/记账/物料与群授权指引；对应 public/help/qq-group-settings.png、qq-personal-binding.png 截图）
 - `onboarding/OnboardingDialog.tsx` — 首登三页幻灯；`onboarding/tour.ts` — driver.js 分步高亮（data-tour 锚点）
-- `ui/*.tsx`（21 个）— shadcn/radix 基础组件封装；表单一律用 dialog.tsx（经 FormOverlay），sheet.tsx 仅限无输入纯操作面板；badge.tsx 含 success/success-soft/warning/warning-soft 状态变体（语义令牌见 index.css），button.tsx 基础串含 active:scale-[0.98] 触感，input.tsx 原生支持 file: 样式（文件选择直接用 `<Input type="file">`）；list-row.tsx 为列表行共享容器（rounded-lg border p-3）
+- `ui/*.tsx`（21 个）— shadcn/radix 基础组件封装；输入弹层经 FormOverlay，sheet 仅供无输入操作；共享响应式触控尺寸、语义色、卡片间距和弹层关闭控件；badge 含状态变体，list-row 为列表行共享容器
 
 ### 项目 Tab `src/components/project/`（挂在 ProjectHome，直调对应后端域）
-- `DashboardTab.tsx` — 仪表盘聚合（内嵌公告/里程碑/阶段卡）
-- `TodosTab.tsx` + `TodoFormDialog.tsx` + `TodoActionSheet.tsx` — 待办列表/表单（日期字段支持开展倒排录入）/完成与进度弹层
-- `FinanceTab.tsx` — 记账/门票/CSV 导出
-- `MaterialsTab.tsx` — 资料分类/版本/实物入口；数字资源默认折叠等高卡片与80×80小图、详情展开/版本切换下载、按视口等比缩放大图、可见范围居中弹窗；帮助截图 public/help/{tab-materials,materials-version-switch,materials-image-preview,materials-pdf-preview,materials-create-with-file}.png
+- `DashboardTab.tsx` — 仪表盘聚合、持久化卡片顺序/折叠/隐藏、响应式指标与风险计数语义（内嵌公告/里程碑/阶段卡）
+- `TodosTab.tsx` + `TodoFormDialog.tsx` + `TodoActionSheet.tsx` — 待办列表响应式筛选、错误/加载/空态、任务操作及表单（日期支持开展倒排）
+- `FinanceTab.tsx` — 响应式财务汇总、结算与账目列表，记账/门票/CSV 导出
+- `MaterialsTab.tsx` — 两层类别联动筛选（序列与筛选双重保护加载状态）、搜索排序、类别管理、资源编辑上传与预览；数字资源两列卡、版本切换与可见范围弹窗；实物入口及帮助截图 public/help/materials-*.png
 - `PhysicalTab.tsx` — 实物分类/台账/状态/日志
 - `AccountsTab.tsx` — 平台账号增删/密码揭示
-- `MembersTab.tsx` / `RolesTab.tsx` — 成员邀请/角色权限
+- `MembersTab.tsx` / `RolesTab.tsx` — 成员邀请/角色权限；`ExternalMembersPanel.tsx` 未注册成员建档·编辑·归档恢复·关联账号；`TaskAssigneePicker.tsx` 待办与现场共用的账号+档案混合指派选择器
 - `SettingsTab.tsx` — 项目信息 + 阶段管理（StageManager）+ QQ 群通知卡（QqGroupCard：多群列表、逐群 7 类订阅与全员舞台报名授权即时保存、绑定码生成）
 - `WorkTab.tsx` — 现场工作模块/确认/打印
 - `AnnouncementManager.tsx` — 公告发布/置顶/确认名单
@@ -236,12 +241,12 @@
 - `tools/LostFoundTool.tsx` + `LostFoundItemDialog.tsx` + `LostFoundClaimDialog.tsx` — 失物列表/登记表单(multipart 单照片)/认领备注弹层 + 公开分享开关卡
 
 ### 演示站 `src/demo/`（`npm run build:demo`，浏览器内 mock 全部 /api）
-- `install.ts` — installDemo：包装 window.fetch 拦截 /api/*；sessionStorage 内存库
+- `install.ts` — installDemo：包装 window.fetch 拦截 /api/*；恢复 sessionStorage 内存库并清理会话遗留文件；resetDemo 等待在途请求及文件回收后清除会话
 - `router.ts` — def/route：`:param` 模板路由 + 80ms 延迟；Ctx 透传 Authorization 头（open/me 识别 anonk_demo_*）
-- `seed.ts` — buildSeed（DB_VERSION=7）：相对当前时刻生成演示数据（含两条自定义工具种子）
-- `types.ts` / `helpers.ts` — Db/Ctx/Handler 类型 / 错误信封·权限·文件存取
+- `seed.ts` — buildSeed（DB_VERSION=9）：相对当前时刻生成演示数据（含两层物料类别、未注册成员档案、两条自定义工具种子）
+- `types.ts` / `helpers.ts` — Db/Ctx/Handler 类型 / 错误信封·权限·文件存取；大文件 IndexedDB 持久化、共享锁保护活跃标签页、删除与孤立文件回收
 - `aggregate.ts` — R1–R7 聚合（注释标注移植自后端哪个服务）
-- `handlers/*.ts`（15 个）— 按域复刻后端路由：auth/projects/todos/finance/materials/physical/accounts/dashboard/work/stageRundowns/stageSignups/customTools/open/lostFound + index.ts 合并路由表
+- `handlers/*.ts`（16 个）— 按域复刻后端路由：auth/projects/externalMembers/todos/finance/materials/physical/accounts/dashboard/work/stageRundowns/stageSignups/customTools/open/lostFound + index.ts 合并路由表
 - `pwa-register-stub.ts` — 禁 SW 防缓存干扰 mock
 
 ### 构建与脚本

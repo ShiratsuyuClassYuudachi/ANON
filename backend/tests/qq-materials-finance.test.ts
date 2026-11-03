@@ -426,11 +426,20 @@ describe('QQ 物料上传会话', () => {
     await g('结束上传物料'); expect(last()).toContain('过期'); expect(await Resource.countDocuments()).toBe(0);
   });
   it('私聊选择活动和多个分类，不接收选择前文件', async () => {
-    await secondProject(); const t2 = await ResourceType.create({ projectId: project._id, name: '第二分类' });
+    await secondProject(); const t2 = await ResourceType.create({ projectId: project._id, name: '第二分类', parentId: type._id });
     await c('开始上传物料'); expect(lastC()).toContain('哪个活动'); await c('1'); expect(lastC()).toContain('物料分类');
+    expect(lastC()).toContain('设计资料 / 第二分类');
     await c('', { attachments: [attachment] }); expect(lastC()).toContain('请先回复');
     await c('2'); await c('', { attachments: [attachment] }); await c('结束上传物料');
     expect(String((await Resource.findOne())?.typeId)).toBe(String(t2._id));
+  });
+  it('可见子类别归在受限占位下，QQ菜单不泄露父类别名称', async () => {
+    await ResourceType.updateOne({ _id: type._id }, { visibility: { userIds: [], roleNames: ['其他角色'] } });
+    await ResourceType.create({ projectId: project._id, name: '可见子类', parentId: type._id, visibility: { userIds: [], roleNames: ['录入'] } });
+    await ResourceType.create({ projectId: project._id, name: '公共资料' });
+    await c('开始上传物料');
+    expect(lastC()).toContain('受限类别 / 可见子类');
+    expect(lastC()).not.toContain('设计资料 / 可见子类');
   });
   it('无分类时在结束时创建 QQ上传 分类', async () => {
     await type.deleteOne(); await g('开始上传物料'); expect(await ResourceType.countDocuments()).toBe(0);

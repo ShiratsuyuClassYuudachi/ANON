@@ -115,7 +115,7 @@ describe('work-modules 路由', () => {
       { name: '  ' },
       { name: 'X', requiredCount: 0 },
       { name: 'X', startAt: '2026-08-02T00:00:00.000Z', endAt: '2026-08-01T00:00:00.000Z' },
-      { name: 'X', assigneeIds: [staff.user.id.replace(/.$/, (c) => (c === '0' ? '1' : '0'))] },
+      { name: 'X', assigneeIds: ['000000000000000000000000'] },
     ];
     for (const body of bad) {
       const res = await request(app)
