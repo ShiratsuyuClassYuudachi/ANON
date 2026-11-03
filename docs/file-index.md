@@ -227,7 +227,7 @@
 - `MaterialsTab.tsx` — 两层类别联动筛选（序列与筛选双重保护加载状态）、搜索排序、类别管理、资源编辑上传与预览；数字资源两列卡、版本切换与可见范围弹窗；实物入口及帮助截图 public/help/materials-*.png
 - `PhysicalTab.tsx` — 实物分类/台账/状态/日志
 - `AccountsTab.tsx` — 平台账号增删/密码揭示
-- `MembersTab.tsx` / `RolesTab.tsx` — 成员邀请/角色权限
+- `MembersTab.tsx` / `RolesTab.tsx` — 成员邀请/角色权限；`ExternalMembersPanel.tsx` 未注册成员建档·编辑·归档恢复·关联账号；`TaskAssigneePicker.tsx` 待办与现场共用的账号+档案混合指派选择器
 - `SettingsTab.tsx` — 项目信息 + 阶段管理（StageManager）+ QQ 群通知卡（QqGroupCard：多群列表、逐群 7 类订阅与全员舞台报名授权即时保存、绑定码生成）
 - `WorkTab.tsx` — 现场工作模块/确认/打印
 - `AnnouncementManager.tsx` — 公告发布/置顶/确认名单
@@ -243,10 +243,10 @@
 ### 演示站 `src/demo/`（`npm run build:demo`，浏览器内 mock 全部 /api）
 - `install.ts` — installDemo：包装 window.fetch 拦截 /api/*；恢复 sessionStorage 内存库并清理会话遗留文件；resetDemo 等待在途请求及文件回收后清除会话
 - `router.ts` — def/route：`:param` 模板路由 + 80ms 延迟；Ctx 透传 Authorization 头（open/me 识别 anonk_demo_*）
-- `seed.ts` — buildSeed（DB_VERSION=8）：相对当前时刻生成演示数据（含两层物料类别、两条自定义工具种子）
+- `seed.ts` — buildSeed（DB_VERSION=9）：相对当前时刻生成演示数据（含两层物料类别、未注册成员档案、两条自定义工具种子）
 - `types.ts` / `helpers.ts` — Db/Ctx/Handler 类型 / 错误信封·权限·文件存取；大文件 IndexedDB 持久化、共享锁保护活跃标签页、删除与孤立文件回收
 - `aggregate.ts` — R1–R7 聚合（注释标注移植自后端哪个服务）
-- `handlers/*.ts`（15 个）— 按域复刻后端路由：auth/projects/todos/finance/materials/physical/accounts/dashboard/work/stageRundowns/stageSignups/customTools/open/lostFound + index.ts 合并路由表
+- `handlers/*.ts`（16 个）— 按域复刻后端路由：auth/projects/externalMembers/todos/finance/materials/physical/accounts/dashboard/work/stageRundowns/stageSignups/customTools/open/lostFound + index.ts 合并路由表
 - `pwa-register-stub.ts` — 禁 SW 防缓存干扰 mock
 
 ### 构建与脚本
