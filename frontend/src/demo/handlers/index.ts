@@ -1,3 +1,4 @@
+import { externalMemberRoutes } from './externalMembers';
 import { accountRoutes } from './accounts';
 import { authRoutes } from './auth';
 import { customToolRoutes } from './customTools';
@@ -18,6 +19,7 @@ import type { Route } from '../router';
 export const routes: Route[] = [
   ...authRoutes,
   ...projectRoutes,
+  ...externalMemberRoutes,
   ...dashboardRoutes,
   ...todoRoutes,
   ...financeRoutes,

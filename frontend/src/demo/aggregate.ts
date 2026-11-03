@@ -1,3 +1,4 @@
+import { workAssignments, todoUsers } from './people';
 import type {
   DashboardData,
   DashboardActionItem,
@@ -147,9 +148,11 @@ export function buildSummary(db: Db, p: DbProject) {
   let shortageCount = 0;
   for (const m of modules) {
     totalRequired += m.requiredCount;
-    totalAssigned += m.assignees.length;
-    confirmedCount += m.assignees.filter((a) => a.confirmedAt).length;
-    if (m.assignees.length < m.requiredCount) shortageCount++;
+    const all = workAssignments(db, m);
+    const assigned = [...all.registered, ...all.external];
+    totalAssigned += assigned.length;
+    confirmedCount += assigned.filter((a) => a.confirmedAt).length;
+    if (assigned.length < m.requiredCount) shortageCount++;
   }
   const workSummary = {
     totalModules: modules.length,
@@ -167,7 +170,7 @@ export function buildSummary(db: Db, p: DbProject) {
       budgetUsageRate: totalIncome > 0 ? Math.round((expenseCents / totalIncome) * 100) : null,
       pendingMaterialCount: materialSummary.noVersionCount,
       workConfirmationRate: totalAssigned > 0 ? Math.round((confirmedCount / totalAssigned) * 100) : 100,
-      memberCount: members.length,
+      memberCount: members.length + db.externalMembers.filter((m) => m.projectId === p.id && !m.archivedAt && !m.linkedUserId).length,
       activeRiskCount: activeRisks,
     },
     modules: {
@@ -185,7 +188,7 @@ export function buildMyActions(db: Db, p: DbProject): DashboardActionItem[] {
   const me = db.currentUserId;
   const actions: DashboardActionItem[] = [];
 
-  for (const t of db.todos.filter((x) => x.projectId === p.id && x.status === 'open' && x.assigneeIds.includes(me))) {
+  for (const t of db.todos.filter((x) => x.projectId === p.id && x.status === 'open' && todoUsers(db, x).includes(me))) {
     const isOverdue = !!(t.dueAt && new Date(t.dueAt).getTime() < now);
     actions.push({
       id: t.id,
@@ -198,8 +201,8 @@ export function buildMyActions(db: Db, p: DbProject): DashboardActionItem[] {
     });
   }
 
-  for (const m of db.workModules.filter((x) => x.projectId === p.id && x.assignees.some((a) => a.userId === me))) {
-    const mine = m.assignees.find((a) => a.userId === me)!;
+  for (const m of db.workModules.filter((x) => x.projectId === p.id && workAssignments(db, x).registered.some((a) => a.userId === me))) {
+    const mine = workAssignments(db, m).registered.find((a) => a.userId === me)!;
     if (!mine.confirmedAt) {
       const isOverdue = !!(m.startAt && new Date(m.startAt).getTime() < now);
       actions.push({
@@ -435,9 +438,9 @@ export function buildOnsite(db: Db, p: DbProject, membershipRole: string | null,
 
   const STATE_ORDER = { current: 0, upcoming: 1, done: 2 } as const;
   const myModules = db.workModules
-    .filter((m) => m.projectId === p.id && m.assignees.some((a) => a.userId === me))
+    .filter((m) => m.projectId === p.id && workAssignments(db, m).registered.some((a) => a.userId === me))
     .map((m) => {
-      const mine = m.assignees.find((a) => a.userId === me)!;
+      const mine = workAssignments(db, m).registered.find((a) => a.userId === me)!;
       const startMs = m.startAt ? new Date(m.startAt).getTime() : null;
       const endMs = m.endAt ? new Date(m.endAt).getTime() : null;
       const state: 'current' | 'upcoming' | 'done' = mine.completedAt
@@ -474,9 +477,13 @@ export function buildOnsite(db: Db, p: DbProject, membershipRole: string | null,
   const contacts = membersJson(db, p.id)
     .map((m) => {
       const u = db.users.find((x) => x.id === m.userId);
-      return { userId: m.userId, name: m.name, roleName: m.roleName as string | null, contacts: u?.contacts ?? [] };
+      const profiles = m.externalProfiles ?? [];
+      const contacts = [...(u?.contacts ?? []), ...profiles.flatMap((x) => x.contacts)];
+      return { userId: m.userId as string | null, name: m.name, roleName: m.roleName as string | null, duty: profiles.map((x) => x.duty).filter(Boolean).join('；'), contacts: contacts.filter((c, i) => contacts.findIndex((x) => x.platform === c.platform && x.value === c.value) === i) };
     })
     .filter((c) => c.contacts.length > 0);
+
+  contacts.push(...db.externalMembers.filter((m) => m.projectId === p.id && !m.archivedAt && !m.linkedUserId && m.contacts.length).map((m) => ({ userId: null, externalMemberId: m.id, name: m.name, roleName: null, duty: m.duty, contacts: m.contacts })));
 
   const moduleNameOf = new Map(db.workModules.filter((m) => m.projectId === p.id).map((m) => [m.id, m.name]));
   const incidents = db.incidents

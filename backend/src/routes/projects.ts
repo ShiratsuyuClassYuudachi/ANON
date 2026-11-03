@@ -13,6 +13,7 @@ import { ALL_PERMISSIONS, PRESET_ROLES } from '../services/permissions';
 import { createBindCode, QQ_GROUP_TYPE_KEYS } from '../services/qqbot';
 import { qqConfigured } from '../services/qqApi';
 import { computeHealth } from '../services/risk';
+import { loadProjectPeople, externalMemberJson } from '../services/projectPeople';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
 
@@ -41,12 +42,14 @@ function projectJson(p: InstanceType<typeof Project>) {
 }
 
 async function membersJson(projectId: unknown) {
+  const people = await loadProjectPeople(projectId);
   const ms = await Membership.find({ projectId }).lean();
   const users = await User.find({ _id: { $in: ms.map((m) => m.userId) } }).lean();
   const byId = new Map(users.map((u) => [u._id.toString(), u]));
   return ms.map((m) => ({
     userId: m.userId.toString(),
     roleName: m.roleName,
+    externalProfiles: [...people.externals.values()].filter((e) => String(e.linkedUserId) === String(m.userId) && !e.archivedAt).map(externalMemberJson),
     name: byId.get(m.userId.toString())?.name ?? '未知',
     email: byId.get(m.userId.toString())?.email ?? '',
   }));
@@ -133,6 +136,7 @@ projectsRouter.get(
     res.json({
       project: projectJson(req.project!),
       members: await membersJson(req.project!._id),
+      externalMembers: [...(await loadProjectPeople(req.project!._id)).externals.values()].map(externalMemberJson),
       myRole: req.user!.isSuperAdmin ? '超级管理员' : req.membership!.roleName,
       myPermissions: [...req.myPermissions!],
     });

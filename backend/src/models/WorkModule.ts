@@ -17,7 +17,12 @@ export interface IWorkModule {
   endAt?: Date;
   requiredCount: number;
   assignees: IWorkAssignee[];
+  externalAssignees: IExternalWorkAssignee[];
   createdBy: Types.ObjectId;
+}
+
+export interface IExternalWorkAssignee extends Omit<IWorkAssignee, 'userId'> {
+  externalMemberId: Types.ObjectId;
 }
 
 export type WorkModuleDoc = HydratedDocument<IWorkModule>;
@@ -43,6 +48,13 @@ const schema = new Schema<IWorkModule>(
     endAt: { type: Date },
     requiredCount: { type: Number, default: 1, min: 1 },
     assignees: { type: [assigneeSchema], default: [] },
+    externalAssignees: { type: [new Schema<IExternalWorkAssignee>({
+      externalMemberId: { type: Schema.Types.ObjectId, ref: 'ExternalMember', required: true },
+      confirmedAt: Date,
+      confirmedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+      checkedInAt: Date,
+      completedAt: Date,
+    }, { _id: false })], default: [] },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   },
   { timestamps: true },

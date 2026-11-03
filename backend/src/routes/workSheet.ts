@@ -15,6 +15,14 @@ workSheetRouter.get(
 );
 
 workSheetRouter.get(
+  '/external/:memberId',
+  ...requirePermission('work:manage'),
+  ah(async (req, res) => {
+    res.json(await buildSheet(req.project!, req.params.memberId, true));
+  }),
+);
+
+workSheetRouter.get(
   '/:userId',
   ...requirePermission('work:manage'),
   ah(async (req, res) => {

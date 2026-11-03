@@ -1,3 +1,4 @@
+import { blankState, externalIds, linkedUser, normalizeWork, requirePeoplePermission, workAssignments } from '../people';
 import { buildOnsite } from '../aggregate';
 import { badRequest, bodyObj, json, membersJson, myPermissions, nameOf, notFound, nowIso, requireProject, uid } from '../helpers';
 import { def, type Route } from '../router';
@@ -7,6 +8,7 @@ import type { IncidentCategory } from '../../types';
 const INCIDENT_CATEGORIES = ['equipment', 'staff', 'material', 'venue', 'safety', 'other'];
 
 function moduleJson(db: Db, m: DbWorkModule) {
+  const all = workAssignments(db, m);
   return {
     id: m.id,
     name: m.name,
@@ -15,7 +17,8 @@ function moduleJson(db: Db, m: DbWorkModule) {
     startAt: m.startAt,
     endAt: m.endAt,
     requiredCount: m.requiredCount,
-    assignees: m.assignees.map((a) => ({
+    externalAssignees: all.external.map((a) => ({ ...a, name: db.externalMembers.find((x) => x.id === a.externalMemberId)?.name ?? '未知', archivedAt: db.externalMembers.find((x) => x.id === a.externalMemberId)?.archivedAt ?? null })),
+    assignees: all.registered.map((a) => ({
       userId: a.userId,
       name: nameOf(db, a.userId),
       confirmedAt: a.confirmedAt,
@@ -36,10 +39,16 @@ function findModule(ctx: Ctx): DbWorkModule {
 }
 
 /** confirm/checkin/finish 共用：解析目标 assignee（默认当前用户；代他人需 body.userId） */
-function resolveTarget(ctx: Ctx): { m: DbWorkModule; a: DbWorkAssignee } {
+function resolveTarget(ctx: Ctx) {
   const m = findModule(ctx);
-  const target = String(bodyObj(ctx).userId ?? ctx.db.currentUserId);
-  const a = m.assignees.find((x) => x.userId === target);
+  const b = bodyObj(ctx);
+  if (b.userId && b.externalMemberId) throw badRequest('只能指定一种成员身份');
+  const externalId = b.externalMemberId ? String(b.externalMemberId) : null;
+  const linked = externalId ? linkedUser(ctx.db, ctx.params.pid, externalId) : null;
+  const target = linked ?? String(externalId ?? b.userId ?? ctx.db.currentUserId);
+  if (externalId || target !== ctx.db.currentUserId) requirePeoplePermission(ctx, 'work:manage');
+  normalizeWork(ctx.db, m);
+  const a = externalId && !linked ? m.externalAssignees?.find((x) => x.externalMemberId === target) : m.assignees.find((x) => x.userId === target);
   if (!a) throw badRequest('该成员未被分配到此模块');
   return { m, a };
 }
@@ -52,10 +61,11 @@ interface ModuleBody {
   endAt?: string | null;
   requiredCount?: number;
   assigneeIds?: string[];
+  externalAssigneeIds?: string[];
 }
 
 /** 解析并校验模块字段（对齐后端 parseBody）；失败返回 Response */
-function parseModuleBody(ctx: Ctx, b: Record<string, unknown>): ModuleBody | Response {
+function parseModuleBody(ctx: Ctx, b: Record<string, unknown>, kept: string[] = []): ModuleBody | Response {
   const out: ModuleBody = {};
   if (b.name !== undefined) {
     const name = String(b.name ?? '').trim();
@@ -85,6 +95,7 @@ function parseModuleBody(ctx: Ctx, b: Record<string, unknown>): ModuleBody | Res
     if (ids.some((id) => !members.some((m) => m.userId === id))) return badRequest('assigneeIds 含非项目成员');
     out.assigneeIds = ids;
   }
+  if (b.externalAssigneeIds !== undefined) out.externalAssigneeIds = externalIds(ctx, b.externalAssigneeIds, kept);
   return out;
 }
 
@@ -99,6 +110,7 @@ export const workRoutes: Route[] = [
   }),
 
   def('POST', '/api/projects/:pid/work-modules', async (ctx) => {
+    requirePeoplePermission(ctx, 'work:manage');
     const { db, params } = ctx;
     requireProject(ctx);
     const p = parseModuleBody(ctx, bodyObj(ctx));
@@ -113,6 +125,7 @@ export const workRoutes: Route[] = [
       startAt: p.startAt ?? null,
       endAt: p.endAt ?? null,
       requiredCount: p.requiredCount ?? 1,
+      externalAssignees: (p.externalAssigneeIds ?? []).map((externalMemberId) => ({ externalMemberId, ...blankState() })),
       assignees: (p.assigneeIds ?? []).map((userId) => ({ userId, confirmedAt: null, confirmedBy: null, checkedInAt: null, completedAt: null })),
       createdBy: db.currentUserId,
       createdAt: nowIso(),
@@ -122,11 +135,14 @@ export const workRoutes: Route[] = [
   }),
 
   def('PATCH', '/api/projects/:pid/work-modules/:mid', async (ctx) => {
+    requirePeoplePermission(ctx, 'work:manage');
     const { db } = ctx;
     requireProject(ctx);
     const m = findModule(ctx);
-    const p = parseModuleBody(ctx, bodyObj(ctx));
+    const previousExternal = structuredClone(m.externalAssignees ?? []);
+    const p = parseModuleBody(ctx, bodyObj(ctx), previousExternal.map((a) => a.externalMemberId));
     if (p instanceof Response) return p;
+    normalizeWork(db, m);
     if (p.name !== undefined) m.name = p.name;
     if (p.description !== undefined) m.description = p.description;
     if (p.location !== undefined) m.location = p.location;
@@ -140,10 +156,13 @@ export const workRoutes: Route[] = [
         return kept ?? { userId, confirmedAt: null, confirmedBy: null, checkedInAt: null, completedAt: null };
       });
     }
+    if (p.externalAssigneeIds !== undefined) m.externalAssignees = p.externalAssigneeIds.map((externalMemberId) => m.externalAssignees?.find((a) => a.externalMemberId === externalMemberId) ?? previousExternal.find((a) => a.externalMemberId === externalMemberId) ?? { externalMemberId, ...blankState() });
+    normalizeWork(db, m);
     return json({ module: moduleJson(db, m) });
   }),
 
   def('DELETE', '/api/projects/:pid/work-modules/:mid', async (ctx) => {
+    requirePeoplePermission(ctx, 'work:manage');
     const { db } = ctx;
     requireProject(ctx);
     const m = findModule(ctx);
@@ -196,7 +215,13 @@ export const workRoutes: Route[] = [
     return workSheet(ctx, ctx.db.currentUserId);
   }),
 
+  def('GET', '/api/projects/:pid/work-sheet/external/:memberId', async (ctx) => {
+    requirePeoplePermission(ctx, 'work:manage');
+    return workSheet(ctx, ctx.params.memberId, true);
+  }),
+
   def('GET', '/api/projects/:pid/work-sheet/:userId', async (ctx) => {
+    requirePeoplePermission(ctx, 'work:manage');
     return workSheet(ctx, ctx.params.userId);
   }),
 
@@ -251,13 +276,16 @@ export const workRoutes: Route[] = [
   }),
 ];
 
-async function workSheet(ctx: Ctx, targetUserId: string): Promise<Response> {
+async function workSheet(ctx: Ctx, targetUserId: string, external = false): Promise<Response> {
   const { db, params } = ctx;
   const { project } = requireProject(ctx);
-  const member = membersJson(db, params.pid).find((m) => m.userId === targetUserId);
+  const profile = external ? db.externalMembers.find((m) => m.projectId === params.pid && m.id === targetUserId) : undefined;
+  const linked = external ? linkedUser(db, params.pid, targetUserId) : null;
+  if (linked) targetUserId = linked;
+  const member = external && !linked ? (profile ? { userId: profile.id, name: profile.name } : undefined) : membersJson(db, params.pid).find((m) => m.userId === targetUserId);
   if (!member) return notFound('该用户不是项目成员');
   const items = db.workModules
-    .filter((m) => m.projectId === params.pid && m.assignees.some((a) => a.userId === targetUserId))
+    .filter((m) => m.projectId === params.pid && (external && !linked ? m.externalAssignees?.some((a) => a.externalMemberId === targetUserId) : workAssignments(db, m).registered.some((a) => a.userId === targetUserId)))
     .sort((a, b) => {
       // Mongo 升序 null 排前
       const at = a.startAt ? new Date(a.startAt).getTime() : null;
@@ -269,7 +297,7 @@ async function workSheet(ctx: Ctx, targetUserId: string): Promise<Response> {
     });
   return json({
     project: { id: project.id, name: project.name },
-    user: { id: member.userId, name: member.name },
+    user: { id: member.userId, name: member.name, ...(external && !linked ? { externalMemberId: member.userId } : {}) },
     generatedAt: nowIso(),
     items: items.map((m) => moduleJson(db, m)),
   });

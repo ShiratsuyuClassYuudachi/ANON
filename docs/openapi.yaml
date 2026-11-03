@@ -859,7 +859,7 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
   /api/projects/{id}:
     get:
-      tags: [项目]
+      tags: [ 项目 ]
       summary: 获取项目详情
       description: 项目成员或超管可访问。超管的 myRole 固定为「超级管理员」。
       parameters:
@@ -868,39 +868,43 @@ paths:
           required: true
           schema: { type: string }
       responses:
-        '200':
+        "200":
           description: 项目详情与成员列表
           content:
             application/json:
               schema:
                 type: object
-                required: [project, members, myRole, myPermissions]
+                required: [ project, members, myRole, myPermissions ]
                 properties:
-                  project: { $ref: '#/components/schemas/ProjectDetail' }
+                  project: { $ref: "#/components/schemas/ProjectDetail" }
                   members:
                     type: array
-                    items: { $ref: '#/components/schemas/Member' }
+                    items: { $ref: "#/components/schemas/Member" }
                   myRole: { type: string }
                   myPermissions:
                     type: array
                     items: { type: string }
-        '401':
+                  externalMembers:
+                    type: array
+                    items: { $ref: "#/components/schemas/ExternalMember" }
+                    description: 项目全部人员档案，含已归档及已关联；注册成员数组仍只包含真实账号
+        "401":
           description: 未认证（unauthorized）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '403':
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
           description: 禁止访问（forbidden / api_key_wrong_project）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '404':
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
           description: 项目不存在（not_found）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+              schema: { $ref: "#/components/schemas/Error" }
     patch:
-      tags: [项目]
+      tags: [ 项目 ]
       summary: 更新项目信息
       description: 需 project:manage 权限。全部字段可选；startDate/endDate 传空值清除。
       parameters:
@@ -919,40 +923,40 @@ paths:
                 description: { type: string }
                 startDate: { type: string, format: date-time, nullable: true }
                 endDate: { type: string, format: date-time, nullable: true }
-                status: { $ref: '#/components/schemas/ProjectStatus' }
+                status: { $ref: "#/components/schemas/ProjectStatus" }
                 location: { type: string }
                 timezone: { type: string }
                 currentStage: { type: string }
       responses:
-        '200':
+        "200":
           description: 更新后的项目
           content:
             application/json:
               schema:
                 type: object
-                required: [project]
+                required: [ project ]
                 properties:
-                  project: { $ref: '#/components/schemas/ProjectDetail' }
-        '400':
+                  project: { $ref: "#/components/schemas/ProjectDetail" }
+        "400":
           description: 参数错误（bad_request）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '401':
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
           description: 未认证（unauthorized）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '403':
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
           description: 禁止访问（forbidden / api_key_wrong_project）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '404':
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
           description: 项目不存在（not_found）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+              schema: { $ref: "#/components/schemas/Error" }
   /api/projects/{id}/roles:
     post:
       tags: [项目]
@@ -1881,7 +1885,7 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
   /api/projects/{id}/todos:
     get:
-      tags: [待办]
+      tags: [ 待办 ]
       summary: 列出待办
       description: 需项目成员身份。支持按分类/指派人/状态过滤与排序。
       parameters:
@@ -1899,37 +1903,49 @@ paths:
           description: 按指派人 userId 过滤
         - name: status
           in: query
-          schema: { type: string, enum: [open, done] }
+          schema:
+            type: string
+            enum: [ open, done ]
           description: 按状态过滤
         - name: sort
           in: query
-          schema: { type: string, enum: [createdAt, dueAt, nodeAt], default: createdAt }
+          schema:
+            type: string
+            enum: [ createdAt, dueAt, nodeAt ]
+            default: createdAt
           description: 排序字段
         - name: order
           in: query
-          schema: { type: string, enum: [asc, desc], default: desc }
+          schema:
+            type: string
+            enum: [ asc, desc ]
+            default: desc
           description: 排序方向
+        - name: externalAssignee
+          in: query
+          schema: &a1 { type: string, pattern: "^[a-fA-F0-9]{24}$" }
+          description: 按外部档案负责人过滤，与 assignee 互斥；关联后按同一账号的全部指派匹配
       responses:
-        '200':
+        "200":
           description: 待办列表
           content:
             application/json:
               schema:
                 type: object
-                required: [todos]
+                required: [ todos ]
                 properties:
                   todos:
                     type: array
-                    items: { $ref: '#/components/schemas/TodoItem' }
-        '401':
+                    items: { $ref: "#/components/schemas/TodoItem" }
+        "401":
           description: 未认证（unauthorized）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+              schema: { $ref: "#/components/schemas/Error" }
     post:
-      tags: [待办]
+      tags: [ 待办 ]
       summary: 创建待办
-      description: 需 todo:create 权限（project:manage 等价放行）。
+      description: 需 todo:create 权限（project:manage 等价放行）。 支持 assigneeIds 与 externalAssigneeIds 混合指派；两组 PATCH 字段独立替换，省略保留。关联后按真实账号合并负责人，保留原有现场状态。
       parameters:
         - name: id
           in: path
@@ -1941,7 +1957,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [title]
+              required: [ title ]
               properties:
                 title: { type: string }
                 category: { type: string }
@@ -1953,36 +1969,40 @@ paths:
                 dueAt: { type: string, format: date-time }
                 remindAt: { type: string, format: date-time }
                 note: { type: string }
+                externalAssigneeIds:
+                  type: array
+                  items: *a1
+                  description: 本项目未注册成员档案 ID；不能新增已归档或已关联成员，原有指派可保留。PATCH 省略保留原指派，空数组清空。
       responses:
-        '201':
+        "201":
           description: 创建成功
           content:
             application/json:
               schema:
                 type: object
-                required: [todo]
+                required: [ todo ]
                 properties:
-                  todo: { $ref: '#/components/schemas/TodoItem' }
-        '400':
+                  todo: { $ref: "#/components/schemas/TodoItem" }
+        "400":
           description: 参数错误（bad_request：标题必填 / 指派人必须是项目成员 / 时间格式无效）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '401':
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
           description: 未认证（unauthorized）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '403':
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
           description: 无 todo:create 权限（forbidden / api_key_forbidden / api_key_wrong_project）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+              schema: { $ref: "#/components/schemas/Error" }
   /api/projects/{id}/todos/{todoId}:
     patch:
-      tags: [待办]
+      tags: [ 待办 ]
       summary: 更新待办
-      description: 需 todo:manage 权限。字段均可选；status 置 open 会清除完成信息。
+      description: 需 todo:manage 权限。字段均可选；status 置 open 会清除完成信息。 支持 assigneeIds 与 externalAssigneeIds 混合指派；两组 PATCH 字段独立替换，省略保留。关联后按真实账号合并负责人，保留原有现场状态。
       parameters:
         - name: id
           in: path
@@ -2008,39 +2028,45 @@ paths:
                 dueAt: { type: string, format: date-time }
                 remindAt: { type: string, format: date-time }
                 note: { type: string }
-                status: { type: string, enum: [open, done] }
+                status:
+                  type: string
+                  enum: [ open, done ]
+                externalAssigneeIds:
+                  type: array
+                  items: { type: string, pattern: "^[a-fA-F0-9]{24}$" }
+                  description: 本项目未注册成员档案 ID；不能新增已归档或已关联成员，原有指派可保留。PATCH 省略保留原指派，空数组清空。
       responses:
-        '200':
+        "200":
           description: 更新成功
           content:
             application/json:
               schema:
                 type: object
-                required: [todo]
+                required: [ todo ]
                 properties:
-                  todo: { $ref: '#/components/schemas/TodoItem' }
-        '400':
+                  todo: { $ref: "#/components/schemas/TodoItem" }
+        "400":
           description: 参数错误（bad_request：status 无效 / 时间格式无效 / 指派人必须是项目成员）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '401':
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
           description: 未认证（unauthorized）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '403':
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
           description: 无 todo:manage 权限（forbidden / api_key_forbidden / api_key_wrong_project）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '404':
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
           description: 待办不存在（not_found）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+              schema: { $ref: "#/components/schemas/Error" }
     delete:
-      tags: [待办]
+      tags: [ 待办 ]
       summary: 删除待办
       description: 需 todo:manage 权限。
       parameters:
@@ -2053,30 +2079,30 @@ paths:
           required: true
           schema: { type: string }
       responses:
-        '200':
+        "200":
           description: 删除成功
           content:
             application/json:
               schema:
                 type: object
-                required: [ok]
+                required: [ ok ]
                 properties:
                   ok: { type: boolean }
-        '401':
+        "401":
           description: 未认证（unauthorized）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '403':
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
           description: 无 todo:manage 权限（forbidden / api_key_forbidden / api_key_wrong_project）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '404':
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
           description: 待办不存在（not_found）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+              schema: { $ref: "#/components/schemas/Error" }
   /api/projects/{id}/todos/{todoId}/complete:
     post:
       tags: [待办]
@@ -3462,7 +3488,7 @@ paths:
     get:
       tags: [物料管理]
       summary: 列出资源
-      description: 项目成员可用，仅返回可见范围内的资源（可见范围优先于权限点）。
+      description: 项目成员可用，仅返回可见范围内的资源（可见范围优先于权限点）。按资源、所属子类别、一级类别顺序取第一个非空可见范围。
       parameters:
         - name: id
           in: path
@@ -3471,7 +3497,11 @@ paths:
         - name: typeId
           in: query
           schema: { type: string }
-          description: 按资源类型筛选
+          description: 按类别精确筛选；一级类别和子类别均可直接放资源
+        - name: includeChildren
+          in: query
+          schema: { type: boolean, default: false }
+          description: 配合 typeId 使用；为 true 时包括该类别直属资源及其子类别资源，省略或 false 时仅返回直属资源
       responses:
         '200':
           description: 资源列表
@@ -3670,7 +3700,7 @@ paths:
     get:
       tags: [物料管理]
       summary: 列出资源类型
-      description: 项目成员可用，仅返回可见范围内的类型。
+      description: 项目成员可用，仅返回可见范围内的类型。parentId 为 null 表示一级类别，否则指向所属一级类别；子类别可见范围留空时继承上级。返回可见子类别时不额外暴露不可见父类别的名称。
       parameters:
         - name: id
           in: path
@@ -3701,7 +3731,7 @@ paths:
     post:
       tags: [物料管理]
       summary: 创建资源类型
-      description: 需 materials:manage 权限。
+      description: 需 materials:manage 权限。parentId 省略或为 null 时创建一级类别；否则在当前项目的可见一级类别下创建子类别，最多支持两层。
       parameters:
         - name: id
           in: path
@@ -3716,6 +3746,7 @@ paths:
               required: [name]
               properties:
                 name: { type: string }
+                parentId: { type: string, nullable: true, description: 上级类别 ID；省略或 null 表示一级类别 }
                 visibility: { $ref: '#/components/schemas/Visibility' }
       responses:
         '201':
@@ -3746,7 +3777,7 @@ paths:
     patch:
       tags: [物料管理]
       summary: 编辑资源类型
-      description: 需 materials:manage 权限。
+      description: 需 materials:manage 权限。parentId 省略保留归属，null 提升为一级类别，一级类别 ID 表示移动到该类别下。禁止自身作为上级、跨项目归属和第三层；含子类别的一级类别不能降为二级。
       parameters:
         - name: id
           in: path
@@ -3764,6 +3795,7 @@ paths:
               type: object
               properties:
                 name: { type: string }
+                parentId: { type: string, nullable: true, description: 省略保留归属；null 表示一级类别；一级类别 ID 表示移动归属 }
                 visibility: { $ref: '#/components/schemas/Visibility' }
       responses:
         '200':
@@ -3793,7 +3825,7 @@ paths:
     delete:
       tags: [物料管理]
       summary: 删除资源类型
-      description: 需 materials:manage 权限。类型下仍有资源时返回 400。
+      description: 需 materials:manage 权限。类别下仍有直属资源或子类别时返回 400。
       parameters:
         - name: id
           in: path
@@ -3814,7 +3846,7 @@ paths:
                 properties:
                   ok: { type: boolean }
         '400':
-          description: 类型下仍有资源（bad_request）
+          description: 类别下仍有资源或子类别（bad_request）
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -5119,7 +5151,7 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
   /api/projects/{id}/work-modules:
     get:
-      tags: [现场任务单]
+      tags: [ 现场任务单 ]
       summary: 列出任务模块
       description: 列出项目全部现场任务模块，按创建时间升序。需项目成员身份。
       parameters:
@@ -5128,31 +5160,31 @@ paths:
           required: true
           schema: { type: string }
       responses:
-        '200':
+        "200":
           description: 模块列表
           content:
             application/json:
               schema:
                 type: object
-                required: [modules]
+                required: [ modules ]
                 properties:
                   modules:
                     type: array
-                    items: { $ref: '#/components/schemas/WorkModuleItem' }
-        '401':
+                    items: { $ref: "#/components/schemas/WorkModuleItem" }
+        "401":
           description: 未认证（unauthorized）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '403':
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
           description: 非项目成员或密钥不属于本项目（forbidden / api_key_wrong_project）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+              schema: { $ref: "#/components/schemas/Error" }
     post:
-      tags: [现场任务单]
+      tags: [ 现场任务单 ]
       summary: 创建任务模块
-      description: 需 work:manage 权限（project:manage 等价放行，超管不受限）。assigneeIds 必须全部为项目成员；创建后通知被分配成员。
+      description: 需 work:manage 权限（project:manage 等价放行，超管不受限）。assigneeIds 必须全部为项目成员；创建后通知被分配成员。 支持 assigneeIds 与 externalAssigneeIds 混合指派；两组 PATCH 字段独立替换，省略保留。关联后按真实账号合并负责人，保留原有现场状态。
       parameters:
         - name: id
           in: path
@@ -5164,7 +5196,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [name]
+              required: [ name ]
               properties:
                 name: { type: string, maxLength: 100 }
                 description: { type: string }
@@ -5175,36 +5207,40 @@ paths:
                 assigneeIds:
                   type: array
                   items: { type: string }
+                externalAssigneeIds:
+                  type: array
+                  items: { type: string, pattern: "^[a-fA-F0-9]{24}$" }
+                  description: 本项目未注册成员档案 ID；不能新增已归档或已关联成员，原有指派可保留。PATCH 省略保留原指派，空数组清空。
       responses:
-        '201':
+        "201":
           description: 创建成功
           content:
             application/json:
               schema:
                 type: object
-                required: [module]
+                required: [ module ]
                 properties:
-                  module: { $ref: '#/components/schemas/WorkModuleItem' }
-        '400':
+                  module: { $ref: "#/components/schemas/WorkModuleItem" }
+        "400":
           description: 参数错误（bad_request，名称缺失或超长、时间非法或先后颠倒、requiredCount 非 ≥1 整数、assigneeIds 含非法 ID 或非项目成员）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '401':
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
           description: 未认证（unauthorized）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '403':
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
           description: 无 work:manage 权限（forbidden / api_key_wrong_project）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+              schema: { $ref: "#/components/schemas/Error" }
   /api/projects/{id}/work-modules/{mid}:
     patch:
-      tags: [现场任务单]
+      tags: [ 现场任务单 ]
       summary: 更新任务模块
-      description: 需 work:manage 权限。字段均可选；startAt/endAt 需成对提交，任一键出现时两值同时重建，单传其一将把另一清空。替换 assigneeIds 时留任成员保留确认记录，被移除者清除。
+      description: 需 work:manage 权限。字段均可选；startAt/endAt 需成对提交，任一键出现时两值同时重建，单传其一将把另一清空。替换 assigneeIds 时留任成员保留确认记录，被移除者清除。 支持 assigneeIds 与 externalAssigneeIds 混合指派；两组 PATCH 字段独立替换，省略保留。关联后按真实账号合并负责人，保留原有现场状态。
       parameters:
         - name: id
           in: path
@@ -5230,38 +5266,42 @@ paths:
                 assigneeIds:
                   type: array
                   items: { type: string }
+                externalAssigneeIds:
+                  type: array
+                  items: { type: string, pattern: "^[a-fA-F0-9]{24}$" }
+                  description: 本项目未注册成员档案 ID；不能新增已归档或已关联成员，原有指派可保留。PATCH 省略保留原指派，空数组清空。
       responses:
-        '200':
+        "200":
           description: 更新成功
           content:
             application/json:
               schema:
                 type: object
-                required: [module]
+                required: [ module ]
                 properties:
-                  module: { $ref: '#/components/schemas/WorkModuleItem' }
-        '400':
+                  module: { $ref: "#/components/schemas/WorkModuleItem" }
+        "400":
           description: 参数错误（bad_request）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '401':
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
           description: 未认证（unauthorized）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '403':
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
           description: 无 work:manage 权限（forbidden / api_key_wrong_project）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '404':
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
           description: 模块不存在（not_found，含跨项目 mid）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+              schema: { $ref: "#/components/schemas/Error" }
     delete:
-      tags: [现场任务单]
+      tags: [ 现场任务单 ]
       summary: 删除任务模块
       description: 需 work:manage 权限。
       parameters:
@@ -5274,35 +5314,35 @@ paths:
           required: true
           schema: { type: string }
       responses:
-        '200':
+        "200":
           description: 删除成功
           content:
             application/json:
               schema:
                 type: object
-                required: [ok]
+                required: [ ok ]
                 properties:
                   ok: { type: boolean }
-        '401':
+        "401":
           description: 未认证（unauthorized）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '403':
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
           description: 无 work:manage 权限（forbidden / api_key_wrong_project）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '404':
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
           description: 模块不存在（not_found）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+              schema: { $ref: "#/components/schemas/Error" }
   /api/projects/{id}/work-modules/{mid}/confirm:
     post:
-      tags: [现场任务单]
+      tags: [ 现场任务单 ]
       summary: 确认任务分配
-      description: 确认成员与模块的分配关系，记录确认时间与确认人；重复确认幂等，不刷新时间戳。不传 userId 为确认本人（项目成员即可）；传 userId 为代他人确认，需 work:manage 或 project:manage。
+      description: 确认成员与模块的分配关系，记录确认时间与确认人；重复确认幂等，不刷新时间戳。不传 userId 为确认本人（项目成员即可）；传 userId 为代他人确认，需 work:manage 或 project:manage。 可用 externalMemberId 代未注册成员操作，与 userId 互斥。关联后同步作用于同一账号身份；状态保留实际操作者。
       parameters:
         - name: id
           in: path
@@ -5320,41 +5360,44 @@ paths:
               type: object
               properties:
                 userId: { type: string, description: 目标成员；缺省为本人 }
+                externalMemberId: { type: string, pattern: "^[a-fA-F0-9]{24}$", description: 代操作的未注册成员档案 ID，与 userId 互斥；需 work:manage 或 project:manage }
+              not:
+                required: [ userId, externalMemberId ]
       responses:
-        '200':
+        "200":
           description: 确认成功
           content:
             application/json:
               schema:
                 type: object
-                required: [module]
+                required: [ module ]
                 properties:
-                  module: { $ref: '#/components/schemas/WorkModuleItem' }
-        '400':
+                  module: { $ref: "#/components/schemas/WorkModuleItem" }
+        "400":
           description: 目标未被分配到该模块（bad_request）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '401':
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
           description: 未认证（unauthorized）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '403':
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
           description: 无权代他人确认（forbidden / api_key_wrong_project）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '404':
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
           description: 模块不存在（not_found）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+              schema: { $ref: "#/components/schemas/Error" }
   /api/projects/{id}/work-modules/{mid}/unconfirm:
     post:
-      tags: [现场任务单]
+      tags: [ 现场任务单 ]
       summary: 取消任务确认
-      description: 清除 confirmedAt/confirmedBy。请求体与权限同 confirm。
+      description: 清除 confirmedAt/confirmedBy。请求体与权限同 confirm。 可用 externalMemberId 代未注册成员操作，与 userId 互斥。关联后同步作用于同一账号身份；状态保留实际操作者。
       parameters:
         - name: id
           in: path
@@ -5372,41 +5415,44 @@ paths:
               type: object
               properties:
                 userId: { type: string, description: 目标成员；缺省为本人 }
+                externalMemberId: { type: string, pattern: "^[a-fA-F0-9]{24}$", description: 代操作的未注册成员档案 ID，与 userId 互斥；需 work:manage 或 project:manage }
+              not:
+                required: [ userId, externalMemberId ]
       responses:
-        '200':
+        "200":
           description: 取消成功
           content:
             application/json:
               schema:
                 type: object
-                required: [module]
+                required: [ module ]
                 properties:
-                  module: { $ref: '#/components/schemas/WorkModuleItem' }
-        '400':
+                  module: { $ref: "#/components/schemas/WorkModuleItem" }
+        "400":
           description: 目标未被分配到该模块（bad_request）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '401':
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
           description: 未认证（unauthorized）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '403':
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
           description: 无权代他人取消确认（forbidden / api_key_wrong_project）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '404':
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
           description: 模块不存在（not_found）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+              schema: { $ref: "#/components/schemas/Error" }
   /api/projects/{id}/work-modules/{mid}/checkin:
     post:
-      tags: [现场任务单]
+      tags: [ 现场任务单 ]
       summary: 任务签到
-      description: 记录 checkedInAt；重复签到幂等，不刷新时间戳。请求体与权限同 confirm（不传 userId 为本人签到，项目成员即可）。
+      description: 记录 checkedInAt；重复签到幂等，不刷新时间戳。请求体与权限同 confirm（不传 userId 为本人签到，项目成员即可）。 可用 externalMemberId 代未注册成员操作，与 userId 互斥。关联后同步作用于同一账号身份；状态保留实际操作者。
       parameters:
         - name: id
           in: path
@@ -5424,41 +5470,44 @@ paths:
               type: object
               properties:
                 userId: { type: string, description: 目标成员；缺省为本人 }
+                externalMemberId: { type: string, pattern: "^[a-fA-F0-9]{24}$", description: 代操作的未注册成员档案 ID，与 userId 互斥；需 work:manage 或 project:manage }
+              not:
+                required: [ userId, externalMemberId ]
       responses:
-        '200':
+        "200":
           description: 签到成功
           content:
             application/json:
               schema:
                 type: object
-                required: [module]
+                required: [ module ]
                 properties:
-                  module: { $ref: '#/components/schemas/WorkModuleItem' }
-        '400':
+                  module: { $ref: "#/components/schemas/WorkModuleItem" }
+        "400":
           description: 目标未被分配到该模块（bad_request）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '401':
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
           description: 未认证（unauthorized）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '403':
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
           description: 无权代他人签到（forbidden / api_key_wrong_project）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '404':
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
           description: 模块不存在（not_found）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+              schema: { $ref: "#/components/schemas/Error" }
   /api/projects/{id}/work-modules/{mid}/finish:
     post:
-      tags: [现场任务单]
+      tags: [ 现场任务单 ]
       summary: 标记任务完成
-      description: 记录 completedAt；未签到的成员同时补签到；重复完成幂等，不刷新时间戳。请求体与权限同 confirm。
+      description: 记录 completedAt；未签到的成员同时补签到；重复完成幂等，不刷新时间戳。请求体与权限同 confirm。 可用 externalMemberId 代未注册成员操作，与 userId 互斥。关联后同步作用于同一账号身份；状态保留实际操作者。
       parameters:
         - name: id
           in: path
@@ -5476,36 +5525,39 @@ paths:
               type: object
               properties:
                 userId: { type: string, description: 目标成员；缺省为本人 }
+                externalMemberId: { type: string, pattern: "^[a-fA-F0-9]{24}$", description: 代操作的未注册成员档案 ID，与 userId 互斥；需 work:manage 或 project:manage }
+              not:
+                required: [ userId, externalMemberId ]
       responses:
-        '200':
+        "200":
           description: 标记成功
           content:
             application/json:
               schema:
                 type: object
-                required: [module]
+                required: [ module ]
                 properties:
-                  module: { $ref: '#/components/schemas/WorkModuleItem' }
-        '400':
+                  module: { $ref: "#/components/schemas/WorkModuleItem" }
+        "400":
           description: 目标未被分配到该模块（bad_request）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '401':
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
           description: 未认证（unauthorized）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '403':
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
           description: 无权代他人标记完成（forbidden / api_key_wrong_project）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '404':
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
           description: 模块不存在（not_found）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+              schema: { $ref: "#/components/schemas/Error" }
   /api/projects/{id}/work-sheet:
     get:
       tags: [现场任务单]
@@ -5569,7 +5621,7 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
   /api/projects/{id}/onsite:
     get:
-      tags: [现场任务单]
+      tags: [ 现场任务单 ]
       summary: 现场模式聚合
       description: 现场模式聚合接口（项目成员）。myModules 为指派给本人的模块（含本人确认/签到/完成状态与 state 流转）；emergency 为可见的紧急/重要公告（≤5 条）；contacts 为填写了联系方式的成员；incidents 按权限可见（work:manage 见全部，普通成员仅自己上报的）；rundowns 为舞台执行聚合（≤5 条，执行中的 Rundown 恒在列，未开始的仅取开始时间 ±24h 窗口内）；myPermissions 为本人权限点数组（前端据此显隐现场页权限入口）。
       parameters:
@@ -5578,13 +5630,13 @@ paths:
           required: true
           schema: { type: string }
       responses:
-        '200':
+        "200":
           description: 现场模式聚合数据
           content:
             application/json:
               schema:
                 type: object
-                required: [now, myModules, emergency, contacts, incidents, rundowns, myPermissions]
+                required: [ now, myModules, emergency, contacts, incidents, rundowns, myPermissions ]
                 properties:
                   now: { type: string, format: date-time, description: 服务器当前时间 }
                   myModules:
@@ -5592,7 +5644,7 @@ paths:
                     description: 指派给本人的模块，按 state（current/upcoming/done）再按开始时间排序
                     items:
                       type: object
-                      required: [id, name, location, startAt, endAt, myAssignee, state]
+                      required: [ id, name, location, startAt, endAt, myAssignee, state ]
                       properties:
                         id: { type: string }
                         name: { type: string }
@@ -5603,56 +5655,65 @@ paths:
                           type: object
                           nullable: true
                           description: 本人在该模块的确认/签到/完成时间
-                          required: [confirmedAt, checkedInAt, completedAt]
+                          required: [ confirmedAt, checkedInAt, completedAt ]
                           properties:
                             confirmedAt: { type: string, format: date-time, nullable: true }
                             checkedInAt: { type: string, format: date-time, nullable: true }
                             completedAt: { type: string, format: date-time, nullable: true }
-                        state: { type: string, enum: [current, upcoming, done], description: current 进行中；upcoming 未开始；done 已完成 }
+                        state:
+                          type: string
+                          enum: [ current, upcoming, done ]
+                          description: current 进行中；upcoming 未开始；done 已完成
                   emergency:
                     type: array
                     description: 可见的紧急/重要公告（≤5 条）
                     items:
                       type: object
-                      required: [id, title, content, type, publishedAt]
+                      required: [ id, title, content, type, publishedAt ]
                       properties:
                         id: { type: string }
                         title: { type: string }
                         content: { type: string }
-                        type: { type: string, enum: [emergency, important] }
+                        type:
+                          type: string
+                          enum: [ emergency, important ]
                         publishedAt: { type: string, format: date-time }
                   contacts:
                     type: array
                     description: 填写了联系方式的成员
                     items:
                       type: object
-                      required: [userId, name, roleName, contacts]
+                      required: [ userId, name, roleName, contacts ]
                       properties:
-                        userId: { type: string }
+                        userId: { type: string, nullable: true }
                         name: { type: string }
                         roleName: { type: string, nullable: true }
                         contacts:
                           type: array
                           items:
                             type: object
-                            required: [platform, value]
+                            required: [ platform, value ]
                             properties:
                               platform: { type: string }
                               value: { type: string }
+                        externalMemberId: { type: string, description: 未注册成员档案 ID，userId 为 null }
+                        duty: { type: string, description: 项目内岗位分工 }
                   incidents:
                     type: array
                     description: 按权限可见的现场异常（work:manage 见全部，普通成员仅自己上报的）
-                    items: { $ref: '#/components/schemas/OnsiteIncident' }
+                    items: { $ref: "#/components/schemas/OnsiteIncident" }
                   rundowns:
                     type: array
                     description: 舞台执行聚合（≤5 条；执行中恒在列，未开始的取开始时间 ±24h 窗口内）
                     items:
                       type: object
-                      required: [id, name, status, startAt, itemCount, currentIndex, currentItemId, currentItemName, currentPlannedStart, currentActualStart, shiftMin]
+                      required: [ id, name, status, startAt, itemCount, currentIndex, currentItemId, currentItemName, currentPlannedStart, currentActualStart, shiftMin ]
                       properties:
                         id: { type: string }
                         name: { type: string }
-                        status: { type: string, enum: [idle, running] }
+                        status:
+                          type: string
+                          enum: [ idle, running ]
                         startAt: { type: string, format: date-time }
                         itemCount: { type: integer }
                         currentIndex: { type: integer, nullable: true, description: idle 时为 null }
@@ -5665,16 +5726,16 @@ paths:
                     type: array
                     description: 本人权限点数组
                     items: { type: string }
-        '401':
+        "401":
           description: 未认证（unauthorized）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '403':
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
           description: 非项目成员（forbidden / api_key_wrong_project）
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+              schema: { $ref: "#/components/schemas/Error" }
   /api/projects/{id}/onsite/incidents:
     get:
       tags: [现场任务单]
@@ -7950,6 +8011,269 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+  /api/projects/{id}/external-members:
+    get:
+      tags: [ 项目成员 ]
+      summary: 查询未注册成员档案
+      description: 项目成员可查看姓名、岗位及联系方式。默认只返回未归档且未关联的档案。
+      parameters:
+        - &a1
+          name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: includeArchived
+          in: query
+          schema: { type: boolean, default: false }
+        - name: includeLinked
+          in: query
+          schema: { type: boolean, default: false }
+      responses:
+        "200":
+          description: 档案列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ externalMembers ]
+                properties:
+                  externalMembers:
+                    type: array
+                    items: { $ref: "#/components/schemas/ExternalMember" }
+        "400": &a2
+          description: 参数或目标成员无效
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401": &a3
+          description: 未认证
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403": &a4
+          description: 没有权限或 API 密钥项目不匹配
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404": &a5
+          description: 成员或项目不存在
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409": &a6
+          description: 成员已关联其他账号
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    post:
+      tags: [ 项目成员 ]
+      summary: 录入未注册成员
+      description: 需 member:manage 或 project:manage。只填写姓名即可建档，不创建账号，不授予权限，不按QQ号投递机器人通知。
+      parameters:
+        - *a1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, minLength: 1, description: 姓名，去除首尾空格后不能为空 }
+                duty: { type: string, description: 岗位分工说明，与权限角色无关；可留空 }
+                contacts:
+                  type: array
+                  items:
+                    type: object
+                    required: [ platform, value ]
+                    properties:
+                      platform: { type: string, minLength: 1 }
+                      value: { type: string, minLength: 1 }
+              required: [ name ]
+      responses:
+        "201":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ externalMember ]
+                properties:
+                  externalMember: { $ref: "#/components/schemas/ExternalMember" }
+        "400": *a2
+        "401": *a3
+        "403": *a4
+        "404": *a5
+        "409": *a6
+  /api/projects/{id}/external-members/{memberId}:
+    patch:
+      tags: [ 项目成员 ]
+      summary: 编辑、归档或恢复成员档案
+      description: 需 member:manage 或 project:manage。归档保留历史任务和状态，停止出现在新指派候选及现场联系人中。archived=false 恢复；字段省略保持不变。
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, pattern: "^[a-fA-F0-9]{24}$" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, minLength: 1, description: 姓名，去除首尾空格后不能为空 }
+                duty: { type: string, description: 岗位分工说明，与权限角色无关；可留空 }
+                contacts:
+                  type: array
+                  items:
+                    type: object
+                    required: [ platform, value ]
+                    properties:
+                      platform: { type: string, minLength: 1 }
+                      value: { type: string, minLength: 1 }
+                archived: { type: boolean }
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ externalMember ]
+                properties:
+                  externalMember: { $ref: "#/components/schemas/ExternalMember" }
+        "400":
+          description: 参数或目标成员无效
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: 未认证
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: 没有权限或 API 密钥项目不匹配
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: 成员或项目不存在
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: 成员已关联其他账号
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /api/projects/{id}/external-members/{memberId}/link:
+    post:
+      tags: [ 项目成员 ]
+      summary: 将成员档案关联已入项账号
+      description: 需 member:manage 或 project:manage。目标账号必须已加入本项目；保留岗位、联系方式、任务和现场状态，不修改账号角色或个人资料。重复关联同一账号幂等，改绑其他账号返回409。原任务保留档案引用，实时解析到账号；重复指派按同一人合并。
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: memberId
+          in: path
+          required: true
+          schema: &a1 { type: string, pattern: "^[a-fA-F0-9]{24}$" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ userId ]
+              properties:
+                userId: *a1
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ externalMember ]
+                properties:
+                  externalMember: { $ref: "#/components/schemas/ExternalMember" }
+        "400":
+          description: 参数或目标成员无效
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: 未认证
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: 没有权限或 API 密钥项目不匹配
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: 成员或项目不存在
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: 成员已关联其他账号
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /api/projects/{id}/work-sheet/external/{memberId}:
+    get:
+      tags: [ 项目成员 ]
+      summary: 查看未注册成员任务单
+      description: 需 work:manage 或 project:manage。支持已归档档案；已关联档案返回目标账号合并后的任务单。
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, pattern: "^[a-fA-F0-9]{24}$" }
+      responses:
+        "200":
+          description: 任务单
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkSheetData" }
+        "400":
+          description: 参数或目标成员无效
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: 未认证
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: 没有权限或 API 密钥项目不匹配
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: 成员或项目不存在
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: 成员已关联其他账号
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
 components:
   securitySchemes:
     bearerAuth:
@@ -8019,12 +8343,16 @@ components:
     Member:
       description: 项目成员
       type: object
-      required: [userId, name, email, roleName]
+      required: [ userId, name, email, roleName ]
       properties:
         userId: { type: string }
         name: { type: string }
         email: { type: string }
         roleName: { type: string }
+        externalProfiles:
+          type: array
+          items: { $ref: "#/components/schemas/ExternalMember" }
+          description: 该账号在当前项目关联的未归档档案；不覆盖个人资料
     ProjectStatus:
       description: 项目状态
       type: string
@@ -8125,7 +8453,7 @@ components:
     TodoItem:
       description: 待办条目（含完成信息与进度时间线）
       type: object
-      required: [id, title, category, assignees, nodeAt, dueAt, remindAt, status, note, createdBy, createdAt, completedAt, completedBy, completionNote, attachments, updates]
+      required: [ id, title, category, assignees, nodeAt, dueAt, remindAt, status, note, createdBy, createdAt, completedAt, completedBy, completionNote, attachments, updates ]
       properties:
         id: { type: string }
         title: { type: string }
@@ -8134,14 +8462,16 @@ components:
           type: array
           items:
             type: object
-            required: [userId, name]
+            required: [ userId, name ]
             properties:
               userId: { type: string }
               name: { type: string }
         nodeAt: { type: string, format: date-time, nullable: true }
         dueAt: { type: string, format: date-time, nullable: true }
         remindAt: { type: string, format: date-time, nullable: true }
-        status: { type: string, enum: [open, done] }
+        status:
+          type: string
+          enum: [ open, done ]
         note: { type: string }
         createdBy: { type: string }
         createdAt: { type: string, format: date-time }
@@ -8152,7 +8482,7 @@ components:
           type: array
           items:
             type: object
-            required: [id, filename]
+            required: [ id, filename ]
             properties:
               id: { type: string }
               filename: { type: string }
@@ -8161,7 +8491,7 @@ components:
           description: 进度时间线（追加式，不可编辑/删除）
           items:
             type: object
-            required: [note, createdBy, createdByName, createdAt, attachments]
+            required: [ note, createdBy, createdByName, createdAt, attachments ]
             properties:
               note: { type: string }
               createdBy: { type: string }
@@ -8171,10 +8501,20 @@ components:
                 type: array
                 items:
                   type: object
-                  required: [id, filename]
+                  required: [ id, filename ]
                   properties:
                     id: { type: string }
                     filename: { type: string }
+        externalAssignees:
+          type: array
+          items:
+            type: object
+            required: [ externalMemberId, name, archivedAt ]
+            properties:
+              externalMemberId: { type: string, pattern: "^[a-fA-F0-9]{24}$" }
+              name: { type: string }
+              archivedAt: { type: string, format: date-time, nullable: true }
+          description: 尚未解析为注册账号的负责人；已关联成员并入 assignees
     AnnouncementItem:
       description: 公告条目
       type: object
@@ -8431,12 +8771,13 @@ components:
               to: { $ref: '#/components/schemas/TxUser' }
               amountCents: { type: integer }
     ResourceTypeItem:
-      description: 物料资源类型
+      description: 两层物料类别；空可见范围沿父类别继承，一级类别为空时不限制
       type: object
-      required: [id, name, visibility]
+      required: [id, name, parentId, visibility]
       properties:
         id: { type: string }
         name: { type: string }
+        parentId: { type: string, nullable: true, description: 一级类别为 null；子类别指向所属一级类别 }
         visibility: { $ref: '#/components/schemas/Visibility' }
     ResourceItem:
       description: 物料资源
@@ -8575,7 +8916,7 @@ components:
     WorkModuleItem:
       description: 现场任务模块
       type: object
-      required: [id, name, description, location, startAt, endAt, requiredCount, assignees, createdBy, createdAt]
+      required: [ id, name, description, location, startAt, endAt, requiredCount, assignees, createdBy, createdAt ]
       properties:
         id: { type: string }
         name: { type: string }
@@ -8586,31 +8927,36 @@ components:
         requiredCount: { type: integer, description: 所需人力 }
         assignees:
           type: array
-          items: { $ref: '#/components/schemas/WorkAssignee' }
+          items: { $ref: "#/components/schemas/WorkAssignee" }
         createdBy: { type: string }
         createdAt: { type: string, format: date-time }
+        externalAssignees:
+          type: array
+          items: { $ref: "#/components/schemas/ExternalWorkAssignee" }
+          description: 外部成员指派；关联账号后并入 assignees，并按最早非空状态合并
     WorkSheetData:
       description: 现场任务单（某成员被分配的模块集合）
       type: object
-      required: [project, user, generatedAt, items]
+      required: [ project, user, generatedAt, items ]
       properties:
         project:
           type: object
-          required: [id, name]
+          required: [ id, name ]
           properties:
             id: { type: string }
             name: { type: string }
         user:
           type: object
-          required: [id, name]
+          required: [ id, name ]
           properties:
             id: { type: string }
             name: { type: string }
+            externalMemberId: { type: string, description: 未关联的外部档案标识；已关联时使用真实账号 id }
         generatedAt: { type: string, format: date-time }
         items:
           type: array
           description: 分配给该成员的模块，按 startAt、createdAt 升序
-          items: { $ref: '#/components/schemas/WorkModuleItem' }
+          items: { $ref: "#/components/schemas/WorkModuleItem" }
     OnsiteIncident:
       description: 现场异常记录
       type: object
@@ -8848,3 +9194,35 @@ components:
             userId: { type: string }
             name: { type: string, description: 创建者已注销显示「未知用户」 }
         createdAt: { type: string, format: date-time }
+
+    ExternalMember:
+      type: object
+      required: [ id, name, duty, contacts, archivedAt, linkedUserId, linkedAt ]
+      properties:
+        id: { type: string, pattern: "^[a-fA-F0-9]{24}$" }
+        name: { type: string, minLength: 1, description: 姓名，去除首尾空格后不能为空 }
+        duty: { type: string, description: 岗位分工说明，与权限角色无关；可留空 }
+        contacts:
+          type: array
+          items:
+            type: object
+            required: [ platform, value ]
+            properties:
+              platform: { type: string, minLength: 1 }
+              value: { type: string, minLength: 1 }
+        archivedAt: { type: string, format: date-time, nullable: true }
+        linkedUserId: { type: string, nullable: true }
+        linkedAt: { type: string, format: date-time, nullable: true }
+
+    ExternalWorkAssignee:
+      description: 未注册成员指派及现场状态
+      type: object
+      required: [ name, confirmedAt, confirmedBy, checkedInAt, completedAt, externalMemberId, archivedAt ]
+      properties:
+        name: { type: string }
+        confirmedAt: { type: string, format: date-time, nullable: true }
+        confirmedBy: { type: string, nullable: true, description: 确认人用户 ID }
+        checkedInAt: { type: string, format: date-time, nullable: true, description: 签到时间 }
+        completedAt: { type: string, format: date-time, nullable: true, description: 完成时间 }
+        externalMemberId: { type: string, pattern: "^[a-fA-F0-9]{24}$" }
+        archivedAt: { type: string, format: date-time, nullable: true }

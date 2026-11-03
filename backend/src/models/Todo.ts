@@ -12,6 +12,7 @@ export interface ITodo {
   title: string;
   category: string;
   assigneeIds: Types.ObjectId[];
+  externalAssigneeIds: Types.ObjectId[];
   nodeAt?: Date;
   dueAt?: Date;
   remindAt?: Date;
@@ -35,6 +36,7 @@ const schema = new Schema<ITodo>(
     title: { type: String, required: true },
     category: { type: String, default: '' },
     assigneeIds: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+    externalAssigneeIds: [{ type: Schema.Types.ObjectId, ref: 'ExternalMember' }],
     nodeAt: Date,
     dueAt: Date,
     remindAt: Date,

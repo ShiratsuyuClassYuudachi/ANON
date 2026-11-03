@@ -1,4 +1,5 @@
 import { Types } from 'mongoose';
+import { loadProjectPeople } from './projectPeople';
 import { Membership } from '../models/Membership';
 import type { ProjectDoc } from '../models/Project';
 import { Resource } from '../models/Resource';
@@ -93,6 +94,7 @@ export async function buildSummary(
   permissions: Set<string>,
 ): Promise<DashboardSummary> {
   const projectId = project._id;
+  const people = await loadProjectPeople(projectId);
   const now = new Date();
   const weekLater = new Date(now.getTime() + 7 * 86400000);
 
@@ -170,9 +172,11 @@ export async function buildSummary(
   let shortageCount = 0;
   for (const wm of workModules) {
     totalRequired += wm.requiredCount;
-    totalAssigned += wm.assignees.length;
-    confirmedCount += wm.assignees.filter((a) => a.confirmedAt).length;
-    if (wm.assignees.length < wm.requiredCount) shortageCount++;
+    const all = people.workAssignments(wm);
+    const assigned = [...all.registered, ...all.external];
+    totalAssigned += assigned.length;
+    confirmedCount += assigned.filter((a) => a.confirmedAt).length;
+    if (assigned.length < wm.requiredCount) shortageCount++;
   }
   const workSummary: WorkSummary = {
     totalModules: workModules.length,
@@ -191,7 +195,7 @@ export async function buildSummary(
       financeSummary && totalIncome > 0 ? Math.round((financeSummary.expenseCents / totalIncome) * 100) : null,
     pendingMaterialCount: materialSummary.noVersionCount,
     workConfirmationRate: totalAssigned > 0 ? Math.round((confirmedCount / totalAssigned) * 100) : 100,
-    memberCount: memberships.length,
+    memberCount: memberships.length + [...people.externals.values()].filter((m) => !m.archivedAt && !m.linkedUserId).length,
     activeRiskCount: activeRisks,
   };
 
@@ -210,9 +214,10 @@ export async function buildMyActions(projectId: Types.ObjectId, userId: string):
   const now = new Date();
   const actions: ActionItem[] = [];
 
+  const people = await loadProjectPeople(projectId);
   const [myTodos, myWorkModules] = await Promise.all([
-    Todo.find({ projectId, status: 'open', assigneeIds: userId }),
-    WorkModule.find({ projectId, 'assignees.userId': userId }),
+    Todo.find({ projectId, status: 'open', ...people.todoFilter(userId) }),
+    WorkModule.find({ projectId, ...people.workFilter(userId) }),
   ]);
 
   for (const todo of myTodos) {
@@ -229,7 +234,7 @@ export async function buildMyActions(projectId: Types.ObjectId, userId: string):
   }
 
   for (const wm of myWorkModules) {
-    const myAssignment = wm.assignees.find((a) => String(a.userId) === userId);
+    const myAssignment = people.workAssignments(wm).registered.find((a) => String(a.userId) === userId);
     if (myAssignment && !myAssignment.confirmedAt) {
       const isOverdue = !!(wm.startAt && wm.startAt < now);
       actions.push({

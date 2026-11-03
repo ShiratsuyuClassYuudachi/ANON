@@ -16,6 +16,7 @@ import { File } from '../models/File';
 import { Incident } from '../models/Incident';
 import { LostFoundItem } from '../models/LostFoundItem';
 import { LostFoundShare } from '../models/LostFoundShare';
+import { ExternalMember } from '../models/ExternalMember';
 import { Membership } from '../models/Membership';
 import { Milestone } from '../models/Milestone';
 import { PhysicalCategory } from '../models/PhysicalCategory';
@@ -484,7 +485,7 @@ export async function deleteDemoData(ref: {
   });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const projectScoped: Model<any>[] = [
-    ResourceType, Todo, Transaction, PlatformAccount, WorkModule, Announcement,
+    ExternalMember, ResourceType, Todo, Transaction, PlatformAccount, WorkModule, Announcement,
     AnnouncementConfirmation, Activity, Milestone, RiskInstance, DashboardPreference,
     Incident, PhysicalCategory, PhysicalItem, PhysicalItemLog, ProjectInvite, WeeklyReportLog,
     StageRundown, StageScreenShare, StageSignup, LostFoundItem, LostFoundShare,

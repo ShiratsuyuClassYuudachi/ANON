@@ -2,7 +2,7 @@ import { ArrowLeft, Printer } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
-import type { Member, WorkModuleItem, WorkSheetData } from '../types';
+import type { ExternalMember, Member, WorkModuleItem, WorkSheetData } from '../types';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -13,6 +13,7 @@ const fmt = (iso: string | null) => (iso ? fmtLocal(iso, true) : '');
 interface Detail {
   project: { id: string; name: string };
   members: Member[];
+  externalMembers?: ExternalMember[];
   myPermissions: string[];
 }
 
@@ -41,26 +42,30 @@ export default function WorkSheetPrint() {
         const generatedAt = new Date().toISOString();
         const grouped = new Map<string, WorkModuleItem[]>();
         for (const m of mods.modules) {
+          for (const a of m.externalAssignees ?? []) {
+            const key = `external:${a.externalMemberId}`;
+            grouped.set(key, [...(grouped.get(key) ?? []), m]);
+          }
           for (const a of m.assignees) {
             grouped.set(a.userId, [...(grouped.get(a.userId) ?? []), m]);
           }
         }
         setSheets(
-          detail.members
+          [...detail.members, ...(detail.externalMembers ?? []).filter((m) => !m.linkedUserId || !detail.members.some((u) => u.userId === m.linkedUserId)).map((m) => ({ userId: `external:${m.id}`, name: m.name, externalMemberId: m.id }))]
             .filter((mb) => grouped.has(mb.userId))
             .map((mb) => ({
               project: detail.project,
-              user: { id: mb.userId, name: mb.name },
+              user: { id: mb.userId, name: mb.name, ...('externalMemberId' in mb ? { externalMemberId: String(mb.externalMemberId) } : {}) },
               generatedAt,
               items: grouped.get(mb.userId)!,
             })),
         );
-        setUnassigned(detail.members.filter((mb) => !grouped.has(mb.userId)).map((mb) => mb.name));
+        setUnassigned([...detail.members.filter((mb) => !grouped.has(mb.userId)).map((mb) => mb.name), ...(detail.externalMembers ?? []).filter((m) => !m.archivedAt && !m.linkedUserId && !grouped.has(`external:${m.id}`)).map((m) => `${m.name}（未注册）`)]);
       } else {
         const path =
           userParam === 'me'
             ? `/api/projects/${id}/work-sheet`
-            : `/api/projects/${id}/work-sheet/${userParam}`;
+            : userParam.startsWith('external:') ? `/api/projects/${id}/work-sheet/external/${userParam.slice(9)}` : `/api/projects/${id}/work-sheet/${userParam}`;
         const d = await api<WorkSheetData>(path);
         setSheets([d]);
       }
@@ -122,8 +127,8 @@ export default function WorkSheetPrint() {
                     <td className="border px-2 py-1.5">{m.location || '—'}</td>
                     <td className="border px-2 py-1.5">{m.description || '—'}</td>
                     <td className="border px-2 py-1.5 whitespace-nowrap">
-                      {m.assignees.find((a) => a.userId === s.user.id)?.confirmedAt
-                        ? `已确认 ${fmt(m.assignees.find((a) => a.userId === s.user.id)!.confirmedAt)}`
+                      {(s.user.externalMemberId ? m.externalAssignees?.find((a) => a.externalMemberId === s.user.externalMemberId) : m.assignees.find((a) => a.userId === s.user.id))?.confirmedAt
+                        ? `已确认 ${fmt((s.user.externalMemberId ? m.externalAssignees?.find((a) => a.externalMemberId === s.user.externalMemberId) : m.assignees.find((a) => a.userId === s.user.id))!.confirmedAt)}`
                         : '待确认'}
                     </td>
                   </tr>

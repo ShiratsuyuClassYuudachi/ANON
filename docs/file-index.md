@@ -16,7 +16,7 @@
 | 功能域 | 后端 | 前端 | 测试 |
 |---|---|---|---|
 | 认证/注册/会话 | routes/auth.ts、middleware/auth.ts、services/session.ts、utils/jwt.ts、models/{User,RefreshToken,InviteCode}.ts | pages/{Login,Register}.tsx、auth.tsx、api/client.ts | tests/auth.test.ts |
-| 项目/成员/角色/邀请 | routes/projects.ts、routes/invites.ts、models/{Project,Membership,ProjectInvite}.ts、services/permissions.ts | pages/{Projects,ProjectHome,InviteAccept}.tsx、project/{MembersTab,RolesTab,SettingsTab}.tsx | tests/{projects,invites}.test.ts |
+| 项目/成员/角色/邀请 | routes/projects.ts、routes/invites.ts、models/{Project,Membership,ProjectInvite,ExternalMember}.ts、routes/externalMembers.ts、services/{permissions,projectPeople}.ts | pages/{Projects,ProjectHome,InviteAccept}.tsx、project/{MembersTab,ExternalMembersPanel,TaskAssigneePicker,RolesTab,SettingsTab}.tsx | tests/{projects,invites,external-members}.test.ts |
 | 待办（含模板/进度） | routes/todos.ts、models/{Todo,ReminderLog}.ts、services/{template,todos}.ts | project/{TodosTab,TodoFormDialog,TodoActionSheet}.tsx | tests/{todos,todo-complete,todo-updates,template}.test.ts |
 | 财务 | routes/finance.ts、models/Transaction.ts、services/{finance,financeEntries}.ts | project/FinanceTab.tsx | tests/finance.test.ts |
 | 物料/资料库/文件 | routes/{materials,files}.ts、models/{Resource,ResourceType,ResourceVersion,File}.ts、services/{materialVisibility,materialUploads,preview,storage}.ts、middleware/upload.ts | project/MaterialsTab.tsx（两层类别/联动筛选/类别管理/上传进度/小图与大图预览）、components/{AuthImg,AuthMedia}.tsx | tests/{materials,material-uploads,files}.test.ts |
@@ -63,7 +63,7 @@
 
 ### 路由挂载（app.ts）
 - 顶级：`/api/qq`(webhook 回调，全局 json() 前挂载取原始 body)、`/api/auth`(限流 50/15min)、`/api/admin`、`/api/me`、`/api/open`、`/api/push`、`/api/invites`、`/api/files`、`/api/cron`、`/api/projects`、`/api/public/lostfound` 与 `/api/public/rundown-screen`(免登录,限流 300/min)
-- 项目域 `/api/projects/:id/`：`files` `todos` `work-modules` `work-sheet` `finance` `materials` `physical` `accounts` `dashboard` `onsite` `risks` `announcements` `activities` `stages` `stage-rundowns` `stage-signups` `custom-tools` `lostfound` `milestones`
+- 项目域 `/api/projects/:id/`：`files` `todos` `external-members` `work-modules` `work-sheet` `finance` `materials` `physical` `accounts` `dashboard` `onsite` `risks` `announcements` `activities` `stages` `stage-rundowns` `stage-signups` `custom-tools` `lostfound` `milestones`
 
 ### 路由 `src/routes/`（28 个，一文件一业务域）
 - `qqWebhook.ts` — POST /api/qq/webhook：QQ 事件回调（op13 地址验证签名回包、op0 验签+去重+异步分发 handleQQEvent；须在全局 json() 前挂载取原始 body）
@@ -71,6 +71,7 @@
 - `admin.ts` — 超管邀请码 POST/GET /invite-codes
 - `me.ts` — 个人资料 GET/PATCH /（GET 响应含 qq:{enabled,bound}）、POST /onboarded、QQ 绑定 POST /qq-bind-code、DELETE /qq-binding
 - `projects.ts` — 项目 CRUD + roles/members/invites 子资源 + QQ 群绑定 POST /:id/qq-bind-code、DELETE/PATCH /:id/qq-binding/:groupOpenId（project:manage；PATCH 配置逐群订阅类型与 allowStageSignup 舞台授权）
+- `externalMembers.ts` — 未注册成员建档/查询/编辑/归档恢复、手动关联已入项账号；member:manage 管理，项目内成员可读
 - `invites.ts` — GET /:token 查询、POST /:token/accept
 - `todos.ts` — 待办 CRUD、模板 import/export、POST /:todoId/complete|updates
 - `finance.ts` — 账目 CRUD、PATCH /ticket、GET /export(CSV)
@@ -83,7 +84,7 @@
 - `risks.ts` — GET /、POST /evaluate、POST /:riskId/ignore|restore
 - `onsite.ts` — GET / 现场聚合（含 rundowns 舞台执行：running 恒在列 + ±24h 窗口 idle）、GET/POST /incidents、POST /incidents/:iid/resolve
 - `workModules.ts` — 工作模块 CRUD、POST /:mid/confirm|unconfirm|checkin|finish
-- `workSheet.ts` — GET / 本人任务单、GET /:userId（work:manage）
+- `workSheet.ts` — GET / 本人任务单、GET /:userId、GET /external/:memberId（work:manage）
 - `stages.ts` — 阶段 CRUD、PATCH /reorder
 - `stageRundowns.ts` — 流程单 CRUD、节目 items、reorder（执行中仅未执行节目槽位可重排，动已演/在演位置 409）、execution 执行控制（start/advance/jump/shift/finish/reset）、screen-share 开关、publicRundownScreenRouter 公开大屏（token + 白名单）
 - `stageSignups.ts` — 报名批次/节目、PUT|DELETE review 投票、POST /:sid/import
@@ -100,6 +101,7 @@
 - `RefreshToken.ts` — 会话：tokenHash(sha256 唯一)、expiresAt
 - `InviteCode.ts` — 注册邀请码：code/createdBy/usedBy/usedAt
 - `Project.ts` — 项目：name/status/stages/roles/ticketTypes/qqGroups[{groupOpenId,types,allowStageSignup}]（QQ 多群投递目标、逐群订阅与舞台授权，授权默认关闭）；导出默认阶段
+- `ExternalMember.ts` — 项目内未注册成员档案：姓名/岗位/联系方式/归档/账号关联；不创建 User、不授予登录权限
 - `Membership.ts` — 成员：projectId+userId+roleName（唯一索引）
 - `ProjectInvite.ts` — 项目邀请：token/roleName/expiresAt
 - `Todo.ts` — 待办：title/assigneeIds/dueAt/status/qqSourceGroupOpenId（QQ 群@录单来源群，节点/到期提醒只回该群）
@@ -125,6 +127,7 @@
 - `ApiKey.ts` — API 密钥：keyHash(sha256 唯一)/userId/projectId/toolId(可选，工具兑换来源)/scopes/expiresAt(可空=永久)/lastUsedAt
 
 ### 服务 `src/services/`
+- `projectPeople.ts` — 统一负责人解析：档案关联到项目现有账号、重复身份去重、最早现场状态合并；供任务/联系人/统计/风险/通知复用
 - `activity.ts` — logActivity 异步写操作日志
 - `dashboard.ts` — buildSummary/buildMyActions/buildSchedule 仪表盘聚合
 - `demoSeed.ts` — seedDemoData/deleteDemoData（CLI 与试用共用）

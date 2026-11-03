@@ -2,7 +2,7 @@ import { encryptWithPassphrase } from '../crypto';
 import type { Db, DbProject, DbStage, DbUser } from './types';
 
 /** 种子结构版本：变更时递增，旧会话数据自动作废重种，防 schema 漂移 */
-export const DB_VERSION = 8;
+export const DB_VERSION = 9;
 
 // 种子数据：全部日期相对构建时刻（new Date()）计算，保证演示站任何时候打开都「正在进行中」。
 
@@ -147,6 +147,7 @@ export async function buildSeed(): Promise<Db> {
     // ---- 已完成 6 ----
     {
       id: 't-01', projectId: 'p-demo', title: '确定主视觉风格', category: '宣传',
+      externalAssigneeIds: ['ext-01'],
       assigneeIds: ['u-01'], nodeAt: rel(-16), dueAt: rel(-12), remindAt: null,
       status: 'done', note: '三版方向选一，定稿后同步物料组', createdBy: 'u-demo', createdAt: rel(-16),
       completedAt: rel(-12), completedBy: 'u-01', completionNote: '终稿采用暖色系方案，已同步物料组',
@@ -317,6 +318,7 @@ export async function buildSeed(): Promise<Db> {
     {
       id: 'wm-01', projectId: 'p-demo', name: '布展', description: '卸货、搭建摊位、布置展品',
       location: '展馆 B2 卸货区', startAt: dayAt(21, 7), endAt: dayAt(21, 9), requiredCount: 4,
+      externalAssignees: [{ externalMemberId: 'ext-01', confirmedAt: null, confirmedBy: null, checkedInAt: null, completedAt: null }],
       assignees: [
         { userId: 'u-demo', confirmedAt: rel(-3), confirmedBy: 'u-demo', checkedInAt: null, completedAt: null },
         { userId: 'u-04', confirmedAt: rel(-2), confirmedBy: 'u-04', checkedInAt: null, completedAt: null },
@@ -519,6 +521,7 @@ export async function buildSeed(): Promise<Db> {
     users,
     projects: [p1, p2],
     memberships,
+    externalMembers: [{ id: 'ext-01', projectId: 'p-demo', name: '小夏', duty: '检票、舞台协助', contacts: [{ platform: 'QQ', value: '123456789' }], archivedAt: null, linkedUserId: null, linkedAt: null }],
     todos,
     transactions,
     resourceTypes,

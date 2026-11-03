@@ -29,7 +29,7 @@ import SettingsTab from '../components/project/SettingsTab';
 import TodosTab from '../components/project/TodosTab';
 import ToolsTab from '../components/project/ToolsTab';
 import WorkTab from '../components/project/WorkTab';
-import type { Member, ProjectDetail } from '../types';
+import type { ExternalMember, Member, ProjectDetail } from '../types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -39,6 +39,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 interface Detail {
   project: ProjectDetail;
   members: Member[];
+  externalMembers?: ExternalMember[];
   myRole: string;
   myPermissions: string[];
 }
@@ -165,7 +166,7 @@ export default function ProjectHome() {
           />
         )}
         {activeTab === 'todos' && (
-          <TodosTab project={detail.project} members={detail.members} myPermissions={detail.myPermissions} />
+          <TodosTab project={detail.project} externalMembers={detail.externalMembers ?? []} members={detail.members} myPermissions={detail.myPermissions} />
         )}
         {activeTab === 'finance' && (
           <FinanceTab project={detail.project} members={detail.members} myPermissions={detail.myPermissions} />
@@ -177,13 +178,14 @@ export default function ProjectHome() {
           <AccountsTab project={detail.project} members={detail.members} myPermissions={detail.myPermissions} />
         )}
         {activeTab === 'work' && (
-          <WorkTab project={detail.project} members={detail.members} myPermissions={detail.myPermissions} />
+          <WorkTab project={detail.project} externalMembers={detail.externalMembers ?? []} members={detail.members} myPermissions={detail.myPermissions} />
         )}
         {activeTab === 'tools' && (
           <ToolsTab project={detail.project} myPermissions={detail.myPermissions} />
         )}
         {activeTab === 'members' && (
           <MembersTab
+            externalMembers={detail.externalMembers ?? []}
             project={detail.project}
             members={detail.members}
             myPermissions={detail.myPermissions}

@@ -9,6 +9,7 @@ import { RiskInstance } from '../models/RiskInstance';
 import { Todo } from '../models/Todo';
 import { WeeklyReportLog } from '../models/WeeklyReportLog';
 import { managerRoleNames, memberIdsByRole, notify } from '../services/notifications';
+import { loadProjectPeople } from '../services/projectPeople';
 import { ah } from '../utils/async';
 import { AppError } from '../utils/errors';
 
@@ -56,7 +57,7 @@ cronRouter.post(
           body: `待办「${todo.title}」${label}。时间：${(todo[field] ?? now).toISOString()}`,
           link: `/p/${String(todo.projectId)}?tab=todos`,
           metadata: { todoId: todo._id.toString(), qqSourceGroupOpenId: todo.qqSourceGroupOpenId },
-          recipients: todo.assigneeIds.map((id) => id.toString()),
+          recipients: (await loadProjectPeople(todo.projectId)).todoUserIds(todo),
         });
         // targetId 必须写入：FerretDB 的 sparse 唯一索引会把缺失 targetId 当 null 值索引，
         // 缺省时第二条同 kind 记录即撞 E11000（真实 MongoDB 的 sparse 会跳过缺失字段）

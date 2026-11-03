@@ -22,7 +22,11 @@ export interface ProjectSummary {
   health: HealthStatus; todoCompletionRate: number; activeRiskCount: number;
 }
 export interface Role { name: string; permissions: string[]; }
-export interface Member { userId: string; name: string; email: string; roleName: string; }
+export interface ExternalMember {
+  id: string; name: string; duty: string; contacts: { platform: string; value: string }[];
+  archivedAt: string | null; linkedUserId: string | null; linkedAt: string | null;
+}
+export interface Member { userId: string; name: string; email: string; roleName: string; externalProfiles?: ExternalMember[]; }
 export interface ProjectDetail {
   id: string;
   name: string;
@@ -46,6 +50,7 @@ export interface TodoUpdateItem {
 export interface TodoItem {
   id: string; title: string; category: string;
   assignees: { userId: string; name: string }[];
+  externalAssignees?: { externalMemberId: string; name: string; archivedAt: string | null }[];
   nodeAt: string | null; dueAt: string | null; remindAt: string | null;
   status: 'open' | 'done'; note: string; createdAt: string;
   completedAt: string | null; completedBy: string | null; completionNote: string | null;
@@ -89,15 +94,18 @@ export interface PlatformAccountItem {
 export interface WorkAssignee {
   userId: string; name: string;
   confirmedAt: string | null; confirmedBy: string | null;
+  checkedInAt?: string | null; completedAt?: string | null;
 }
+export interface ExternalWorkAssignee extends Omit<WorkAssignee, 'userId'> { externalMemberId: string; archivedAt: string | null; }
 export interface WorkModuleItem {
   id: string; name: string; description: string; location: string;
   startAt: string | null; endAt: string | null; requiredCount: number;
+  externalAssignees?: ExternalWorkAssignee[];
   assignees: WorkAssignee[]; createdBy: string; createdAt: string;
 }
 export interface WorkSheetData {
   project: { id: string; name: string };
-  user: { id: string; name: string };
+  user: { id: string; name: string; externalMemberId?: string };
   generatedAt: string;
   items: WorkModuleItem[];
 }
@@ -182,7 +190,10 @@ export interface OnsiteAnnouncement {
   type: 'emergency' | 'important'; publishedAt: string;
 }
 export interface OnsiteContact {
-  userId: string; name: string; roleName: string | null;
+  userId: string | null;
+  externalMemberId?: string;
+  duty?: string;
+  name: string; roleName: string | null;
   contacts: { platform: string; value: string }[];
 }
 export type IncidentCategory = 'equipment' | 'staff' | 'material' | 'venue' | 'safety' | 'other';

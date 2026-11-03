@@ -1,13 +1,15 @@
-import { type Types } from 'mongoose';
+import { isValidObjectId, type Types } from 'mongoose';
 import { Membership } from '../models/Membership';
 import { Todo, type TodoDoc } from '../models/Todo';
 import { AppError } from '../utils/errors';
 import { logActivity } from './activity';
 import { notify } from './notifications';
+import { assertExternalAssignees } from './projectPeople';
 
 /** 待办创建共用逻辑：HTTP 路由（routes/todos.ts）与 QQ 群 AI 录单（services/qqTodo.ts）共用 */
 
 export async function assertAssigneesAreMembers(projectId: unknown, assigneeIds: string[]) {
+  if (assigneeIds.some((id) => !isValidObjectId(id))) throw new AppError(400, 'bad_request', '指派人 ID 非法');
   const count = await Membership.countDocuments({
     projectId,
     userId: { $in: assigneeIds },
@@ -34,6 +36,7 @@ export async function createTodo(input: {
   title: string;
   category?: string;
   assigneeIds?: string[];
+  externalAssigneeIds?: string[];
   nodeAt?: Date;
   dueAt?: Date;
   remindAt?: Date;
@@ -46,11 +49,13 @@ export async function createTodo(input: {
 }): Promise<TodoDoc> {
   const assignees = input.assigneeIds ?? [];
   await assertAssigneesAreMembers(input.projectId, assignees);
+  await assertExternalAssignees(input.projectId, input.externalAssigneeIds ?? []);
   const todo = await Todo.create({
     projectId: input.projectId,
     title: input.title,
     category: input.category ?? '',
-    assigneeIds: assignees,
+    assigneeIds: [...new Set(assignees)],
+    externalAssigneeIds: input.externalAssigneeIds ?? [],
     nodeAt: input.nodeAt,
     dueAt: input.dueAt,
     remindAt: input.remindAt,

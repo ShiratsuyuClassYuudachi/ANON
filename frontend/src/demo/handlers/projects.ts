@@ -101,6 +101,7 @@ export const projectRoutes: Route[] = [
     return json({
       project: projectJson(project),
       members: membersJson(db, project.id),
+      externalMembers: db.externalMembers.filter((m) => m.projectId === project.id),
       myRole: membership.roleName,
       myPermissions: [...myPermissions(db, project, membership)],
     });

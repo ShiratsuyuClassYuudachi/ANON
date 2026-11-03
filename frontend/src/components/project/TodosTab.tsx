@@ -39,6 +39,7 @@ import { TodoFormDialog } from './TodoFormDialog';
 interface Props {
   project: ProjectDetail;
   members: Member[];
+  externalMembers: import('../../types').ExternalMember[];
   myPermissions: string[];
 }
 
@@ -53,7 +54,7 @@ function isOverdue(t: TodoItem) {
   return t.status !== 'done' && !!t.dueAt && new Date(t.dueAt).getTime() < Date.now();
 }
 
-export default function TodosTab({ project, members, myPermissions }: Props) {
+export default function TodosTab({ project, members, externalMembers, myPermissions }: Props) {
   const canManage = myPermissions.includes('project:manage') || myPermissions.includes('todo:manage');
   const canCreate = canManage || myPermissions.includes('todo:create');
   const [todos, setTodos] = useState<TodoItem[]>([]);
@@ -76,7 +77,11 @@ export default function TodosTab({ project, members, myPermissions }: Props) {
 
   const load = useCallback(async (seq?: number) => {
     const q = new URLSearchParams();
-    for (const [k, v] of Object.entries(filters)) if (v) q.set(k, v);
+    for (const [k, v] of Object.entries(filters)) {
+      if (!v) continue;
+      if (k === 'assignee' && v.startsWith('external:')) q.set('externalAssignee', v.slice(9));
+      else q.set(k, v);
+    }
     const d = await api<{ todos: TodoItem[] }>(`/api/projects/${project.id}/todos?${q}`);
     // 只应用最新一次筛选请求的结果，丢弃慢响应覆盖新结果的过期响应
     if (seq === undefined || seq === loadSeq.current) {
@@ -268,6 +273,7 @@ export default function TodosTab({ project, members, myPermissions }: Props) {
             <SelectContent>
               <SelectItem value="all">全部指派人</SelectItem>
               {members.map((m) => <SelectItem key={m.userId} value={m.userId}>{m.name}</SelectItem>)}
+              {externalMembers.filter((m) => !m.linkedUserId).map((m) => <SelectItem key={m.id} value={`external:${m.id}`}>{m.name}（{m.archivedAt ? '已归档' : '未注册'}）</SelectItem>)}
             </SelectContent>
           </Select>
           <Select
@@ -358,7 +364,7 @@ export default function TodosTab({ project, members, myPermissions }: Props) {
                       </DropdownMenu>
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      {t.assignees.length > 0 && <p>指派：{t.assignees.map((a) => a.name).join('、')}</p>}
+                      {(t.assignees.length > 0 || !!t.externalAssignees?.length) && <p>指派：{[...t.assignees.map((a) => a.name), ...(t.externalAssignees ?? []).map((a) => `${a.name}（${a.archivedAt ? '已归档' : '未注册'}）`)].join('、')}</p>}
                       {t.nodeAt && <p>节点：{fmt(t.nodeAt)}</p>}
                       {t.dueAt && <p>到期：{fmt(t.dueAt)}</p>}
                     </div>
@@ -428,6 +434,7 @@ export default function TodosTab({ project, members, myPermissions }: Props) {
         projectId={project.id}
         startDate={project.startDate}
         members={members}
+        externalMembers={externalMembers}
         knownCategories={knownCategories}
         initial={formInitial ?? undefined}
         onSaved={async () => { await load(); }}

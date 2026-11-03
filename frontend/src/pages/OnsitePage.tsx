@@ -362,12 +362,13 @@ export default function OnsitePage() {
           </CardHeader>
           <CardContent className="space-y-2">
             {data.contacts.map((c) => {
-              const phones = c.contacts.filter((p) => p.platform === 'phone');
+              const phones = c.contacts.filter((p) => ['phone', '电话', '手机'].includes(p.platform));
               return (
-                <div key={c.userId} className="flex items-center justify-between gap-2">
+                <div key={c.userId ?? `external:${c.externalMemberId}`} className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="truncate text-base font-medium">{c.name}</p>
+                    <p className="truncate text-base font-medium">{c.name}{c.externalMemberId ? '（未注册）' : ''}{c.duty ? ` · ${c.duty}` : ''}</p>
                     {c.roleName && <p className="text-sm text-muted-foreground">{c.roleName}</p>}
+                    {c.contacts.filter((p) => !['phone', '电话', '手机'].includes(p.platform)).map((p, i) => <p key={i} className="break-words text-sm text-muted-foreground">{p.platform}：{p.value}</p>)}
                   </div>
                   <div className="flex shrink-0 flex-wrap justify-end gap-2">
                     {phones.map((p) => (

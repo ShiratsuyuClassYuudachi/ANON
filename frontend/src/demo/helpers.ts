@@ -58,7 +58,7 @@ export function membersOf(db: Db, projectId: string): DbMembership[] {
 export function membersJson(db: Db, projectId: string) {
   return membersOf(db, projectId).map((m) => {
     const u = db.users.find((x) => x.id === m.userId);
-    return { userId: m.userId, roleName: m.roleName, name: u?.name ?? '未知', email: u?.email ?? '' };
+    return { userId: m.userId, roleName: m.roleName, name: u?.name ?? '未知', email: u?.email ?? '', externalProfiles: db.externalMembers.filter((x) => x.projectId === projectId && x.linkedUserId === m.userId && !x.archivedAt) };
   });
 }
 
