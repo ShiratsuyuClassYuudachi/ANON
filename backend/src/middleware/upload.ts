@@ -20,9 +20,9 @@ export const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 },
 });
 
-// busboy 在等于 fileSize 时就触发限制，多留 1 字节以接受恰好达到上限的文件。
-export const materialUpload = multer({ storage, limits: { fileSize: MATERIAL_MAX_BYTES + 1 } });
-export const materialChunkUpload = multer({ storage, limits: { fileSize: MATERIAL_CHUNK_BYTES + 1 } });
+// Multer 2.5 已将 fileSize 解释为允许的最大字节数，恰好达到上限仍可上传。
+export const materialUpload = multer({ storage, limits: { fileSize: MATERIAL_MAX_BYTES } });
+export const materialChunkUpload = multer({ storage, limits: { fileSize: MATERIAL_CHUNK_BYTES } });
 
 /** multer 以 latin1 解析文件名，中文名需要转回 UTF-8 */
 export function fixFilename(name: string): string {

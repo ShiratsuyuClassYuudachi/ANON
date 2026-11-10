@@ -123,6 +123,17 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 欢迎 Issue 与 PR。开发约定：后端改动需 `npm test`（vitest）与 `npm run typecheck` 全绿；前端需 `npm run build` 通过；提交信息使用 Conventional Commits 风格。依赖变更需过依赖扫描 CI（osv-scanner，见 `.github/workflows/dependency-scan.yml`）。
 
+
+## 依赖安全约束
+
+前端仅通过 shadcn 包导入现有样式，新增组件仍按项目约定使用 `npx shadcn@3`。当前构建依赖的临时 npm overrides：
+
+- `deepmerge` 固定为未受 GHSA-gcqx-w48m-w2h4 影响的 `4.1.1`；上游当前使用的 `4.2.0–4.3.1` 尚无修复版。
+- `@ts-morph/common` 的 `minimatch` 使用 `^11.0.1`，修复 GHSA-g3hv-75wg-m249。
+- `workbox-build` 的 `glob` 使用 `^14.0.2`，修复 GHSA-3g3m-2fjr-6pw4；生产构建同时验证服务工作线程生成。
+
+上游依赖升级至安全版本后移除对应覆盖，并重新执行 `npm ci`、生产/演示构建和 OSV 扫描；不通过漏洞豁免跳过检查。
+
 ## 许可证
 
 [MIT](LICENSE) © 2026 ShiratsuyuClassYuudachi

@@ -31,11 +31,20 @@
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
-    "shadcn": "4.14.1",
+    "shadcn": "4.23.0",
     "tw-animate-css": "^1.4.0",
     "typescript": "^5.5.0",
-    "vite": "^6.4.3",
+    "vite": "^6.4.5",
     "vite-plugin-pwa": "^1.3.0"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "overrides": {
+    "deepmerge": "4.1.1",
+    "@ts-morph/common": {
+      "minimatch": "^11.0.1"
+    },
+    "workbox-build": {
+      "glob": "^14.0.2"
+    }
+  }
 }
