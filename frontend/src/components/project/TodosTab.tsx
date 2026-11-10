@@ -215,7 +215,7 @@ export default function TodosTab({ project, members, externalMembers, myPermissi
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2" data-tour="tab-todos">
         <h3 className="text-lg font-semibold">待办</h3>
         {canManage && (
           <DropdownMenu>

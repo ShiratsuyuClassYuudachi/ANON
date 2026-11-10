@@ -19,6 +19,17 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
     res.status(507).json({ error: { code: 'storage_full', message: '服务器存储空间不足，无法上传文件' } });
     return;
   }
+  // body-parser 错误携带原始 body，直接记录会把登录密码等内容写入日志。
+  if (err && typeof err === 'object' && 'type' in err) {
+    if (err.type === 'entity.parse.failed') {
+      res.status(400).json({ error: { code: 'bad_request', message: '请求体必须是有效的 JSON' } });
+      return;
+    }
+    if (err.type === 'entity.too.large') {
+      res.status(413).json({ error: { code: 'payload_too_large', message: '请求内容过大' } });
+      return;
+    }
+  }
   if (err instanceof MongooseError.CastError) {
     res.status(400).json({ error: { code: 'bad_request', message: '无效的资源 ID' } });
     return;

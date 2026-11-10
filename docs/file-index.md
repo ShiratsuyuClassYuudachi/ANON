@@ -7,7 +7,7 @@
 ## 架构速览
 
 - 请求链：浏览器 → Cloudflare Worker（`worker/src/index.js`，`/api/*` 反代源站、静态走 ASSETS）→ 源站 nginx（`frontend/nginx.conf`，`/api/` → backend:4000）→ Express（`backend/src/app.ts`）→ FerretDB(MongoDB 协议) / S3(MinIO)。
-- 前端：React 18 + Vite 6 PWA，入口 `frontend/src/main.tsx` → `App.tsx` 路由表；全部请求经 `api/client.ts`（Bearer + 401 单飞刷新重放）；共享类型集中在 `types.ts`。
+- 前端：React 18 + Vite 6 PWA，入口 `frontend/src/main.tsx` → `App.tsx` 路由表；全部请求经 `api/client.ts`（Bearer、会话隔离、跨标签页刷新与上传重试）；共享类型集中在 `types.ts`。
 - 后端：Express + Mongoose；路由统一挂 `/api/projects/:id/*`（项目域）与 `/api/{auth,admin,me,open,push,invites,files,cron}` + `/api/public/lostfound`（顶级域，后者免登录）；权限经 `middleware/projectAccess.ts` 的 `loadMembership` + `requirePermission`；API 密钥（`anonk_` 前缀 Bearer）经 `middleware/auth.ts` 分流鉴权，项目域内由 loadMembership 按 key 绑项目 + scopes 收窄。
 - 纯前端演示站：`frontend/src/demo/` 构建期拦截 `fetch('/api/*')`，内存库 mock 全部后端契约。
 
@@ -47,12 +47,12 @@
 ## 后端 `backend/`
 
 ### 装配与基建
-- `src/app.ts` — Express 装配：helmet + json(2mb) + `/api/health` + errorHandler；路由挂载表（见下文「路由挂载」）
+- `src/app.ts` — Express 装配：helmet + API no-store/Vary: Authorization + json(2mb) + `/api/health` + errorHandler；路由挂载表（见下文「路由挂载」）
 - `src/config.ts` — 环境配置聚合：port/mongoUri/jwtSecret/S3/SMTP/VAPID/trialEmail
 - `src/index.ts` — 启动入口：连 Mongo → initStorage → grantPermissionToAllRoles（新权限点迁移）→ startTrialSweeper → listen
 - `src/middleware/auth.ts` — authRequired 校验 Bearer（`anonk_` 前缀走 ApiKey 哈希鉴权：过期即删、lastUsedAt 1h 节流回写；否则 JWT）；requireSuperAdmin 超管闸；rejectApiKey 用户态专属接口围栏（403 api_key_forbidden）
 - `src/middleware/projectAccess.ts` — loadMembership 载入 project/membership/myPermissions（API 密钥请求尾部统一收窄：绑项目错配 403 api_key_wrong_project、myPermissions ∩ key.scopes）；requirePermission(perm)
-- `src/middleware/errorHandler.ts` — 统一 AppError/Mongoose 错误为 `{error:{code,message}}`
+- `src/middleware/errorHandler.ts` — 统一业务/上传/存储错误与 JSON 400/413 为 `{error:{code,message}}`，解析失败不记录原始请求体
 - `src/middleware/upload.ts` — Multer 2.5 磁盘上传（普通文件 20 MB、物料 1 GB、分片 8 MB，均含边界；UUID 命名）；fixFilename 中文名修复
 - `src/utils/async.ts` — ah 包装 async handler 转 next(err)
 - `src/utils/errors.ts` — AppError(status, code, message)
@@ -166,6 +166,7 @@
 - `workModules.ts` — buildSheet 任务单生成、moduleJson 序列化
 
 ### 测试 `tests/`（vitest + supertest + mongodb-memory-server，打真实路由）
+- `security.test.ts` — API 禁止缓存、无效和超限 JSON 安全错误响应
 - `setup.ts` / `helpers.ts` — 内存 Mongo 基建 / 造号工具（createSuperAdmin/registerUser）
 - 每域一个 `*.test.ts`：auth/admin/me/projects/invites/todos/todo-complete/todo-updates/template/finance/materials/files/physical/accounts/announcements/dashboard/onsite/workModules/stageRundowns/stageExecution/stageSignups/customTools/open/lostFound/notifications/push/cron/trial/onboarding/qq/qq-help/qq-todo/qq-stage-signup/qq-materials-finance/qq-attachments/ai-intake/qq-webhook/qqExport/qqExportFailure/qqCollect/health
 
@@ -191,7 +192,7 @@
 
 ### 页面 `src/pages/`
 - `Login.tsx` / `Register.tsx` — 登录 / 邀请码注册（演示模式一键进入、表单错误提示；与 InviteAccept 共用 AuthShell）
-- `Projects.tsx` — 项目列表：健康度无障碍名称、进度、阶段与倒计时卡片及新建
+- `Projects.tsx` — 项目工作台：总览统计、名称/说明/阶段搜索、文字健康状态与进度卡片、新建防重复提交
 - `ProjectHome.tsx` — 项目主页：按权限过滤的导航、选中语义与可滚动移动端更多 Sheet；PWA 指引由本页持有
 - `OnsitePage.tsx` — 现场模式：签到/完成/异常上报（离线入队）、舞台执行卡（Rundown 开始/推进/顺延，按 tools:manage 显隐）、失物登记入口（复用 LostFoundItemDialog，按 myPermissions 显隐）、30s 轮询
 - `WorkSheetPrint.tsx` — 任务单打印页（按人/全员）
@@ -204,7 +205,7 @@
 - `DocsPage.tsx` — 帮助中心：章节切换/全文搜索/截图缩放
 
 ### 通用组件 `src/components/`
-- `Layout.tsx` — 主布局：响应式顶栏（项目切换/主题/用户菜单）+ 各横幅挂载点
+- `Layout.tsx` — 主布局：响应式顶栏（项目切换/主题/用户菜单）、跳到主要内容、跨页导览入口及横幅
 - `FormOverlay.tsx` — **弹层规范核心**：所有含输入框的弹层一律经此渲染浮动居中 Dialog（禁底部 Sheet 表单）
 - `AuthImg.tsx` — 鉴权图片（useAuthorizedObjectUrl → objectURL）
 - `AuthMedia.tsx` — 鉴权 PDF/音视频/Markdown 预览（iframe/video/audio/react-markdown + useAuthorizedObjectUrl；previewKindOf 按 mime+扩展名归类）
@@ -217,7 +218,7 @@
 - `Toaster.tsx` — sonner 封装；`Logo.tsx` — 品牌标识（应用图标 /icons/icon-192.png + ANON 字样，size/wordmarkClassName props，顶栏/AuthShell/公开页共用）
   `AuthShell.tsx` — 认证/邀请页共用壳：桌面柔和品牌区与居中表单、移动端左对齐品牌头
 - `help/content.ts` — HELP_CHAPTERS 帮助文案（11 章，含 QQ 帮助菜单入口、报名/记账/物料与群授权指引；对应 public/help/qq-group-settings.png、qq-personal-binding.png 截图）
-- `onboarding/OnboardingDialog.tsx` — 首登三页幻灯；`onboarding/tour.ts` — driver.js 分步高亮（data-tour 锚点）
+- `onboarding/OnboardingDialog.tsx` — 首登三页幻灯；`onboarding/tour.ts` — driver.js 自动跳页的全模块高亮（14/13步，按权限过滤；无项目使用精简版）
 - `ui/*.tsx`（21 个）— shadcn/radix 基础组件封装；输入弹层经 FormOverlay，sheet 仅供无输入操作；共享响应式触控尺寸、语义色、卡片间距和弹层关闭控件；badge 含状态变体，list-row 为列表行共享容器
 
 ### 项目 Tab `src/components/project/`（挂在 ProjectHome，直调对应后端域）
@@ -251,10 +252,11 @@
 
 ### 构建与脚本
 - `vite.config.ts` — React+Tailwind+VitePWA；demo 模式摘 SW 并 stub pwa-register
+- `scripts/check-session-security.mjs` — 会话与上传隔离、刷新并发及跨标签页互斥回归（15项）
 - `scripts/patch-sw.mjs` — 构建后向 sw.js 追加 Web Push 处理
 - `scripts/capture-help-screenshots.mjs` — Playwright 重生成帮助截图
 - `scripts/generate-icons.mjs` — sharp 生成 PWA 图标
-- `nginx.conf` — 8080 静态 + SPA 回退，/api/ → backend:4000（50m 上传）
+- `nginx.conf` — 8080 静态 + SPA 回退，/api/ → backend:4000（1025m 请求体上限，支持物料分片及长上传等待）
 - `Dockerfile` — 两阶段：构建 dist → nginx-unprivileged 托管
 
 ## 边缘与部署
@@ -265,7 +267,7 @@
 - `backend/Dockerfile` — tsc 编译 + 仅生产依赖，非 root，挂 uploads 卷
 - `.github/workflows/dependency-scan.yml` — osv-scanner 依赖漏洞周扫
 - `backend/.env.example` — 环境变量样例（数据库/认证/SMTP/VAPID/S3/加密密钥）
-- `docs/openapi.yaml` — OpenAPI 3.0 机器可读规范（167 操作；与 app.ts 挂载表经 `check-openapi-coverage.ts` 双向比对，接口语义以 docs/api.md 为准）
+- `docs/openapi.yaml` — OpenAPI 3.0 机器可读规范（181 操作；与 app.ts 挂载表经 `check-openapi-coverage.ts` 双向比对，接口语义以 docs/api.md 为准）
 
 ## 走查脚本 `.walkthrough/`（不入库的 Playwright 工具集）
 - 截图生成：`help-screenshot*.mjs`（帮助中心 tab-*.png）、`stage-signup-shots.mjs` 等

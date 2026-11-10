@@ -94,6 +94,7 @@ curl -X POST -H "Authorization: Bearer $CRON_SECRET" \
 cd backend  && npm test          # vitest + mongodb-memory-server（无需 Docker/真实 Mongo）
 cd backend  && npm run typecheck # tsc --noEmit
 cd backend  && npm run build     # tsc 输出到 dist/
+cd frontend && npm run check:session # 会话/上传换号隔离与跨标签页刷新回归
 cd frontend && npm run build     # tsc --noEmit && vite build && node scripts/patch-sw.mjs（PWA：workbox 生成 sw.js 后追加 Web Push 事件处理）
 ```
 

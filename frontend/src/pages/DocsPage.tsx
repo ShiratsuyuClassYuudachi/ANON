@@ -122,7 +122,7 @@ export default function DocsPage() {
       <h2 className="text-xl font-semibold">帮助文档</h2>
 
       {/* 全文搜索（移动端吸顶，桌面端随流）；移动端章节切换与搜索同排固定 */}
-      <div className="sticky top-14 z-30 -mx-4 mt-0 bg-background px-4 pb-2 pt-4 md:static md:mx-0 md:mt-4 md:bg-transparent md:px-0 md:pb-0 md:pt-0">
+      <div className="sticky top-14 z-30 -mx-4 mt-0 bg-background px-4 pb-2 pt-4 md:static md:mx-0 md:mt-4 md:bg-transparent md:px-0 md:pb-0 md:pt-0" data-tour="docs-content">
         <div className="flex items-center gap-2">
           <div className="relative min-w-0 flex-1">
             <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
