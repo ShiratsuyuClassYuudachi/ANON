@@ -2,7 +2,10 @@ openapi: 3.0.3
 info:
   title: ANON API
   version: 0.1.0
-  description: 漫展/线下活动执行组协作工具 ANON 的 HTTP API 机器可读规范。各端点的详细语义（权限口径、业务规则、字段含义）以 docs/api.md 为准；本规范与其冲突时以代码与 docs/api.md 为准。
+  description: >-
+    漫展/线下活动执行组协作工具 ANON 的 HTTP API 机器可读规范。各端点的详细语义（权限口径、业务规则、字段含义）以 docs/api.md 为准；本规范与其冲突时以代码与 docs/api.md 为准。
+    后端 API 的成功、错误和文件响应均设置 Cache-Control: no-store 与 Vary: Authorization。
+    JSON 请求体上限为 2 MB；无效 JSON 返回 400 bad_request，超过上限返回 413 payload_too_large，均使用统一 error 信封且不记录原始请求体。
 servers:
   - url: 'http://localhost:4000'
     description: 本地开发

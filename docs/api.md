@@ -7,6 +7,8 @@
 
 - 机器可读规范见 `docs/openapi.yaml`（OpenAPI 3.0，覆盖率经 `backend/scripts/check-openapi-coverage.ts` 校验）
 - 请求/响应均为 JSON（文件上传/下载除外），`Content-Type: application/json`；JSON 请求体上限 2MB
+- 后端 API 的成功和错误响应均设置 `Cache-Control: no-store` 与 `Vary: Authorization`，包括文件响应；静态资源不受此约定影响
+- 无效 JSON 返回 400 `bad_request`；超过 2 MB 的 JSON 返回 413 `payload_too_large`，原始请求体不进入错误日志
 - 健康检查：`GET /api/health`（公开）→ `{ ok: true }`
 - 错误响应统一格式，HTTP 状态码 +  body：
 
@@ -14,7 +16,7 @@
 { "error": { "code": "bad_request", "message": "人类可读信息" } }
 ```
 
-- 常见 code：`bad_request`/`invalid_invite`(400)、`unauthorized`/`bad_credentials`/`invalid_refresh`/`invalid_launch_token`(401)、`forbidden`/`api_key_forbidden`/`api_key_wrong_project`/`api_key_required`(403)、`not_found`(404)、`email_taken`/`email_reserved`/`role_exists`/`role_in_use`/`already_done`/`conflict`(409)、`invite_gone`(410)、`rate_limited`/`trial_limit`(429)、`internal`(500)、`cron_disabled`(503)
+- 常见 code：`bad_request`/`invalid_invite`(400)、`unauthorized`/`bad_credentials`/`invalid_refresh`/`invalid_launch_token`(401)、`forbidden`/`api_key_forbidden`/`api_key_wrong_project`/`api_key_required`(403)、`not_found`(404)、`email_taken`/`email_reserved`/`role_exists`/`role_in_use`/`already_done`/`conflict`(409)、`invite_gone`(410)、`file_too_large`/`payload_too_large`(413)、`rate_limited`/`trial_limit`(429)、`internal`(500)、`cron_disabled`(503)、`storage_full`(507)
 - 时间字段均为 ISO 8601 字符串（如 `2026-08-01T10:00:00.000Z`），可空字段返回 `null`
 
 ### 认证凭证（两种 Bearer）
