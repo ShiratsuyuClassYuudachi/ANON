@@ -615,7 +615,7 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
   if (view === 'physical') {
     return (
       <div className="space-y-3">
-        <div className="flex items-center justify-between gap-2"><h3 className="text-lg font-semibold">物料</h3>{viewSwitcher}</div>
+        <div data-tour="tab-materials" className="flex items-center justify-between gap-2"><h3 className="text-lg font-semibold">物料</h3>{viewSwitcher}</div>
         <PhysicalTab project={project} members={members} myPermissions={myPermissions} />
       </div>
     );
@@ -623,7 +623,7 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-lg font-semibold">物料</h3>{viewSwitcher}</div>
+      <div data-tour="tab-materials" className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-lg font-semibold">物料</h3>{viewSwitcher}</div>
       {err && <Card className="p-4 text-sm text-destructive">{err}</Card>}
 
       {categoryView ? (

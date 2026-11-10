@@ -67,7 +67,7 @@ export default function MembersTab({ project, members, externalMembers, myPermis
   const removingMember = members.find((m) => m.userId === removingId);
 
   return (
-    <div className="space-y-3">
+    <div data-tour="tab-members" className="space-y-3">
       <ExternalMembersPanel projectId={project.id} members={members} externalMembers={externalMembers} canManage={canManage} onChanged={onChanged} />
       {canManage && (
         <Card>
