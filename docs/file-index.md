@@ -53,11 +53,11 @@
 - `src/middleware/auth.ts` — authRequired 校验 Bearer（`anonk_` 前缀走 ApiKey 哈希鉴权：过期即删、lastUsedAt 1h 节流回写；否则 JWT）；requireSuperAdmin 超管闸；rejectApiKey 用户态专属接口围栏（403 api_key_forbidden）
 - `src/middleware/projectAccess.ts` — loadMembership 载入 project/membership/myPermissions（API 密钥请求尾部统一收窄：绑项目错配 403 api_key_wrong_project、myPermissions ∩ key.scopes）；requirePermission(perm)
 - `src/middleware/errorHandler.ts` — 统一 AppError/Mongoose 错误为 `{error:{code,message}}`
-- `src/middleware/upload.ts` — multer 磁盘上传（20MB、UUID 命名）；fixFilename 中文名修复
+- `src/middleware/upload.ts` — Multer 2.5 磁盘上传（普通文件 20 MB、物料 1 GB、分片 8 MB，均含边界；UUID 命名）；fixFilename 中文名修复
 - `src/utils/async.ts` — ah 包装 async handler 转 next(err)
 - `src/utils/errors.ts` — AppError(status, code, message)
 - `src/utils/jwt.ts` — signToken/verifyToken（15 分钟，kind:'user'）；signToolLaunchToken/verifyToolLaunchToken（5 分钟 kind:'tool-launch'，仅可兑换 API 密钥）
-- `vitest.config.ts` — 单 fork 串行、注入测试 JWT_SECRET
+- `vitest.config.ts` — Vitest 4，maxWorkers:1 + fileParallelism:false 保持串行、注入测试 JWT_SECRET
 - `scripts/seed-demo.ts` — CLI 种子：5 用户 + 示例项目 + 邀请码 DEMO-2026
 - `scripts/check-openapi-coverage.ts` — OpenAPI 覆盖率校验：双向比对 app.ts 挂载表与 `docs/openapi.yaml`（`--list` 打印全部操作清单；新增 app.use 时同步脚本内挂载表）
 
