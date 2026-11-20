@@ -1,4 +1,4 @@
-import { badRequest, bodyObj, form, formFiles, formStr, json, memberInfos, nameOf, notFound, nowIso, requireProject, storeUpload, uid } from '../helpers';
+import { badRequest, bodyObj, err, form, formFiles, formStr, json, memberInfos, myPermissions, nameOf, notFound, nowIso, requireProject, storeUpload, uid } from '../helpers';
 import { buildFinanceSummary } from '../aggregate';
 import { def, type Route } from '../router';
 import type { Ctx, Db, DbTransaction } from '../types';
@@ -29,8 +29,14 @@ function findTx(ctx: Ctx): DbTransaction {
 
 /** 元（最多两位小数）→ 整数分（与后端 parseAmount 一致） */
 function parseAmount(v: unknown): number {
+  if (typeof v === 'string' && /^\d+(?:\.\d{1,2})?$/.test(v.trim())) {
+    const [whole, fraction = ''] = v.trim().split('.');
+    const cents = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'));
+    if (cents < 1n || cents > BigInt(Number.MAX_SAFE_INTEGER)) throw badRequest('金额必须为有效正数');
+    return Number(cents);
+  }
   const n = Number(v);
-  if (!Number.isFinite(n) || n <= 0) throw badRequest('金额必须为正数');
+  if (!Number.isFinite(n) || n <= 0 || !Number.isSafeInteger(Math.round(n * 100))) throw badRequest('金额必须为有效正数');
   if (Math.abs(n * 100 - Math.round(n * 100)) > 1e-6) throw badRequest('金额最多两位小数');
   return Math.round(n * 100);
 }
@@ -159,6 +165,37 @@ export const financeRoutes: Route[] = [
         'Content-Disposition': `attachment; filename="finance-${me.userId}.csv"`,
       },
     });
+  }),
+
+  def('PATCH', '/api/projects/:pid/finance/:txId', async (ctx) => {
+    const { db } = ctx;
+    const { project, membership } = requireProject(ctx);
+    const perms = myPermissions(db, project, membership);
+    const canManage = perms.has('project:manage') || perms.has('finance:manage');
+    if (!canManage && !perms.has('finance:add')) return err(403, 'forbidden', '没有权限');
+    const tx = findTx(ctx);
+    if (!canManage && tx.createdBy !== db.currentUserId) return err(403, 'forbidden', '没有权限');
+    const b = bodyObj(ctx);
+    // 校验通过后再写回，非法输入不改变原账目。
+    const updated = { ...tx };
+    if (b.type !== undefined) {
+      if (b.type !== 'income' && b.type !== 'expense') return badRequest('type 必须是 income 或 expense');
+      updated.type = b.type;
+    }
+    if (b.amount !== undefined) updated.amountCents = parseAmount(b.amount);
+    if (b.note !== undefined) updated.note = String(b.note);
+    if (b.payerUserId !== undefined) {
+      updated.payerUserId = String(b.payerUserId);
+      assertMembers(ctx, '付款人', [updated.payerUserId]);
+    }
+    if (b.splitAmong !== undefined) {
+      updated.splitAmong = Array.isArray(b.splitAmong)
+        ? [...new Set(b.splitAmong.map(String))]
+        : parseSplitAmong(String(b.splitAmong ?? ''));
+      assertMembers(ctx, '平摊人', updated.splitAmong);
+    }
+    Object.assign(tx, updated);
+    return json({ transaction: txJson(db, tx) });
   }),
 
   def('DELETE', '/api/projects/:pid/finance/:txId', async (ctx) => {

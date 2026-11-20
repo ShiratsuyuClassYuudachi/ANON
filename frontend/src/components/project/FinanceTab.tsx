@@ -76,6 +76,9 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
   const [ticketOpen, setTicketOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [entryOpen, setEntryOpen] = useState(false);
+  const [editingTx, setEditingTx] = useState<TransactionItem | null>(null);
+  const [editAmount, setEditAmount] = useState('');
+  const [savingAmount, setSavingAmount] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -118,6 +121,25 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
       await load();
     } catch (e2) {
       toast.error((e2 as Error).message);
+    }
+  };
+
+  const saveAmount = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!editingTx || savingAmount) return;
+    setSavingAmount(true);
+    try {
+      await api(`/api/projects/${project.id}/finance/${editingTx.id}`, {
+        method: 'PATCH',
+        body: { amount: editAmount },
+      });
+      setEditingTx(null);
+      toast.success('金额已修改');
+      await load();
+    } catch (e2) {
+      toast.error((e2 as Error).message);
+    } finally {
+      setSavingAmount(false);
     }
   };
 
@@ -313,6 +335,7 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
                     <Button variant="ghost" size="icon" aria-label="账目操作"><MoreHorizontal className="size-4" /></Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => { setEditAmount(yuan(t.amountCents)); setEditingTx(t); }}>修改金额</DropdownMenuItem>
                     <DropdownMenuItem variant="destructive" onClick={() => setDeletingId(t.id)}>删除</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -342,6 +365,30 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
       {!loading && !err && !transactions.length && (
         <Card className="p-8 text-center text-sm text-muted-foreground">暂无账目。</Card>
       )}
+
+      <FormOverlay open={!!editingTx} onOpenChange={(open) => { if (!open && !savingAmount) setEditingTx(null); }} title="修改金额">
+        <form onSubmit={saveAmount} className="space-y-3">
+          <p className="break-words text-sm text-muted-foreground">
+            {editingTx?.type === 'income' ? '收入' : '支出'} · {editingTx?.payer.name}
+            {editingTx?.note && ` · ${editingTx.note}`}
+          </p>
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-entry-amount">金额（元）</Label>
+            <Input
+              id="edit-entry-amount"
+              type="number"
+              inputMode="decimal"
+              step="0.01"
+              min="0.01"
+              value={editAmount}
+              onChange={(e) => setEditAmount(e.target.value)}
+              disabled={savingAmount}
+              required
+            />
+          </div>
+          <Button type="submit" className="w-full" disabled={savingAmount}>{savingAmount ? '保存中…' : '保存金额'}</Button>
+        </form>
+      </FormOverlay>
 
       <FormOverlay open={ticketOpen} onOpenChange={setTicketOpen} title="门票设置">
         <div className="space-y-3">
