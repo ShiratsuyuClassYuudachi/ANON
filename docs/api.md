@@ -664,7 +664,9 @@ interface FinanceSummary {
 
 ### PATCH /api/projects/:id/finance/:txId（finance:manage 或 finance:add）
 
-编辑账目（JSON，字段均可选）：`{ type?, amount?, note?, payerUserId?, splitAmong? }`。不修改附件。
+编辑账目（JSON，字段均可选）：`{ type?, amount?: number|string, note?, payerUserId?, splitAmong? }`。`amount` 以元提交，必须大于 0、最多两位小数，换算后的分值须在安全整数范围内。未提交的字段保持原值，不修改附件。
+
+仅修改金额可提交 `{ "amount": "80.02" }`，保留备注、付款/收款人、参与平摊人与创建信息。成功后的列表汇总、结算建议与 CSV 均按新金额计算。
 财务管理者可改任意账目；`finance:add` 记账者仅能改自己添加的账目，改他人账目返回 403。
 响应 200：`{ transaction: TransactionItem }`
 错误：400 `bad_request`；403 `forbidden`；404 `not_found`

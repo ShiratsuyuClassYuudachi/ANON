@@ -18,7 +18,7 @@
 | 认证/注册/会话 | routes/auth.ts、middleware/auth.ts、services/session.ts、utils/jwt.ts、models/{User,RefreshToken,InviteCode}.ts | pages/{Login,Register}.tsx、auth.tsx、api/client.ts | tests/auth.test.ts |
 | 项目/成员/角色/邀请 | routes/projects.ts、routes/invites.ts、models/{Project,Membership,ProjectInvite,ExternalMember}.ts、routes/externalMembers.ts、services/{permissions,projectPeople}.ts | pages/{Projects,ProjectHome,InviteAccept}.tsx、project/{MembersTab,ExternalMembersPanel,TaskAssigneePicker,RolesTab,SettingsTab}.tsx | tests/{projects,invites,external-members}.test.ts |
 | 待办（含模板/进度） | routes/todos.ts、models/{Todo,ReminderLog}.ts、services/{template,todos}.ts | project/{TodosTab,TodoFormDialog,TodoActionSheet}.tsx | tests/{todos,todo-complete,todo-updates,template}.test.ts |
-| 财务 | routes/finance.ts、models/Transaction.ts、services/{finance,financeEntries}.ts | project/FinanceTab.tsx | tests/finance.test.ts |
+| 财务 | routes/finance.ts、models/Transaction.ts、services/{finance,financeEntries}.ts | project/FinanceTab.tsx（记账/修改金额/汇总）、demo/handlers/finance.ts（演示站同契约） | tests/finance.test.ts（含金额修改、权限、凭证保留及汇总结算/导出） |
 | 物料/资料库/文件 | routes/{materials,files}.ts、models/{Resource,ResourceType,ResourceVersion,File}.ts、services/{materialVisibility,materialUploads,preview,storage}.ts、middleware/upload.ts | project/MaterialsTab.tsx（两层类别/联动筛选/类别管理/上传进度/小图与大图预览）、components/{AuthImg,AuthMedia}.tsx | tests/{materials,material-uploads,files}.test.ts |
 | 实物/物资台账 | routes/physical.ts、models/Physical{Category,Item,ItemLog}.ts | project/PhysicalTab.tsx | tests/physical.test.ts |
 | 平台账号（加密） | routes/accounts.ts、models/PlatformAccount.ts、services/platformCrypto.ts | project/AccountsTab.tsx、crypto.ts（浏览器端加密） | tests/accounts.test.ts |
@@ -224,7 +224,7 @@
 ### 项目 Tab `src/components/project/`（挂在 ProjectHome，直调对应后端域）
 - `DashboardTab.tsx` — 仪表盘聚合、持久化卡片顺序/折叠/隐藏、响应式指标与风险计数语义（内嵌公告/里程碑/阶段卡）
 - `TodosTab.tsx` + `TodoFormDialog.tsx` + `TodoActionSheet.tsx` — 待办列表响应式筛选、错误/加载/空态、任务操作及表单（日期支持开展倒排）
-- `FinanceTab.tsx` — 响应式财务汇总、结算与账目列表，记账/门票/CSV 导出
+- `FinanceTab.tsx` — 响应式财务汇总、结算与账目列表，记账/门票/CSV 导出；账目菜单修改金额，FormOverlay 预填金额、提交禁用与失败重试，成功刷新汇总和结算
 - `MaterialsTab.tsx` — 两层类别联动筛选（序列与筛选双重保护加载状态）、搜索排序、类别管理、资源编辑上传与预览；数字资源两列卡、版本切换与可见范围弹窗；实物入口及帮助截图 public/help/materials-*.png
 - `PhysicalTab.tsx` — 实物分类/台账/状态/日志
 - `AccountsTab.tsx` — 平台账号增删/密码揭示
@@ -248,6 +248,7 @@
 - `types.ts` / `helpers.ts` — Db/Ctx/Handler 类型 / 错误信封·权限·文件存取；大文件 IndexedDB 持久化、共享锁保护活跃标签页、删除与孤立文件回收
 - `aggregate.ts` — R1–R7 聚合（注释标注移植自后端哪个服务）
 - `handlers/*.ts`（16 个）— 按域复刻后端路由：auth/projects/externalMembers/todos/finance/materials/physical/accounts/dashboard/work/stageRundowns/stageSignups/customTools/open/lostFound + index.ts 合并路由表
+- `handlers/finance.ts` — 演示记账/门票/CSV；账目 PATCH 按角色与创建者鉴权，十进制金额精确转分，校验通过再写回
 - `pwa-register-stub.ts` — 禁 SW 防缓存干扰 mock
 
 ### 构建与脚本

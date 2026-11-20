@@ -3395,7 +3395,7 @@ paths:
     patch:
       tags: [财务]
       summary: 编辑账目
-      description: 需 finance:manage 或 finance:add 权限。财务管理者可改任意账目；finance:add 记账者仅能改自己添加的账目，改他人账目返回 403。不修改附件。
+      description: 需 finance:manage 或 finance:add 权限。财务管理者可改任意账目；finance:add 记账者仅能改自己添加的账目，改他人账目返回 403。仅传 amount 即可修改金额，未提交字段保持原值，不修改附件；后续汇总、结算与 CSV 按新金额计算。
       parameters:
         - name: id
           in: path
@@ -3413,7 +3413,12 @@ paths:
               type: object
               properties:
                 type: { type: string, enum: [income, expense] }
-                amount: { type: number, description: 金额（元，必须为正，最多两位小数） }
+                amount:
+                  oneOf:
+                    - { type: number }
+                    - { type: string }
+                  description: 金额（元，必须为正，最多两位小数，换算后的整数分须在安全整数范围内）
+                  example: '80.02'
                 note: { type: string }
                 payerUserId: { type: string }
                 splitAmong:
