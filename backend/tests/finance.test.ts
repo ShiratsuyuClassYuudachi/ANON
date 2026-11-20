@@ -170,6 +170,57 @@ describe('finance', () => {
     expect(list.body.transactions).toHaveLength(0);
   });
 
+  it.each(['expense', 'income'])('仅修改 %s 金额，保留凭证及其他字段并更新汇总、结算和导出', async (type) => {
+    const created = await request(app)
+      .post(`/api/projects/${projectId}/finance`)
+      .set('Authorization', `Bearer ${staff.token}`)
+      .field('type', type)
+      .field('amount', '12.50')
+      .field('payerUserId', staff.user.id)
+      .field('splitAmong', JSON.stringify([owner.user.id, staff.user.id]))
+      .field('note', '保留原备注')
+      .attach('files', Buffer.from('receipt'), '凭证.txt');
+    expect(created.status).toBe(201);
+    const original = created.body.transaction;
+    const patch = await request(app)
+      .patch(`/api/projects/${projectId}/finance/${original.id}`)
+      .set('Authorization', `Bearer ${staff.token}`)
+      .send({ amount: '80.02' });
+    expect(patch.status).toBe(200);
+    expect(patch.body.transaction).toEqual({ ...original, amountCents: 8002 });
+    const list = await request(app)
+      .get(`/api/projects/${projectId}/finance`)
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(list.body.transactions).toEqual([patch.body.transaction]);
+    expect(list.body.summary[type === 'expense' ? 'expenseCents' : 'incomeCents']).toBe(8002);
+    expect(list.body.summary.profitCents).toBe(type === 'expense' ? -8002 : 8002);
+    expect(list.body.summary.settlement.reduce((sum: number, s: { amountCents: number }) => sum + s.amountCents, 0))
+      .toBe(type === 'expense' ? 4001 : 5335);
+    const csv = await request(app)
+      .get(`/api/projects/${projectId}/finance/export?userId=${staff.user.id}`)
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(csv.status).toBe(200);
+    expect(csv.text).toContain('80.02');
+    expect(csv.text).not.toContain('12.50');
+  });
+
+  it('修改非法金额返回 400，原账目保持不变', async () => {
+    const tx = await addTx(owner.token, { type: 'expense', amount: 12.5, payerUserId: owner.user.id });
+    for (const amount of ['', '0', '-1', '1.005', 'NaN', '90071992547409.92', null]) {
+      const patch = await request(app)
+        .patch(`/api/projects/${projectId}/finance/${tx.id}`)
+        .set('Authorization', `Bearer ${owner.token}`)
+        .send({ amount });
+      expect(patch.status).toBe(400);
+      expect(patch.body.error.code).toBe('bad_request');
+    }
+    const list = await request(app)
+      .get(`/api/projects/${projectId}/finance`)
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(list.body.transactions[0].amountCents).toBe(1250);
+    expect(list.body.summary.expenseCents).toBe(1250);
+  });
+
   it('splitAmong 重复 id 会去重，结算保持守恒', async () => {
     const tx = await addTx(owner.token, {
       type: 'expense',
@@ -360,7 +411,7 @@ describe('finance', () => {
     const patch = await request(app)
       .patch(`/api/projects/${projectId}/finance/${otherTx.id}`)
       .set('Authorization', `Bearer ${staff.token}`)
-      .send({ note: 'x' });
+      .send({ amount: '1.00' });
     expect(patch.status).toBe(403);
     const del = await request(app)
       .delete(`/api/projects/${projectId}/finance/${otherTx.id}`)
