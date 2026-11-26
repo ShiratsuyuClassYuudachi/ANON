@@ -1,231 +1,275 @@
-# ANON
+# ANON 部署、配置与运维指南
 
-ANON 是一个「活动全流程追踪」协作系统，面向展会/同人活动/演出等组织团队。功能：
+本文档面向自托管管理员与开发者，完整说明 ANON 的本地开发环境、Docker 生产整栈部署、环境变量参考、Cron 定时提醒、Cloudflare Workers 边缘接入及安全加固规范。
 
-- **账号与权限**：邀请码注册制（首超管引导）、项目内预置/自定义角色与权限点、成员邀请链接；资源可见范围优先于权限点
-- **试用模式**：`TRIAL_EMAIL`（默认 `admin@test.com`）+ 任意 ≥8 位密码登录即建独立演示环境（全模块演示数据），同密码 24h 内复用，到期自动级联销毁；试用期间全站顶部展示「试用」横幅与销毁时间
-- **纯前端演示站**：`npm run build:demo` 构建不依赖后端的 Cloudflare Pages 演示站——浏览器内 mock 全部 `/api`（中文示例数据，访客修改会话内保留、关页还原），全站角标 + 横幅标识；部署与 mock 内核原理见 [`docs/demo-site.md`](./demo-site.md)
-- **待办**：快速创建 + 按类别分组列表 / 进度时间线（完成前多次提交进度，备注+附件）/ 完成带附件 / 编辑与重新打开 / 模板导入导出 / 到期与节点邮件提醒（cron + SMTP）；`todo:create` 创建权限点
- - **通知**：统一通知管线（渠道接口，当前为邮件 + Web Push + QQ 机器人）：待办指派/改派/完成/新进度、现场任务分配、重要/紧急公告、现场异常上报、新风险、里程碑临近、周报；QQ 侧支持个人单聊（全量）与项目多群绑定码关联（逐群订阅精选类型、群来源待办提醒定向回源）
-- **财务**：收支记账、多票种门票盈亏、按人净额与转账建议、CSV 导出
-- **物料**：类型 / 多版本 / WebP 预览 / 可见范围
-- **账号**：三模式平台账号（完整 / OTP 辅助 / 联系人），浏览器端或服务端加密
-- **现场**：任务模块分工（名称/时间/地点/所需人力/分配成员）、成员确认、可打印任务单（含签字栏，浏览器另存 PDF）
-- **新手引导 / 内置帮助文档（/help）**：首登欢迎幻灯 + 界面高亮导览（按账号跨设备只弹一次，可重看）；/help 为 11 章图文手册（配真实截图，点击放大）
+- 面向活动团队的使用教程见 [`docs/tutorial.md`](./tutorial.md)，模块功能详述见 [`docs/features.md`](./features.md)
+- HTTP 接口契约见 [`docs/api.md`](./api.md) 与 [`docs/openapi.yaml`](./openapi.yaml)
+- 外部自定义工具对接见 [`docs/plugin-development.md`](./plugin-development.md)
 
-界面：移动端优先，双风格主题（简洁/明快 × 日/夜），工作台 Tab 与按钮按项目内权限点过滤可见性。
+---
 
-完整接口契约见 [`docs/api.md`](./api.md)；功能使用指南见 [`docs/features.md`](./features.md)；设计说明见 [`docs/design.md`](./design.md)；文件→功能模块索引（开发定位用）见 [`docs/file-index.md`](./file-index.md)。
+## 1. 运行与部署形态一览
 
-## 环境要求
+| 形态 | 适用场景 | 核心组成 |
+| --- | --- | --- |
+| **Docker 生产整栈（推荐）** | 团队正式自托管、内网或云服务器部署 | `docker-compose.prod.yml`：Nginx 前端 + Express 后端 + 内嵌 FerretDB(PostgreSQL) + 内嵌 MinIO，单端口对外 |
+| **Cloudflare Workers 边缘接入** | 源站位于非标端口/家庭宽带，需全球边缘静态加速与统一 443 入口 | `worker/` 托管前端静态资产，`/api/*` 反代回源站，边缘直接完成 QQ Webhook 验签与即时 ACK |
+| **本地源码开发** | 二次开发、接口联调与自动化测试 | `docker-compose.yml` 起 `mongo:7`，前后端分别 `npm run dev` 热重载 |
+| **纯前端演示站** | 公开功能展示，零服务器运维成本 | `frontend` 执行 `npm run build:demo` 托管至 Cloudflare Pages，浏览器内存 + IndexedDB 模拟全套后端契约（详见 [`docs/demo-site.md`](./demo-site.md)） |
 
-- Node.js 20+
-- Docker（**可选**）：`docker compose up -d` 启动 mongo:7 是最省事的本地数据库方式；也可以用任意本地/远程 MongoDB（把 `MONGO_URI` 指过去即可）。后端单元测试使用 `mongodb-memory-server`（devDependency，自动下载内存版 mongod），不依赖 Docker。
+---
 
-## 快速开始
+## 2. 本地开发环境启动
+
+### 环境要求
+
+- **Node.js**：`20+`（推荐 Node.js 22 LTS）
+- **MongoDB**：可使用仓库自带 `docker compose up -d` 启动 `mongo:7`，或连接任意已有 MongoDB 实例。后端集成测试基于 `mongodb-memory-server` 内存库运行，无需预装数据库或 Docker。
+
+### 启动步骤
 
 ```bash
-# 1. 启动 MongoDB（二选一）
-docker compose up -d                                  # 方式 A：Docker
-# 或者使用任何已有的 MongoDB，记下连接串              # 方式 B
+# 1. 启动本地开发 MongoDB（若使用外部 MongoDB 可跳过）
+docker compose up -d
 
-# 2. 配置环境变量
+# 2. 初始化后端环境变量（按需设置 JWT_SECRET 与 SUPER_ADMIN_EMAIL）
 cp backend/.env.example backend/.env
-# 按需修改：JWT_SECRET 填随机串；SUPER_ADMIN_EMAIL 设为首个管理员邮箱；
-# 如用方式 B，修改 MONGO_URI
 
-# 3. 启动后端（默认 4000 端口）
+# 3. 安装依赖并启动后端开发服务（默认监听 :4000）
 cd backend && npm install && npm run dev
 
-# 4. 另开终端，启动前端（默认 5173 端口，/api 代理到 4000）
+# 4. 另开终端启动前端开发服务（默认监听 :5173，自动将 /api 代理至 :4000）
 cd frontend && npm install && npm run dev
-
-# 5. 浏览器打开 http://localhost:5173
-#    用 SUPER_ADMIN_EMAIL 注册首个账号（无需邀请码，自动成为超管）
-#    → 在「管理」页创建邀请码 → 其他用户凭码注册
 ```
 
-局域网内其他设备访问：`cd frontend && npm run dev -- --host 0.0.0.0`，然后访问 `http://<本机局域网 IP>:5173`（API 由 Vite 代理转发，无需额外开放后端端口）。
+- **初始化超管与邀请码**：浏览器打开 `http://localhost:5173/register`，在空库状态下使用 `SUPER_ADMIN_EMAIL` 所配邮箱注册（免填邀请码），首个账号自动成为超级管理员；随后在顶栏「管理」页生成一次性邀请码供团队成员注册。
+- **局域网移动设备联调**：执行 `cd frontend && npm run dev -- --host 0.0.0.0`，手机访问 `http://<开发机局域网IP>:5173` 即可真机调试（API 请求经 Vite 代理转发，无需额外暴露 4000 端口）。
 
-## 环境变量（backend/.env）
+---
 
-| 变量 | 必填 | 说明 |
-| --- | --- | --- |
-| `MONGO_URI` | 是（有默认值 `mongodb://localhost:27017/anon`） | MongoDB 连接串 |
-| `JWT_SECRET` | 生产必填（≥32 字符） | JWT 签名密钥；生产环境未配置或不足 32 字符会拒绝启动，开发环境用不安全的默认值 |
-| `PORT` | 否 | 后端监听端口，默认 4000 |
-| `UPLOAD_DIR` | 否 | 上传文件本地存储目录，默认 `uploads`（已 gitignore）；仅在未配置 S3 时使用 |
-| `S3_ENDPOINT` / `S3_BUCKET` / `S3_REGION` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` | 否 | S3 兼容对象存储（MinIO / OSS / AWS S3）。配置 `S3_ENDPOINT` 后上传文件（含预览图）写入 S3，bucket 不存在时自动创建；未配置则回退本地磁盘 `UPLOAD_DIR`。历史本地文件与新 S3 文件可混合读取 |
-| `CRON_SECRET` | 提醒功能必填 | cron 提醒接口的 Bearer 密钥；未配置时该接口返回 503 |
-| `SUPER_ADMIN_EMAIL` | 否 | 首个超管邮箱：数据库无用户时，该邮箱注册无需邀请码并自动成为超管 |
-| `TRIAL_EMAIL` | 否 | 试用模式账号邮箱（默认 `admin@test.com`）：该邮箱 + 任意 ≥8 位密码登录进入独立演示环境（24h 自动销毁）；置空禁用 |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | 否 | SMTP 发信配置；未配置 `SMTP_HOST` 时邮件退化为控制台日志（存根） |
-| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | 否 | Web Push 推送（`npx web-push generate-vapid-keys` 生成密钥）；未配置时推送渠道静默禁用，邮件不受影响 |
-| `QQ_BOT_APP_ID` / `QQ_BOT_APP_SECRET` / `QQ_BOT_SANDBOX` | 否 | QQ 机器人通知（QQ 开放平台 Bot API v2 凭证，`QQ_BOT_SANDBOX=true` 走沙箱环境）；未配置时 QQ 渠道静默禁用。管理端前提：勾选「单聊/群聊消息事件」订阅（否则网关收不到事件）；群主动消息需单独开通权限（有数分钟生效延迟；沙箱环境另需在「沙箱配置」白名单加群） |
-| `PUBLIC_BASE_URL` | 否 | 前端公开地址（如 `https://app.example.com`）：QQ 通知消息末尾附「查看」链接时用作基座；置空不拼链接 |
-| `AI_API_KEY` / `AI_BASE_URL` / `AI_MODEL` | 否 | QQ 待办、舞台报名与文字记账解析，OpenAI 兼容接口；默认地址 `https://api.deepseek.com`、模型 `deepseek-v4-flash`。未配密钥时 AI 录入静默禁用，物料上传不依赖 AI |
-| `QQ_DEBUG_EVENTS` | 否 | `=1` 时后端打印 QQ 合并转发/引用（message_type≥100）事件的原始载荷，联调聊天记录导出功能用；默认关闭 |
-| `PLATFORM_CRYPTO_KEY` | 否 | 平台账号「服务端加密」模式的密钥源（SHA-256 派生 AES-256-GCM 密钥）；缺省回退 `JWT_SECRET`。浏览器端 ANONv1 加密（默认）不依赖此项 |
+## 3. Docker 生产整栈部署（推荐）
 
-QQ 录入部署说明：群聊新录入和物料消息需 @机器人；订阅全量群消息后，报名/记账已有会话支持原发送者直接回复确认、取消或序号，仅订阅群 @消息则继续 @回复。群舞台授权由项目管理者逐群开启，默认关闭，重新绑定后关闭；无需新增环境变量。报名/记账草稿保留 10 分钟，物料暂存 30 分钟，均为进程内会话，重启后需重新发起；保存时复核实时权限与可见范围。任务相对日期按项目时区换算。操作步骤见 [QQ 使用说明](features.md#qq-机器人通知)。
+仓库内置多阶段构建 `Dockerfile` 与生产编排 `docker-compose.prod.yml`，无需宿主机具备 Node 环境即可一键运行。
 
-QQ 帮助菜单无需新增配置：私聊发送「帮助」「菜单」或 `/help`，群内 @机器人发送；未绑定或未配置 AI 时也能查看六类操作说明，AI 关闭时会提示功能可用范围。加好友/入群欢迎消息复用菜单，查看帮助不会中断当前录入或导出会话。
-
-## cron 提醒
+### 一键启动
 
 ```bash
-curl -X POST -H "Authorization: Bearer $CRON_SECRET" \
-  http://localhost:4000/api/cron/reminders
-# → {"sent": <本次发送条数>}
-
-curl -X POST -H "Authorization: Bearer $CRON_SECRET" \
-  http://localhost:4000/api/cron/weekly-report
-# → {"sent": <本次发送条数>}
-```
-
-两个接口共用同一 Bearer 密钥（未配置 `CRON_SECRET` 均返回 503）：
-
-- **`/api/cron/reminders`**（可挂系统 crontab 每分钟执行）：扫描所有 `status=open` 且 `remindAt <= now`（节点提醒）或 `dueAt <= now`（到期提醒）的待办，经通知管线向指派人发信；另扫描 3 天内到期且未完成的里程碑，向项目管理者发「里程碑临近」通知。每个目标每类提醒只发一次（`ReminderLog` 去重，投递失败不落标记、下次重试）。
-- **`/api/cron/weekly-report`**（建议每周一执行一次）：对 `preparing`/`active`/`settling` 状态的项目生成周报（本周完成待办数、新增风险数、当前阶段进度、下周里程碑），经通知管线发给项目管理者；按项目 + 周一日期经 `WeeklyReportLog` 去重，当周重复调用不重发。
-
-## 测试与构建
-
-```bash
-cd backend  && npm test          # vitest + mongodb-memory-server（无需 Docker/真实 Mongo）
-cd backend  && npm run typecheck # tsc --noEmit
-cd backend  && npm run build     # tsc 输出到 dist/
-cd frontend && npm run check:session # 会话/上传换号隔离与跨标签页刷新回归
-cd frontend && npm run build     # tsc --noEmit && vite build && node scripts/patch-sw.mjs（PWA：workbox 生成 sw.js 后追加 Web Push 事件处理）
-```
-
-生产部署：`npm run build` 后，后端 `node dist/index.js`，前端 `dist/` 为静态文件（任意静态托管或 `npx vite preview`）。
-
-## Docker 部署（镜像构建与一键编排）
-
-仓库自带两套 Dockerfile 与编排文件，可整体容器化部署，无需安装 Node 环境。
-
-**单独构建镜像：**
-
-```bash
-docker build -t anon-backend ./backend    # 后端镜像（多阶段：编译 + 生产依赖运行时）
-docker build -t anon-frontend ./frontend  # 前端镜像（多阶段：vite build + nginx 托管/代理）
-```
-
-**一键编排（推荐）：**
-
-```bash
-# 1. 在仓库根目录创建 .env（已 gitignore），至少填 JWT_SECRET（随机长串）
+# 1. 在仓库根目录创建 .env（已 gitignore），生成不少于 32 字符的 JWT_SECRET
 echo "JWT_SECRET=$(openssl rand -hex 32)" > .env
-# 可选：SUPER_ADMIN_EMAIL / SMTP_* / CRON_SECRET / PLATFORM_CRYPTO_KEY，同 backend/.env.example
+# 可按需在 .env 追加 SUPER_ADMIN_EMAIL、WEB_PORT、SMTP_*、VAPID_*、QQ_BOT_* 等配置
 
-# 2. 构建并启动全部服务（mongo + backend + frontend）
+# 2. 构建前后端镜像并后台拉起全部服务
 docker compose -f docker-compose.prod.yml up -d --build
 
-# 3. 访问 http://localhost:8080（局域网则 http://<主机IP>:8080）
-#    端口冲突时在 .env 里设 WEB_PORT=8081 等改变对外端口
+# 3. 访问 http://localhost:8080（若在 .env 设置了 WEB_PORT=8081 则访问对应端口）
 ```
 
-架构说明：
+### 编排服务拓扑与存储切换
 
-- `frontend`（nginx，唯一对外端口 **8080**）：托管前端静态文件，SPA 路由回退，`/api` 反代到 `backend:4000`（上传限 50MB）
-- `backend`：不暴露宿主机端口，仅编排网络内可达；未配置 S3 时上传文件存 named volume `uploads-data`
-- `minio`：**内嵌对象存储**——S3 兼容 API，文件（含预览图）默认存这里，数据存 named volume `minio-data`；不暴露宿主机端口（API :9000 / 控制台 :9001 仅编排网络内可见）。默认账号 `S3_ACCESS_KEY`/`S3_SECRET_KEY`（缺省 `anon-minio` / `anon-minio-password`，公网部署务必修改）；在 `.env` 覆盖 `S3_*` 可切换外部 S3 服务，设 `S3_ENDPOINT=` 为空则回退本地磁盘且 minio 可不启动
-- `ferretdb` + `postgres`：**内嵌数据库（零依赖体验模式）**——FerretDB v2 提供 MongoDB 协议，后端存储为 PostgreSQL（DocumentDB 扩展），数据存 named volume `pg-data`；均不暴露宿主机端口
-- **数据库两级配置**：默认走内嵌 FerretDB（账号 `DB_USER`/`DB_PASSWORD`，缺省 `anon` / `anon-dev-password`，公网部署务必修改）；**外接 MongoDB 优先**——在 `.env` 设置 `MONGO_URI` 即改用外部库，`postgres`/`ferretdb` 两服务可删除或不启动
-- 编排项目名为 `anon-prod`，与开发用 `docker-compose.yml`（仅 mongo，端口 27017）互不干扰，可并存
-- 常用命令：`docker compose -f docker-compose.prod.yml logs -f backend`（看日志）/ `down`（停止）/ `down -v`（停止并清空数据卷，慎用）
-- cron 提醒：容器外执行 `curl -X POST -H "Authorization: Bearer $CRON_SECRET" http://localhost:8080/api/cron/reminders`（经前端代理）
+生产编排项目名固定为 `anon-prod`（与开发用 `docker-compose.yml` 互不干扰），仅 `frontend` 暴露唯一对外端口：
 
-## Cloudflare Workers 边缘部署（外网入口）
+| 服务名 | 角色与网络边界 | 持久化卷 / 外部切换方式 |
+| --- | --- | --- |
+| `frontend` | 非特权 Nginx（容器内 `:8080`），托管静态资源、SPA 回退、下发安全头，将 `/api/` 反代至 `backend:4000`（请求体上限 `1025m`，支持 1GB 物料上传） | 宿主机端口由 `${WEB_PORT:-8080}` 控制 |
+| `backend` | 非 root Node 22 运行时（仅编排内网 `:4000` 可达） | 本地文件回退卷 `uploads-data` |
+| `ferretdb` + `postgres` | **默认内嵌数据库**：FerretDB v2 提供 MongoDB 协议，PostgreSQL 17（DocumentDB 扩展）落盘，不暴露宿主机端口 | 数据卷 `pg-data`；在根 `.env` 设置 `MONGO_URI` 即优先连接外接 MongoDB，此时可注释或不启动这两个服务 |
+| `minio` | **默认内嵌对象存储**：S3 兼容 API（编排内 `:9000`），上传文件与 WebP 预览图默认存入此处（桶不存在自动创建） | 数据卷 `minio-data`；根 `.env` 覆盖 `S3_*` 可改连阿里云 OSS / AWS S3 / R2；设 `S3_ENDPOINT=` 为空则回退本地磁盘 `uploads-data`（历史本地文件与 S3 对象支持混合读取） |
 
-在源站（上述 Docker 编排）已公网可达的前提下，`worker/` 目录把前端静态资产托管到 Cloudflare 全球边缘，`/api/*` 反代回源站，对外提供统一 HTTPS 入口：
+### 常用运维命令
+
+```bash
+# 查看后端实时日志
+docker compose -f docker-compose.prod.yml logs -f backend
+
+# 代码更新后仅重建并平滑重启前后端（保留数据库与对象存储容器）
+docker compose -f docker-compose.prod.yml up -d --build backend frontend
+
+# 停止服务（保留数据卷）
+docker compose -f docker-compose.prod.yml down
+
+# 单独构建镜像（用于自定义容器平台分发）
+docker build -t anon-backend ./backend
+docker build -t anon-frontend ./frontend
+```
+
+> **历史部署升级提示**：早期以 `root` 初始化过 `uploads-data` 卷的旧实例升级到非 root 后端容器（UID `1000`）时，若采用本地磁盘存储，需执行一次卷属主迁移以防写入报 `EACCES`（全新部署无需执行）：
+> ```bash
+> docker compose -f docker-compose.prod.yml stop backend
+> docker run --rm -v anon-prod_uploads-data:/data alpine chown -R 1000:1000 /data
+> docker compose -f docker-compose.prod.yml up -d backend
+> ```
+
+---
+
+## 4. 环境变量参考
+
+本地开发配置于 `backend/.env`（模板见 `backend/.env.example`）；Docker 生产编排配置于仓库根目录 `.env`。
+
+### 核心与数据库
+
+| 变量 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `JWT_SECRET` | **生产必填** | 开发内置弱密钥 | JWT 签名密钥。生产环境（`NODE_ENV=production`）未配置或长度 `< 32` 字符将直接拒绝启动 |
+| `MONGO_URI` | 否 | `mongodb://localhost:27017/anon`（Docker 编排默认连内嵌 `ferretdb`） | MongoDB 连接串 |
+| `DB_USER` / `DB_PASSWORD` | 否（仅 Docker） | `anon` / `anon-dev-password` | Docker 编排内嵌 PostgreSQL / FerretDB 凭据，**公网部署务必修改** |
+| `PORT` | 否 | `4000` | 后端监听端口 |
+| `WEB_PORT` | 否（仅 Docker） | `8080` | Docker 编排 `frontend` 映射到宿主机的对外端口 |
+| `SUPER_ADMIN_EMAIL` | 否 | 空 | 首超管引导邮箱：当数据库尚无任何用户时，用该邮箱注册免邀请码并自动获得超级管理员权限 |
+| `TRIAL_EMAIL` | 否 | `admin@test.com` | 试用沙箱入口邮箱（加任意 ≥8 位密码即建 24h 独立演示环境）；置空（`TRIAL_EMAIL=`）可完全关闭试用模式 |
+| `PLATFORM_CRYPTO_KEY` | 否 | 回退 `JWT_SECRET` | 平台账号「服务端密钥加密」模式的派生源（SHA-256 → AES-256-GCM）；默认的浏览器端加密不依赖此项 |
+
+### 文件与对象存储
+
+| 变量 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `UPLOAD_DIR` | 否 | `uploads` | 未配置 S3 时的本地文件存储目录（已 gitignore） |
+| `S3_ENDPOINT` | 否 | 空（Docker 编排默认 `http://minio:9000`） | S3 兼容服务地址；非空时启用 S3 存储，置空回退本地磁盘 |
+| `S3_BUCKET` / `S3_REGION` | 否 | `anon-files` / `us-east-1` | 对象存储桶名称（不存在时自动创建）与区域标识 |
+| `S3_ACCESS_KEY` / `S3_SECRET_KEY` | 启用 S3 必填 | Docker 默认 `anon-minio` / `anon-minio-password` | 对象存储访问凭据，**公网部署务必替换默认口令** |
+
+### 定时任务、邮件与 Web Push
+
+| 变量 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `CRON_SECRET` | 定时提醒必填 | 空 | `/api/cron/*` 接口的 Bearer 鉴权密钥（常数时间比对）；未配置时接口返回 `503 cron_disabled` |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | 否 | `SMTP_PORT=587`，其余空 | SMTP 邮件通知配置；未配置 `SMTP_HOST` 时邮件降级为服务端控制台日志，不阻塞业务 |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | 否 | 空 | Web Push 浏览器推送密钥（可通过 `npx web-push generate-vapid-keys` 生成）；未配置时前端自动隐藏推送开关 |
+
+### QQ 机器人通知与 AI 智能解析
+
+| 变量 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `QQ_BOT_APP_ID` / `QQ_BOT_APP_SECRET` | 否 | 空 | QQ 开放平台官方 Bot API v2 凭据；未配置时 QQ 渠道静默禁用 |
+| `QQ_BOT_SANDBOX` | 否 | 空 | 设为 `true` 时调用 QQ 沙箱 API 域名（沙箱需在管理端配置群白名单） |
+| `PUBLIC_BASE_URL` | 否 | 空 | 站点对外访问根地址（如 `https://app.example.com`），用于拼接 QQ 通知末尾直达链接与聊天记录导出 `/dl/:id` 下载地址 |
+| `AI_API_KEY` | 否 | 空 | OpenAI 兼容接口密钥，驱动 QQ 待办创建、舞台报名提取与文字记账解析；未配置时仅 AI 解析静默关闭，绑定通知、分段物料上传、聊天导出与 `帮助` 菜单仍照常可用 |
+| `AI_BASE_URL` / `AI_MODEL` | 否 | `https://api.deepseek.com` / `deepseek-v4-flash` | AI 模型接口基座与模型名 |
+| `QQ_DEBUG_EVENTS` | 否 | 空 | 设为 `1` 时打印 QQ 富媒体/转发事件原始载荷，仅供联调排障使用 |
+
+> **QQ 开放平台配置要点**：在机器人管理端将回调地址设为 `https://<公开域名>/api/qq/webhook`（平台仅支持 443/8443/80/8080 端口），订阅「单聊消息」及「群聊@消息」（或「群消息全量」，服务端自动按 `@机器人` 过滤并对同一消息去重）；若需发送群定时提醒，需在管理端单独开启「群聊主动消息」权限。进程内录入草稿（报名/记账 10 分钟、物料/导出收集 30 分钟）在容器重启后需重新发起。
+
+---
+
+## 5. 定时任务配置（Cron 提醒与周报）
+
+后端提供两个幂等去重的定时扫描端点（Docker 部署下可直接经前端端口访问，本地裸跑则访问 `:4000`）：
+
+```bash
+# 1. 待办节点/到期提醒 + 里程碑临近（提前 3 天）扫描 —— 建议每分钟执行一次
+curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" \
+  http://127.0.0.1:8080/api/cron/reminders
+
+# 2. 活跃项目每周进度周报 —— 建议每周一上午执行一次
+curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" \
+  http://127.0.0.1:8080/api/cron/weekly-report
+```
+
+- 两个端点均返回 `{"sent": <本次成功触发条数>}`。
+- **投递重试保障**：仅当所有已启用渠道投递成功后才写入 `ReminderLog` / `WeeklyReportLog` 唯一去重记录；若遇临时网络故障，下一轮扫描会自动重试而不会漏发。
+
+宿主机 `crontab -e` 参考示例：
+
+```cron
+* * * * * curl -fsS -X POST -H "Authorization: Bearer 你的CRON_SECRET" http://127.0.0.1:8080/api/cron/reminders >/dev/null
+0 9 * * 1 curl -fsS -X POST -H "Authorization: Bearer 你的CRON_SECRET" http://127.0.0.1:8080/api/cron/weekly-report >/dev/null
+```
+
+---
+
+## 6. Cloudflare Workers 边缘部署（可选公网加速）
+
+当源站部署在家庭宽带或非标 HTTPS 端口时，可使用 `worker/` 目录将前端静态产物发布到 Cloudflare 全球边缘，并将 `/api/*` 安全反代回源站：
 
 ```mermaid
 flowchart LR
-  U[用户] --> W[CF Worker anon-app<br/>app.anontokyo.design]
-  W -->|静态| A[Workers Static Assets]
-  W -->|/api/*| P[CF 管线: Origin Rule 端口 30362<br/>+ Config Rule SSL Full]
-  P --> O[源站 NPMplus :30362<br/>origin.anontokyo.design 虚拟主机]
+  U["浏览器 / QQ 开放平台"] --> W["Cloudflare Worker<br/>静态资产 + /api 反代"]
+  W -->|"静态页面与资源"| A["Workers Static Assets"]
+  W -->|"POST /api/qq/webhook<br/>op13 验签 / op0 即时 ACK"| W
+  W -->|"/api/* 子请求 (waitUntil)"| P["CF Origin / Config Rules"]
+  P --> O["源站反向代理 → Docker frontend:8080"]
 ```
 
-生产入口：**https://app.anontokyo.design**（workers.dev 子域国内不可达，仅备用）
+### 发布流程
 
 ```bash
-cd frontend && npm run build            # 先出最新 dist
-cd ../worker && npm install             # 仅首次
+cd frontend && npm run build                     # 1. 生成最新前端生产构建产物
+cd ../worker && npm install                      # 2. 首次安装 wrangler 与边缘验签依赖
 CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... npm run deploy
-# -> https://anon-app.<subdomain>.workers.dev
 ```
 
-要点：
+### 边缘运维关键事项
 
-- `deploy` 脚本会把 `frontend/dist` 拷成 `.deploy-assets/` 并剔除 `_redirects`（Pages 专用，与 SPA `not_found_handling` 组合会触发 CF API 无限重定向校验，code 100324），再 `wrangler deploy`
-- `/api` 反代时显式写 `X-Forwarded-For: <cf-connecting-ip>`，保证后端登录限流按真实客户端 IP 计数（否则全员共享 CF 出口 IP 配额）
-- 静态响应的安全头（CSP/nosniff/XFO 等）在 `worker/src/index.js` 复刻自 `frontend/nginx.conf`——改 nginx 安全头时两边同步
-- **QQ webhook 在边缘应答**：控制台校验窗口仅 ~3s，而回源家宽链路实测 2~3s 且偶发失败，直连会导致 40009「签名校验不通过」，故 `POST /api/qq/webhook` 的 op13 由 Worker 直接用 Ed25519 签名回包（算法与后端 `services/qqWebhook.ts` 一致），op0 事件同样边缘即时回 `{"opcode":12}` ACK、经 `waitUntil` 异步回源处理（验签仍在源站）；**需配置 Worker secret**：`cd worker && printf '%s' '<AppSecret>' | CLOUDFLARE_API_TOKEN=… npx wrangler secret put QQ_BOT_APP_SECRET`，AppSecret 轮换时两边同步更新（未配置时透明回源，源站按 `qq_disabled` 处理）
-- **回源链（同 zone 约束的完整解法）**：Worker 绑 `app.anontokyo.design` 后与源站域名同属一个 zone，Worker 子请求强制走 CF 边缘管线，不支持 `:30362` 非常用端口直连，且 Host 头改写需 Enterprise。落地方案四件套：DNS `origin.anontokyo.design` CNAME → `anon.anontokyo.design`（橙云，跟随 DDNS IP）+ Origin Rule（该主机名 destination port → 30362，Free 套餐唯一开放的回源改写）+ Configuration Rule（该主机名 SSL=Full，源站 30362 为 TLS）+ 源站 NPMplus 为 `origin.anontokyo.design` 配虚拟主机（转发与应用相同；Full 不校验证书，无需配 SSL）。`wrangler.toml [vars].ORIGIN = https://origin.anontokyo.design`；换源站/回源走 Tunnel 时改这里
-- **wrangler.toml 不写 routes**：自定义域名绑定存于 CF 侧 Workers Domains；写 routes 会触发 wrangler 对 zone workers/routes 的读对账，要求额外的 Zone Workers Routes 权限
-- 绑新自定义域名：Dashboard -> Workers -> anon-app -> Domains 添加，token 需补 Workers Routes: Edit
-- 与 Pages 演示站（**`demo.anontokyo.design`** / `anon-19b.pages.dev`，纯前端 mock）互不干扰；本 Worker 代理的是**真实后端**，无独立数据
-- 所需 token 权限：Account Workers Scripts: Edit；Zone Origin Rules / DNS / Config Rules: Edit（回源链规则维护）
+1. **自动清理 `_redirects`**：`worker/package.json` 的 `deploy` 脚本会将 `frontend/dist` 拷贝至 `.deploy-assets/` 并剔除 Pages 专用的 `_redirects` 文件，避免触发 Workers Assets 的 `100324` 路由校验冲突。
+2. **真实客户端 IP 透传**：Worker 反代 `/api/*` 时显式注入 `X-Forwarded-For: <cf-connecting-ip>`，配合后端 `trust proxy 1` 确保登录限流按真实访客 IP 计数。
+3. **QQ Webhook 边缘即时应答**：QQ 平台回调窗口仅约 3 秒，Worker 在边缘直接用 Ed25519 完成 `op=13` 地址校验签名与 `op=0` 事件即时 ACK（`{"opcode":12}`），随后通过 `ctx.waitUntil` 异步转发源站执行 AI 解析与落库。启用 QQ 渠道时需向 Worker 写入密钥（轮换时与源站 `.env` 同步更新）：
+   ```bash
+   cd worker && printf '%s' '<你的QQ_BOT_APP_SECRET>' | npx wrangler secret put QQ_BOT_APP_SECRET
+   ```
+4. **安全响应头双端同步**：`worker/src/index.js` 中的 `SECURITY_HEADERS` 与 `frontend/nginx.conf` 保持逐字一致——**修改任意一侧的 CSP 或安全头时必须同步更新另一侧**。
+5. **同 Zone 非标端口回源方案**：若自定义域名与源站同属一个 Cloudflare Zone，修改 `worker/wrangler.toml` 的 `[vars].ORIGIN` 指向橙云子域（如 `https://origin.example.com`），并在 Cloudflare 配置 Origin Rule（改写目标端口）与 Configuration Rule（SSL 设为 Full）即可打通回源。
 
-## 安全
+---
 
-- **会话**：access JWT 15 分钟有效，refresh token 30 天滚动（每次刷新轮换，库中只存 sha256，单用户上限 10 个），退出登录即吊销。旧 30 天 JWT 在部署后仍有效直至自然过期（同一 JWT_SECRET），前端会自动走刷新流程续期。
-- **登录限流**：`/api/auth/*`（注册/登录/试用登录/refresh/logout）每 IP 15 分钟最多 50 次，防撞库与试用环境资源消耗。
-- **安全响应头**：nginx 对静态页下发 CSP（无 unsafe-inline 脚本，主题初始化脚本已外置 `theme-init.js`；`frame-src` 放行 `https:`/`http:` 以支持自定义工具 iframe 嵌入，本系统自身仍 `frame-ancestors 'none'` 禁止被嵌）、`X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`、`Permissions-Policy`；`server_tokens off` 隐藏版本号。
-- **API 密钥（OpenAPI 模式）**：`anonk_` 前缀 Bearer 凭证（库中只存 sha256，原文仅创建时返回一次）；绑定单一项目且权限 = 密钥 scopes ∩ 持有者实时角色权限；`/api/me`、`/api/admin`、`/api/push`、`/api/invites`、`/api/files` 与项目创建/全量列表整体拒绝密钥；兑换端点限流 60 次/15 分钟/IP；工具启动令牌为 5 分钟短期 JWT（kind 隔离，不可当登录态使用）。
-- **权限化审计日志**：实物清单数量变动/状态变更需 `materials:manage`，无权限成员看不到「变动记录」入口。
-- **文件预览收敛**：仅位图（png/jpeg/webp/gif）生成缩略预览；内联预览白名单仅放行位图 + PDF/Markdown/常见音视频（PDF 浏览器沙箱渲染、音视频标签解码、Markdown 原始 HTML 转义），SVG 等可携带脚本的格式不生成预览、下载走 `Content-Disposition: attachment`。
-- **非 root 容器**：backend（node 用户）与 frontend（`nginxinc/nginx-unprivileged`，监听 8080）均不以 root 运行。
-- **依赖面**：mongoose 8.24.10+（修复 2026-11-16 扫描发现的 5 项已知漏洞）、multer 2.5+、vite 6.4+（修复 CVE-2026-39365，dev-server 路径穿越）、nodemailer 10.1.4+、react-router 7.18+。升级 Mongoose 保持 8.x 主版本，按锁文件安装并通过后端回归与 FerretDB 容器实测。
-- **依赖扫描 CI**：`.github/workflows/dependency-scan.yml` 用 osv-scanner（v2.4.0 固定版本 + SHA256 校验）扫描 backend/frontend 锁文件，push 涉及依赖变更时触发 + 每周一全量兜底；豁免清单在根目录 `osv-scanner.toml`（新增时必须附原因，当前无豁免）；构建依赖的临时版本覆盖与解除条件见根 README「依赖安全约束」
+## 7. 安全设计基线与公网检查清单
 
-### 公网部署必须做的三件事
+### 公网上线必做三件事
 
-1. **终止 TLS**：本仓库 nginx 仅监听明文端口，公网部署应在前面加反向代理（Caddy/nginx/certbot）终止 HTTPS。
-2. **修改默认口令**：内嵌 FerretDB 的 `DB_PASSWORD`、MinIO 的 `S3_ACCESS_KEY`/`S3_SECRET_KEY` 均有开发默认值，公网部署必须用强随机值覆盖（`.env`）。
-3. **JWT_SECRET 至少 32 字符**：`openssl rand -hex 32` 生成，生产启动校验。
+1. **前置启用 HTTPS**：`frontend` 容器仅监听明文 HTTP，公网暴露必须在前置反向代理（Caddy / Nginx / Cloudflare）终止 TLS。
+2. **替换全部默认口令**：务必在根目录 `.env` 中用强随机串覆盖 `DB_PASSWORD`、`S3_ACCESS_KEY` 与 `S3_SECRET_KEY`。
+3. **配置高强度 `JWT_SECRET`**：使用 `openssl rand -hex 32` 生成不少于 32 字符的密钥。
 
-### 既有部署升级的一次性迁移
+### 内置安全机制摘要
 
-后端容器改为非 root（node 用户，UID 1000）运行后，早期以 root 初始化的 `uploads-data` 卷需要一次属主迁移（否则 multer 写入 EACCES）：
+- **双令牌滚动会话与前端换号隔离**：Access Token 15 分钟有效；Refresh Token 30 天滚动轮换（数据库仅存 SHA-256 哈希，单用户上限 10 个，登出即吊销）。前端内置会话标识校验与跨标签页 Web Locks 刷新互斥，切换账号时自动丢弃在途旧请求与上传回调。
+- **分层速率限制与禁缓存**：`/api/auth/*` 限制 50 次/15 分钟/IP；免登录公开分享端点（失物招领、现场大屏）限制 300 次/分钟/IP；API 密钥兑换限制 60 次/15 分钟/IP。全量 API 响应强制下发 `Cache-Control: no-store` 与 `Vary: Authorization`，JSON 解析失败脱敏不记录原始请求体。
+- **OpenAPI 密钥最小权限围栏**：`anonk_` 密钥仅存 SHA-256 哈希，原文创建时只回显一次；每次请求实时计算 `密钥 scopes ∩ 持有者当前角色权限`，且用户态敏感路由（`/api/me`、`/api/admin`、`/api/push`、`/api/invites`、`/api/files`、项目创建与全量列表）整体拒绝密钥调用（`403 api_key_forbidden`）。
+- **文件内联预览白名单与严格 CSP**：仅位图生成 WebP 缩略图；内联预览严格限制在位图、PDF、Markdown（转义原始 HTML）与常见音视频，SVG 等潜在脚本载体一律拒绝预览并强制 `Content-Disposition: attachment` 下载；静态页下发无 `unsafe-inline` 脚本的严格 CSP 及 `frame-ancestors 'none'`。
+- **非特权容器与持续漏洞扫描**：后端以 `node` 用户、前端以 `nginx-unprivileged` 运行；GitHub Actions 每周及锁文件变更时运行固定版本 `osv-scanner` 审计前后端依赖树。
+
+---
+
+## 8. 构建、测试与端到端冒烟
+
+### 质量门命令
 
 ```bash
-docker compose -f docker-compose.prod.yml stop backend
-docker run --rm -v anon-prod_uploads-data:/data alpine chown -R 1000:1000 /data
-docker compose -f docker-compose.prod.yml up -d --build backend frontend
+# 后端：全量集成测试（Vitest 串行内存库）+ TypeScript 类型检查 + 生产编译
+cd backend && npm test && npm run typecheck && npm run build
+
+# 接口契约：双向核对 Express 路由表与 docs/openapi.yaml 覆盖率
+cd backend && npx tsx scripts/check-openapi-coverage.ts
+
+# 前端：会话与上传换号隔离回归（15 项）+ 生产构建（含 PWA Service Worker 补丁）+ 演示构建
+cd frontend && npm run check:session && npm run build && npm run build:demo
 ```
 
-仅对已有部署执行一次；全新部署无需执行。
+### 核心链路 curl 冒烟验证
 
-## 端到端冒烟
-
-核心 curl 流程（后端已启动时）：
+在服务启动后（以本地 `:4000` 为例，已设 `SUPER_ADMIN_EMAIL=admin@example.com`），可用以下命令快速验证核心闭环：
 
 ```bash
-# 1. 首超管注册（无邀请码）
-curl -X POST localhost:4000/api/auth/register -H 'Content-Type: application/json' \
-  -d '{"email":"admin@test.com","name":"Admin","password":"password123"}'
-# → 201 {"token":"...","refreshToken":"...","user":{"email":"admin@test.com","isSuperAdmin":true,...}}
+# 1. 健康检查
+curl -fsS http://localhost:4000/api/health
+# -> {"ok":true}
 
-# 2. 建邀请码
-curl -X POST localhost:4000/api/admin/invite-codes \
+# 2. 注册首个超级管理员
+TOKEN=$(curl -fsS -X POST http://localhost:4000/api/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@example.com","name":"Admin","password":"password123"}' | jq -r .token)
+
+# 3. 创建邀请码与首个活动项目
+curl -fsS -X POST http://localhost:4000/api/admin/invite-codes \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{}'
-# → 201 {"id":"...","code":"ANON-XXXXXXXX"}
 
-# 3. 第二用户凭码注册 → 4. 建项目 → 5. 建邀请 → 6. 第二用户接受
-# 7. 建待办（assigneeIds=[第二用户], dueAt=过去时间）
-# 8. POST /api/projects/:id/todos/:todoId/complete（curl -F completionNote=... -F files=@file）
-# 9. GET /api/projects/:id/todos/template/export → POST .../template/import
-# 10. POST /api/cron/reminders -H "Authorization: Bearer $CRON_SECRET" → {"sent":0}
-# 11. GET /api/files/:id -H "Authorization: Bearer $TOKEN" → 200 文件流
+PID=$(curl -fsS -X POST http://localhost:4000/api/projects \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"name":"冒烟测试活动"}' | jq -r .project.id)
+
+# 4. 创建一条待办并拉取看板聚合
+curl -fsS -X POST "http://localhost:4000/api/projects/$PID/todos" \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"title":"核对场地设备","category":"现场"}'
+
+curl -fsS "http://localhost:4000/api/projects/$PID/dashboard" \
+  -H "Authorization: Bearer $TOKEN" | jq .summary.metrics
 ```
-
-## 备注
-
-- 「可见范围」（物料类型/资源、平台账号）优先于权限点；File 模型的预留字段仍未启用。
-- 前端技术栈：Vite + React + TypeScript + Tailwind CSS v4（`@tailwindcss/vite`）+ shadcn/ui（`frontend/components.json`，new-york / neutral）+ lucide-react + sonner；主题双风格（简洁/明快 × 日/夜）保存在本机 localStorage（`anon-theme` / `anon-style`）。
-- 运维约束：新增 shadcn 组件必须使用 `npx shadcn@3`（v4 CLI 移除了 `--base-color` 参数，与当前 `components.json` 不兼容）。
-- `backend/uploads/` 与 `backend/.env` 均已 gitignore，勿提交。
-- `/help` 帮助文档的界面截图存于 `frontend/public/help/`；界面变动后用 Playwright 重生成：`PLAYWRIGHT_BROWSERS_PATH=<浏览器目录> node frontend/scripts/capture-help-screenshots.mjs`（需前端 dev 服务器运行中）。

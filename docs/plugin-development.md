@@ -227,7 +227,7 @@ async function myPermissions(key: string): Promise<string[]> {
 
 ## 9. 本地联调
 
-1. 按 `docs/readme.md` 起一套本地实例（Docker compose，唯一端口 `WEB_PORT`，默认 8081）
-2. 创建项目 → 「工具」Tab → 添加自定义工具，链接填插件 dev server 地址（如 `http://localhost:5173`——本地 http 页面互相嵌入无混合内容问题），开「携带用户身份」并勾选权限点
-3. 打开工具卡片，在插件 DevTools Console 观察握手（先挂 `window.addEventListener('message', e => console.log(e.origin, e.data))`，应看到 `anon:launch` 回包；URL 全程无令牌），走通 exchange → 业务调用
-4. 权限收窄/顶替/撤销/过期的断言可参考后端测试 `backend/tests/open.test.ts`（16 个场景的行为基准）
+1. 按 `docs/readme.md` 起一套本地实例（Docker compose，唯一对外端口 `WEB_PORT`，默认 `8080`，可在根目录 `.env` 中修改）
+2. 创建项目 → 「工具」Tab → 添加自定义工具，链接填外部组件 dev server 地址（如 `http://localhost:5173`——本地 http 页面互相嵌入无混合内容问题），开「携带用户身份」并勾选权限点
+3. 打开工具卡片，在组件 DevTools Console 观察握手（先挂 `window.addEventListener('message', e => console.log(e.origin, e.data))`，应看到 `anon:launch` 回包；URL 全程无令牌），走通 exchange → 业务调用
+4. 权限收窄/顶替/撤销/过期的断言可参考后端测试 `backend/tests/open.test.ts` 与 `backend/tests/customTools.test.ts`

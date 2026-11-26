@@ -38,7 +38,7 @@
 | PWA 安装入口 | —（纯前端） | lib/pwaInstall.ts（事件捕获/状态）、components/PwaInstallGuide.tsx（指引弹层）、pages/ProjectHome.tsx（「更多」Sheet 行） | .walkthrough/pwa-install.mjs（走查） |
 | 试用模式 | services/trial.ts、models/TrialSession.ts、services/demoSeed.ts | components/TrialBanner.tsx | tests/trial.test.ts |
 | 纯前端演示站 | —（mock 后端契约） | demo/ 全目录、components/{DemoBadge,DemoBanner}.tsx、vite.config.ts | — |
-| 新手引导/帮助中心 | routes/me.ts（onboarded 端点） | onboarding/*、help/content.ts、pages/DocsPage.tsx | tests/onboarding.test.ts |
+| 新手引导/帮助中心/教程 | routes/me.ts（onboarded 端点） | components/onboarding/*、components/help/content.ts、pages/DocsPage.tsx；文档教程 docs/tutorial.md | tests/onboarding.test.ts |
 | 操作日志/动态 | models/Activity.ts、services/activity.ts、routes/activities.ts | —（暂未暴露界面） | — |
 | 可见范围（visibility） | services/visibility.ts、models/ResourceType.ts（visibilitySchema 共用子文档） | project/VisibilityPicker.tsx | 散见于各域测试 |
 | 个人中心/超管 | routes/{me,admin}.ts | pages/{Me,Admin}.tsx | tests/{me,admin}.test.ts |
@@ -202,7 +202,7 @@
 - `InviteAccept.tsx` — 接受项目邀请（AuthShell 壳，错误/信息/加载三态在壳内）
 - `PublicLostFound.tsx` — 失物招领免登录公开查找页（/lf/:token，搜索+状态筛选+照片；头部品牌行）
 - `RundownScreenPage.tsx` — 现场大屏免登录公开页（/screen/:token，强制深色投屏：当前节目/时钟/紧急公告位，10s 轮询）
-- `DocsPage.tsx` — 帮助中心：章节切换/全文搜索/截图缩放
+- `DocsPage.tsx` — 帮助中心：四分组侧边导航/移动端吸顶下拉、URL `?chapter=` 同步、本章小节锚点与高频话题直达、全字段全文检索（支持 `/` 聚焦与高亮跳转）、轻量内联富文本/步骤/表格/提示框渲染、上下章翻页与截图放大预览
 
 ### 通用组件 `src/components/`
 - `Layout.tsx` — 主布局：响应式顶栏（项目切换/主题/用户菜单）、跳到主要内容、跨页导览入口及横幅
@@ -217,7 +217,7 @@
 - `ApiKeysCard.tsx` — Me 页 API 密钥卡：自助生成（项目+实有权限点+30 天/永久）、一次性原文展示复制、列表与撤销
 - `Toaster.tsx` — sonner 封装；`Logo.tsx` — 品牌标识（应用图标 /icons/icon-192.png + ANON 字样，size/wordmarkClassName props，顶栏/AuthShell/公开页共用）
   `AuthShell.tsx` — 认证/邀请页共用壳：桌面柔和品牌区与居中表单、移动端左对齐品牌头
-- `help/content.ts` — HELP_CHAPTERS 帮助文案（11 章，含 QQ 帮助菜单入口、报名/记账/物料与群授权指引；对应 public/help/qq-group-settings.png、qq-personal-binding.png 截图）
+- `help/content.ts` — HELP_CHAPTERS 结构化帮助教程（4 分组 11 章，含步骤/要点/对比表/提示框/截图元数据，覆盖全流程实战与全模块说明）
 - `onboarding/OnboardingDialog.tsx` — 首登三页幻灯；`onboarding/tour.ts` — driver.js 自动跳页的全模块高亮（14/13步，按权限过滤；无项目使用精简版）
 - `ui/*.tsx`（21 个）— shadcn/radix 基础组件封装；输入弹层经 FormOverlay，sheet 仅供无输入操作；共享响应式触控尺寸、语义色、卡片间距和弹层关闭控件；badge 含状态变体，list-row 为列表行共享容器
 
@@ -268,6 +268,7 @@
 - `backend/Dockerfile` — tsc 编译 + 仅生产依赖，非 root，挂 uploads 卷
 - `.github/workflows/dependency-scan.yml` — osv-scanner 依赖漏洞周扫
 - `backend/.env.example` — 环境变量样例（数据库/认证/SMTP/VAPID/S3/加密密钥）
+- `docs/tutorial.md` — 从零筹备到现场执行的全流程实战使用教程（与按模块拆分的 `docs/features.md` 互补）
 - `docs/openapi.yaml` — OpenAPI 3.0 机器可读规范（181 操作；与 app.ts 挂载表经 `check-openapi-coverage.ts` 双向比对，接口语义以 docs/api.md 为准）
 
 ## 走查脚本 `.walkthrough/`（不入库的 Playwright 工具集）

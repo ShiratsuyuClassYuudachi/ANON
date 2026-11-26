@@ -4,7 +4,7 @@
 
 - **构建**：`cd frontend && npm run build:demo`（= `tsc --noEmit && vite build --mode demo`），产物 `frontend/dist/`。
 - **与生产构建的关系**：demo 是 vite `--mode demo` 的同仓库构建变体；生产构建（`npm run build` + Docker 部署）完全不受影响——demo 代码经动态 import + `import.meta.env.VITE_DEMO` 静态替换被 tree-shake（生产产物中零 demo 字符串/chunk，已验证），且 demo 模式摘除 VitePWA（不生成 sw.js，避免 Service Worker 缓存 mock 响应）。
-- **演示数据**：种子含 2 个项目（「示例·夏日同人祭」+「示例·秋季 Live」）、6 成员、15 待办、9 账目 + 双票种、6 物料资源（含可预览 SVG 海报/平面图、PDF 参展指南、可下载 CSV 摊位号表）、3 平台账号、4 现场模块、实物清单、公告/风险/动态/里程碑/邀请码、舞台 Rundown、报名审核批次、失物招领物品（含公开分享）。舞台 Rundown 附执行模式（默认未开始），现场大屏分享已开启——直接访问 `/screen/demo-screen-token` 可演示免登录深色大屏（含种子紧急公告上屏）。微博账号密码可输入口令 `demo` 在前端解密（真 PBKDF2 + AES-GCM，与生产同一代码路径）。
+- **演示数据**：种子（`DB_VERSION = 9`）含 2 个项目（「示例·夏日同人祭」+「示例·秋季 Live」）、6 名注册成员 + 1 条未注册成员档案（参与待办与现场混合指派）、15 条待办、9 笔账目 + 双票种、两层结构的 7 个物料类别与 6 个物料资源（含可预览 SVG 海报/平面图、PDF 参展指南、Markdown 宣传文案、可下载 CSV 摊位号表）、3 个平台账号、4 个现场模块、实物清单、公告/风险/动态/里程碑/邀请码、舞台 Rundown、报名审核批次、失物招领物品（含公开分享 `/lf/demo-lostfound`）以及 2 条自定义工具种子（支持 OpenAPI 启动令牌与 `anonk_demo_*` 密钥兑换演示）。舞台 Rundown 附执行模式（默认未开始），现场大屏分享已开启——直接访问 `/screen/demo-screen-token` 可演示免登录深色大屏（含种子紧急公告上屏）。微博账号密码可输入口令 `demo` 在前端解密（真 PBKDF2 + AES-GCM，与生产同一代码路径）。
 
 ## 部署（Cloudflare Pages，二选一）
 
@@ -42,9 +42,9 @@ SPA 深链回退由 `frontend/public/_redirects`（`/* /index.html 200`）提供
 
 **种子（`seed.ts`）**：日期全部相对 `new Date()` 计算（活动 +21d 开展），任意时刻打开都是「筹备中」的鲜活状态。`DB_VERSION`：种子结构变更时递增，旧会话数据自动作废重种，防 schema 漂移。
 
-**文件策略**：种子附件大部分指向 `frontend/public/demo/` 下的手写占位文件（`poster-v1/v2.svg`、`floorplan.svg`、`guide.pdf`，透传 `origFetch`），CSV/Markdown 等小文件直接以内联 base64 data URL 入种子；会话内上传的文件转 base64 data URL 存入 store（小图，sessionStorage 可容）。预览/下载统一经 `GET /api/files/:id` 与 materials versions 端点返回 blob。
+**文件策略**：种子附件大部分指向 `frontend/public/demo/` 下的静态示例文件（`poster-v1/v2.svg`、`floorplan.svg`、`guide.pdf`，透传 `origFetch`），CSV/Markdown 等小文件直接以内联 base64 data URL 入种子；会话内上传支持单文件最大 1GB 与 8MB 分片会话模拟，大文件二进制存入 **IndexedDB** 持久化，并通过 Web Locks 保护活跃标签页引用，删除资源、还原示例数据或下次打开会话时自动清扫孤立 Blob。预览/下载统一经 `GET /api/files/:id` 与 materials versions 端点返回 blob。
 
-**Push / 注册等只读面**：`/api/push/config` 返回 `{ publicKey: null }`（PushBanner 自然隐藏）；`POST /api/auth/register` 固定 403 `demo_readonly`；公告发布/删除等前端未调用的端点不 mock。
+**覆盖范围与只读面**：`handlers/` 下共 16 个业务域模块，完整复刻项目/阶段、未注册成员、待办、财务（含账目金额修改）、两层物料与分片上传、实物清单、账号、看板/公告管理、现场/任务单、舞台编排与执行模式/大屏、舞台报名审核、失物招领及公开页、自定义工具与 OpenAPI 密钥兑换；`/api/push/config` 与 QQ 机器人配置返回未启用态（推送提示条与 QQ 绑定入口自然隐藏）；`POST /api/auth/register` 固定返回 403 `demo_readonly`。
 
 ## 会话保留语义
 
