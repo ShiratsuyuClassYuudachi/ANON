@@ -54,6 +54,7 @@ interface ProjectDetail {
 interface TodoItem {
   id: string; title: string; category: string;
   assignees: { userId: string; name: string }[];
+  externalAssignees: { externalMemberId: string; name: string; archivedAt: string|null }[];
   nodeAt: string|null; dueAt: string|null; remindAt: string|null;
   status: 'open'|'done'; note: string; createdBy: string; createdAt: string;
   completedAt: string|null; completedBy: string|null; completionNote: string|null;
@@ -324,7 +325,7 @@ interface MilestoneItem {
 ### GET /api/projects/:id/todos
 
 Query（均可选）：
-- `category=字符串`、`assignee=<userId>`、`status=open|done`
+- `category=字符串`、`assignee=<userId>`、`externalAssignee=<externalMemberId>`（与 `assignee` 互斥，同时传返回 400）、`status=open|done`
 - `sort=createdAt|dueAt|nodeAt`（默认 createdAt）、`order=asc|desc`（默认 desc）
 
 响应 200：`{ todos: TodoItem[] }`
@@ -332,8 +333,8 @@ Query（均可选）：
 ### POST /api/projects/:id/todos
 
 需 `todo:create`（或 `project:manage`）。
-请求：`{ title: string, category?: string, assigneeIds?: string[], nodeAt?: string, dueAt?: string, remindAt?: string, note?: string }`
-`assigneeIds` 必须全部为项目成员，否则 400。
+请求：`{ title: string, category?: string, assigneeIds?: string[], externalAssigneeIds?: string[], nodeAt?: string, dueAt?: string, remindAt?: string, note?: string }`
+`assigneeIds` 必须全部为项目成员，`externalAssigneeIds` 必须全部为本项目未归档的未注册成员档案，否则 400。
 响应 201：`{ todo: TodoItem }`；403 无 `todo:create`
 
 ### PATCH /api/projects/:id/todos/:todoId
@@ -578,11 +579,12 @@ interface RiskItem {
 
 ## QQ 机器人通知
 
-配置 `QQ_BOT_APP_ID` / `QQ_BOT_APP_SECRET`（QQ 开放平台 Bot API v2，可选 `QQ_BOT_SANDBOX=true` 走沙箱）后启用第三通知渠道；未配置时静默禁用。事件接收走 **webhook 回调**（下节），覆盖绑定流程、解绑清理与群@ AI 录单。
+配置 `QQ_BOT_APP_ID` / `QQ_BOT_APP_SECRET`（QQ 开放平台 Bot API v2，可选 `QQ_BOT_SANDBOX=true` 走沙箱）后启用第三通知渠道；未配置时静默禁用。事件接收走 **webhook 回调**（下节），覆盖绑定流程、解绑清理、群@/单聊 AI 录单与录入会话，以及聊天记录导出。
 
-- **个人单聊**：成员在「个人资料」页生成绑定码，QQ 私聊机器人发送「绑定 XXXXXX」；绑定后收到全部发给自己的通知。QQ 侧删除好友或站内解绑即解除。
-- **项目群**：管理者在项目「设置」页生成绑定码，机器人拉进群后 @机器人 发送「绑定 XXXXXX」；群里只收精选类型（里程碑临近、待办节点/到期提醒、重要/紧急公告、新风险、现场异常、周报）。
+- **个人单聊**：成员在「个人资料」页生成绑定码，QQ 私聊机器人发送「绑定 XXXXXX」；绑定后收到全部发给自己的通知，也可直接私聊发送任务描述建待办（归属多个活跃项目时回复序号选择）。QQ 侧删除好友或站内解绑即解除。
+- **项目群（支持多群）**：管理者在项目「设置」页生成绑定码，机器人拉进群后 @机器人 发送「绑定 XXXXXX」；每个群可独立勾选接收精选 7 类通知（里程碑临近、待办节点/到期提醒、重要/紧急公告、新风险、现场异常、周报），群@来源待办的提醒仅定向回来源群。
 - **群@ AI 录单**：已绑定项目的群里，成员 @机器人 直接发任务描述（如「周五前把海报送到印刷店」），AI（OpenAI 兼容接口，`AI_API_KEY`/`AI_BASE_URL`/`AI_MODEL`，默认 DeepSeek `deepseek-v4-flash`）解析为待办自动建单；@ 的群成员经三层身份对照（群 member_openid → union_openid → 昵称唯一匹配）映射为项目成员自动指派。成员在群里发「绑定 XXXXXX」（个人绑定码）可写入群 openid 对照表，让 @ 指派稳定命中。未配置 `AI_API_KEY` 时该功能静默禁用。
+- **聊天记录导出**：已绑定用户单聊合并转发（102）或使用「开始导出 / 结束导出」收集模式，以及已绑项目群引用转发 @机器人 发送「导出」，均渲染为 UTF-8 BOM Markdown 写入 `File`（单聊为无 `projectId` 的个人文件，群导出归属本群绑定项目），被动回复 `/dl/:id` 下载链接（最终经 `GET /api/files/:id` 鉴权下载）。
 - 通知为纯文本（`msg_type=0`），配置 `PUBLIC_BASE_URL` 后消息末尾附「查看」链接；绑定确认走被动回复（不占主动消息额度）。
 - 投递韧性：单目标失败仅记日志；有目标且全部失败时本次投递视为失败（cron 不写去重标记，下轮重试）。
 - 管理端前提：机器人需勾选「单聊/群聊消息事件」订阅并**配置 webhook 回调地址后发布**；群主动消息需单独开通「主动消息」权限（开通有数分钟生效延迟）。
@@ -862,7 +864,7 @@ interface PhysicalSummary {
 
 ### 数据模型
 
-- `platform`：平台（QQ/小红书/B站/微博/其他）
+- `platform`：平台名称（如 QQ/小红书/微博/其他）
 - `account`：账号或联系方式
 - `mode`：`full`（账号+密码）/ `otp`（仅账号+添加人，便于索取二步验证码）/ `contact`（联系人，无密码）
 - `passwordCipher`：仅 full 模式存在。`cipherKeySource: 'user'`（默认）为浏览器端加密密文，格式 `ANONv1:<salt_b64>:<iv_b64>:<data_b64>`（PBKDF2-SHA256 100000 次 + AES-GCM，口令仅存于用户浏览器）；`cipherKeySource: 'server'` 为服务端 AES-256-GCM 密文（密钥 = SHA-256(`PLATFORM_CRYPTO_KEY`，缺省回退 `JWT_SECRET`)）
@@ -916,16 +918,22 @@ interface WorkAssignee {
   confirmedAt: string|null; confirmedBy: string|null;
   checkedInAt: string|null; completedAt: string|null;   // 签到 / 完成时间
 }
+interface WorkExternalAssignee {
+  externalMemberId: string; name: string; archivedAt: string|null;
+  confirmedAt: string|null; confirmedBy: string|null;
+  checkedInAt: string|null; completedAt: string|null;
+}
 interface WorkModuleItem {
   id: string; name: string; description: string; location: string;
   startAt: string|null; endAt: string|null; requiredCount: number;
-  assignees: WorkAssignee[]; createdBy: string; createdAt: string;
+  assignees: WorkAssignee[]; externalAssignees: WorkExternalAssignee[];
+  createdBy: string; createdAt: string;
 }
 interface WorkSheetData {
   project: { id: string; name: string };
-  user: { id: string; name: string };
+  user: { id: string; name: string; externalMemberId?: string };
   generatedAt: string;
-  items: WorkModuleItem[];   // 分配给该成员的模块
+  items: WorkModuleItem[];   // 分配给该成员/档案的模块
 }
 ```
 
@@ -935,14 +943,14 @@ interface WorkSheetData {
 
 ### POST /api/projects/:id/work-modules（work:manage）
 
-请求：`{ name: string（≤100 字）, description?: string, location?: string, startAt?: string, endAt?: string, requiredCount?: number（≥1 整数，默认 1）, assigneeIds?: string[] }`
-校验：`name` 必填；`startAt`/`endAt` 须为合法时间且 startAt 不晚于 endAt；`assigneeIds` 必须全部为项目成员。
+请求：`{ name: string（≤100 字）, description?: string, location?: string, startAt?: string, endAt?: string, requiredCount?: number（≥1 整数，默认 1）, assigneeIds?: string[], externalAssigneeIds?: string[] }`
+校验：`name` 必填；`startAt`/`endAt` 须为合法时间且 startAt 不晚于 endAt；`assigneeIds` 必须全部为项目成员，`externalAssigneeIds` 必须全部为本项目未归档的未注册成员档案。
 响应 201：`{ module: WorkModuleItem }`
 错误：400 `bad_request`；403 `forbidden`
 
 ### PATCH /api/projects/:id/work-modules/:mid（work:manage）
 
-请求字段同 POST（均可选）。`startAt`/`endAt` 需成对提交：任一键出现时两值同时重建，单传其一将把另一清空。替换 `assigneeIds` 时留任成员保留确认记录，被移除者清除。
+请求字段同 POST（均可选）。`startAt`/`endAt` 需成对提交：任一键出现时两值同时重建，单传其一将把另一清空。替换 `assigneeIds` / `externalAssigneeIds` 时两组独立更新，留任人员保留确认/签到/完成记录，被移除者清除。
 响应 200：`{ module: WorkModuleItem }`
 错误：400 `bad_request`；403 `forbidden`；404 `not_found`（含跨项目 mid）
 
@@ -953,7 +961,7 @@ interface WorkSheetData {
 
 ### POST /api/projects/:id/work-modules/:mid/confirm
 
-确认成员与模块的分配关系。请求 `{ userId?: string }`：不传 = 确认本人（项目成员即可）；传 = 代他人确认（需 `work:manage` 或 `project:manage`）。记录确认时间与确认人；重复确认幂等，不刷新时间戳。
+确认成员或未注册成员档案与模块的分配关系。请求 `{ userId?: string, externalMemberId?: string }`（`userId` 与 `externalMemberId` 互斥）：均不传 = 确认本人（项目成员即可）；传任一 = 代他人/未注册成员确认（需 `work:manage` 或 `project:manage`）。记录确认时间与确认人；重复确认幂等，不刷新时间戳。
 响应 200：`{ module: WorkModuleItem }`
 错误：400 `bad_request`（目标未被分配到该模块）；403 `forbidden`（无权代他人确认）；404 `not_found`
 
@@ -1360,7 +1368,7 @@ interface CustomTool {
 
 ### POST /api/projects/:id/custom-tools/:toolId/launch（成员）
 
-passToken=false → 400「该工具未开启身份携带」。否则响应 200：`{ launchToken: string }`——5 分钟有效 JWT（kind=tool-launch），前端经 postMessage 握手把令牌投递给组件（embed 走 `window.parent`、link 走 `window.opener`，令牌不进 URL）。
+passToken=false → 400「该工具未开启身份携带」。否则响应 200：`{ launchToken: string }`——5 分钟有效 JWT（kind=tool-launch），前端优先经 postMessage 握手把令牌投递给组件（embed 走 `window.parent`、link 走 `window.opener`，令牌不进 URL）；移动端 standalone PWA 等无 `window.opener` 场景自动改用一次性 URL fragment `#anon_launch=` 投递（组件侧即读即抹）。
 
 ## OpenAPI（API 密钥）
 

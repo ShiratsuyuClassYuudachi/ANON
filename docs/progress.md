@@ -273,3 +273,37 @@
 
 ### 文档
 - 新 `docs/demo-site.md`（部署/原理/会话语义/维护/冒烟清单）、计划归档 `docs/superpowers/plans/2026-08-03-demo-pages.md`、本日志与 design.md、README/docs readme 功能清单
+
+## 2026-08-01 ~ 08-05 看板闭环、实物清单、试用模式、导航导览与安全加固
+
+- **实物清单（`feat/physical-inventory`）**：独立模型 `PhysicalCategory` / `PhysicalItem` / `PhysicalItemLog`，覆盖 6 默认分类、四数量字段（计划/在库/使用/损耗）、五状态流转与权限化变动审计，「物料」Tab 顶部支持数字资源与实物清单切换。
+- **试用模式（`feat/trial-mode`）**：`TRIAL_EMAIL` + 任意 ≥8 位密码派生 24h 独立演示沙箱，`TrialSession` 跟踪并定时级联清扫，顶部展示琥珀色销毁倒计时横幅。
+- **看板管理、导航与导览升级**：补齐公告管理（含确认名单与过期列表）及设置页阶段增删改排 UI；桌面改左侧固定边栏 + 顶栏项目名直回看板与项目切换器，移动端固定底栏 + 更多面板，Tab 状态同步 URL；driver.js 导览重写为自动跨页跳转的 14/13 步全模块指引；帮助中心 `/help` 支持跨章全文搜索并新增「活动全流程」章。
+- **安全加固与依赖扫描 CI（`feat/security-hardening`）**：access JWT 缩短至 15 分钟并引入 30 天滚动轮换 `RefreshToken`；新增 `/api/auth/*` 限流、严格 CSP、位图预览白名单、非 root 前后端容器与 GitHub Actions `osv-scanner` 锁文件周扫。
+
+## 2026-08-07 ~ 08-18 实用工具、边缘部署与 OpenAPI 接入
+
+- **舞台时间编排与执行大屏（`feat/stage-rundown`、`feat/rundown-image-columns`、`feat/rundown-execution`）**：新增「工具」Tab 与多份 Rundown 管理，支持拖拽/键盘排序、自动时间累加、8 列可选长文本换行高清 PNG 与文本导出；上线演出「执行模式」（上/下场记录、±顺延、双向实时级联预计时间、未演节目局部重排）与免登录深色「现场大屏」公开页（`/screen/:token`），现场模式同步集成舞台执行卡。
+- **舞台报名审核（`feat/stage-signup-review`）**：按批次容量收集节目，名称排序高亮撞名，勾选实时试算总时长，成员投票评议 + `SwipeRow` 侧滑拍板，已通过节目一键追加导入 Rundown。
+- **待办开展倒排与失物招领（`feat/todo-relative-date`、`feat/lost-found`）**：待办三日期字段支持「开展前 N 天 + 时刻」倒排换算录入；新增失物招领工具与现场模式快捷登记入口，`lostfound:manage` 启动幂等授予全角色，支持开启免登录公开查找页（`/lf/:token`）。
+- **物料多格式在线预览（`feat/materials-preview-ext`）**：内联预览白名单扩展至 PDF、Markdown（转义原始 HTML）与常见音视频（mp4/webm/mov/mp3/wav/ogg），新增 `AuthMedia` 组件，双端 CSP 放行 `blob:` 媒体与框架源。
+- **自定义工具与 OpenAPI 模式（`feat/custom-tools-openapi`、`fix/tool-launch-postmessage`、`fix/mobile-tool-launch`）**：支持登记 embed/link 外部组件，经 `postMessage` 握手（移动端 standalone PWA 自动走 `#anon_launch=` fragment 兜底）投递 5 分钟启动令牌兑换 30 天受限 `anonk_` API 密钥；个人中心支持自助生成 30 天或永久密钥。
+- **Workers 边缘部署与 PWA 安装入口（`feat/worker-deploy`、`feat/pwa-install-button`、`feat/brand-icon`）**：新增 `worker/` Cloudflare Worker 静态托管与 `/api` 反代；更换品牌图标，移动端「更多」面板增加 `beforeinstallprompt` 捕获与 iOS 手动添加主屏指引。
+
+## 2026-08-18 ~ 10-22 QQ 机器人通知、AI 录入、物料上传与聊天导出
+
+- **QQ 通知与多群配置（`feat/qq-notify`、`feat/qq-multi-group`、`fix/qq-bound-code`）**：接入 QQ Bot API v2 webhook（Ed25519 验签 + Worker 边缘即时应答），支持个人单聊绑定、群内身份补绑与项目多群绑定（逐群勾选 7 类通知，群来源待办提醒定向回源）。
+- **AI 录单、舞台报名、文字记账与分段传物料（`feat/qq-bot-ai-todo`、`feat/qq-c2c-ai-todo`、`feat/qq-stage-signup`、`feat/qq-materials-finance`、`feat/qq-stage-group-auth`、`fix/qq-confirm-reply`、`fix/qq-flash-prompts`）**：支持群 `@机器人` 与私聊一句话建待办、提交舞台报名（支持逐群开启全员免绑报名授权）、单笔人民币 AI 记账（真实 `@成员` 身份对照，平摊不明默认全员，预览确认入账）及免 AI 分段物料上传；优化 Flash 模型分步提示词与活动本地时区日历锚点。
+- **聊天记录导出与帮助菜单（`feat/qq-chat-export`、`feat/qq-help-menu`）**：支持合并转发即时导出与单聊收集模式（直发图内嵌 base64），产出 UTF-8 BOM Markdown 经 `/dl/:id` 下载；新增 `帮助` / `/help` 总菜单与六类分项说明，查阅不打断当前草稿。
+
+## 2026-10-16 ~ 11-20 物料分片与两层类别、未注册成员、工作台安全与记账改额
+
+- **物料紧凑卡片、1GB 分片上传与两层类别（`fix/materials-compact-cards`、`feat/materials-upload-progress`、`feat/materials-category-tree`）**：数字资源改为默认折叠等高卡片与视口自适应原图弹窗；新增 8MB 分片上传会话支持单文件最大 1GB、实时进度条与失败弹窗重试（演示站同步 IndexedDB 持久化与 Web Locks 回收）；类别升级为一级/子类两层结构，支持联动筛选、独立类别管理与逐级可见范围继承。
+- **未注册成员档案与混合指派（`feat/external-members`）**：新增 `ExternalMember` 档案管理，支持待办与现场模块混合指派、管理者代操作、独立与全员任务单打印，以及入项后一键关联账号合并历史状态。
+- **工作台刷新与会话/依赖安全（`feat/frontend-design-refresh`、`feat/workspace-security-polish`、`fix/dependency-scan-20261110`）**：项目工作台新增统计与搜索，全站统一四主题 AA 对比度令牌与 44px 触控高度；前端引入会话隔离、跨标签页刷新锁与 15 项会话安全回归脚本（`npm run check:session`），后端 API 全局 `no-store` 并脱敏解析错误；升级依赖栈保持 OSV 扫描零漏洞。
+- **修改记账金额（`feat/finance-edit-amount`）**：财务账目菜单支持居中表单修改金额（保留凭证、备注、收付款人与平摊名单），保存后自动刷新盈亏汇总与转账建议；升级 Mongoose 8.24.10 修复依赖扫描告警。
+
+## 2026-11-26 文档体系与全流程使用教程补齐
+
+- 新增 `docs/tutorial.md` 全流程实战使用教程（覆盖体验初始化、立项组队与未注册协作者、待办开展倒排、财务记账改额与结算、物料两级分类与 1GB 上传及实物盘点、舞台征集审核与 Rundown 执行大屏、多渠道通知与 QQ 机器人协作、现场模式与失物公开码、展后复盘及自定义工具/API 密钥接入）。
+- 同步更新站内 `/help` 教程（`workflow` 活动全流程等章节）与新手引导文案，补齐并校准 `README.md`、`docs/readme.md`、`docs/features.md`、`docs/api.md`、`docs/openapi.yaml`、`docs/demo-site.md`、`docs/plugin-development.md`、`docs/design.md`、`docs/progress.md` 与 `docs/file-index.md`。

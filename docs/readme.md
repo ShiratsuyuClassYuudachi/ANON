@@ -2,20 +2,22 @@
 
 ANON 是一个「活动全流程追踪」协作系统，面向展会/同人活动/演出等组织团队。功能：
 
-- **账号与权限**：邀请码注册制（首超管引导）、项目内预置/自定义角色与权限点、成员邀请链接；资源可见范围优先于权限点
+- **账号与权限**：邀请码注册制（首超管引导）、项目内预置/自定义角色与 15 项权限点、成员邀请链接、未注册成员档案（无需账号即可参与任务指派与现场排班，日后入项一键关联接续）、项目级 `anonk_` API 密钥（OpenAPI 模式）；资源与账号可见范围优先于权限点
 - **试用模式**：`TRIAL_EMAIL`（默认 `admin@test.com`）+ 任意 ≥8 位密码登录即建独立演示环境（全模块演示数据），同密码 24h 内复用，到期自动级联销毁；试用期间全站顶部展示「试用」横幅与销毁时间
-- **纯前端演示站**：`npm run build:demo` 构建不依赖后端的 Cloudflare Pages 演示站——浏览器内 mock 全部 `/api`（中文示例数据，访客修改会话内保留、关页还原），全站角标 + 横幅标识；部署与 mock 内核原理见 [`docs/demo-site.md`](./demo-site.md)
-- **待办**：快速创建 + 按类别分组列表 / 进度时间线（完成前多次提交进度，备注+附件）/ 完成带附件 / 编辑与重新打开 / 模板导入导出 / 到期与节点邮件提醒（cron + SMTP）；`todo:create` 创建权限点
- - **通知**：统一通知管线（渠道接口，当前为邮件 + Web Push + QQ 机器人）：待办指派/改派/完成/新进度、现场任务分配、重要/紧急公告、现场异常上报、新风险、里程碑临近、周报；QQ 侧支持个人单聊（全量）与项目多群绑定码关联（逐群订阅精选类型、群来源待办提醒定向回源）
-- **财务**：收支记账、多票种门票盈亏、按人净额与转账建议、CSV 导出
-- **物料**：类型 / 多版本 / WebP 预览 / 可见范围
-- **账号**：三模式平台账号（完整 / OTP 辅助 / 联系人），浏览器端或服务端加密
-- **现场**：任务模块分工（名称/时间/地点/所需人力/分配成员）、成员确认、可打印任务单（含签字栏，浏览器另存 PDF）
-- **新手引导 / 内置帮助文档（/help）**：首登欢迎幻灯 + 界面高亮导览（按账号跨设备只弹一次，可重看）；/help 为 11 章图文手册（配真实截图，点击放大）
+- **纯前端演示站**：`npm run build:demo` 构建不依赖后端的 Cloudflare Pages 演示站——浏览器内 mock 全部 `/api`（中文示例数据、IndexedDB 大文件分片持久化，访客修改会话内保留、关页还原），全站角标 + 横幅标识；部署与 mock 内核原理见 [`docs/demo-site.md`](./demo-site.md)
+- **项目看板**：开展倒计时、阶段进度条与自定义阶段、里程碑、项目健康度与 8 类风险自动巡检（含带原因忽略闭环）、待我处理快捷操作、三类型公告（含确认名单与可见范围）、个人/项目双视图与卡片布局偏好
+- **待办**：快速创建 + 按类别分组列表 / 开展倒排日期录入（开展前 N 天）/ 正式成员与未注册成员混合指派 / 进度时间线（完成前多次提交进度，备注+附件）/ 完成带附件 / 编辑与重新打开 / 模板导入导出；`todo:create` 创建权限点
+- **通知与 QQ 机器人**：统一通知管线（邮件 + Web Push + QQ 机器人三渠道）：待办指派/改派/完成/新进度、现场任务分配、重要/紧急公告、现场异常上报、新风险、里程碑临近、待办提醒、周报；QQ 侧支持个人单聊、项目多群绑定（逐群订阅 7 类精选通知、群来源待办提醒定向回源、逐群全员舞台报名授权）、群@/单聊 AI 创建待办与文字记账、舞台节目报名、分段物料上传、聊天记录导出 Markdown 及内置帮助菜单
+- **财务**：收支记账（含凭证）、账目金额修改（保留凭证并实时刷新汇总与结算）、多票种门票盈亏、按人净额与最简转账建议、按成员导出 UTF-8 BOM CSV
+- **物料与实物清单**：数字资源两层类别与联动筛选、最大 1GB 分片上传与进度提示、多版本切换、位图 WebP 缩略与视口自适应原图、PDF/Markdown/音视频在线预览、逐级可见范围继承；独立「实物清单」视图追踪计划/在库/使用/损耗四数量、状态流转与权限化变动日志
+- **账号**：三模式平台账号（完整密码 / 二步验证辅助 / 联系人），默认浏览器端 PBKDF2 + AES-GCM 加密（可选服务端密钥加密）
+- **现场与 PWA**：任务模块排班（正式成员 + 未注册成员）、成员确认与管理者代操作（代确认/代签到/代完成）、个人与全员连排 A4 任务单打印；极简大字号「现场模式」支持一键签到/完成、六分类异常上报、舞台执行控制、失物拍照登记、联系人直拨与断网离线队列，项目页内置 PWA 主屏安装指引
+- **实用工具**：舞台时间编排助手（Rundown 拖拽排表、列勾选长文本换行高清 PNG/文本导出、演出当天「执行模式」双向实时级联推算与免登录深色「现场大屏」公开投屏）、舞台报名审核（批次容量试算、撞名排查、成员投票与侧滑拍板、一键导入 Rundown）、失物招领（含免登录公开查找页）、自定义外部工具接入（iframe 嵌入或新窗口，postMessage/fragment 握手兑换受限 API 密钥）
+- **新手引导 / 内置帮助文档（/help）**：首登欢迎幻灯 + 自动跨页跳转的全模块高亮导览（按账号跨设备只弹一次，可重看）；`/help` 为 11 章图文手册（含「活动全流程」导读、跨章全文搜索与真实截图放大）
 
 界面：移动端优先，双风格主题（简洁/明快 × 日/夜），工作台 Tab 与按钮按项目内权限点过滤可见性。
 
-完整接口契约见 [`docs/api.md`](./api.md)；功能使用指南见 [`docs/features.md`](./features.md)；设计说明见 [`docs/design.md`](./design.md)；文件→功能模块索引（开发定位用）见 [`docs/file-index.md`](./file-index.md)。
+全流程实战教程见 [`docs/tutorial.md`](./tutorial.md)；功能使用指南见 [`docs/features.md`](./features.md)；完整接口契约见 [`docs/api.md`](./api.md) 与 [`docs/openapi.yaml`](./openapi.yaml)；自定义工具对接见 [`docs/plugin-development.md`](./plugin-development.md)；设计演进见 [`docs/design.md`](./design.md)；文件→功能模块索引（开发定位用）见 [`docs/file-index.md`](./file-index.md)。
 
 ## 环境要求
 
@@ -65,7 +67,7 @@ cd frontend && npm install && npm run dev
 | `PUBLIC_BASE_URL` | 否 | 前端公开地址（如 `https://app.example.com`）：QQ 通知消息末尾附「查看」链接时用作基座；置空不拼链接 |
 | `AI_API_KEY` / `AI_BASE_URL` / `AI_MODEL` | 否 | QQ 待办、舞台报名与文字记账解析，OpenAI 兼容接口；默认地址 `https://api.deepseek.com`、模型 `deepseek-v4-flash`。未配密钥时 AI 录入静默禁用，物料上传不依赖 AI |
 | `QQ_DEBUG_EVENTS` | 否 | `=1` 时后端打印 QQ 合并转发/引用（message_type≥100）事件的原始载荷，联调聊天记录导出功能用；默认关闭 |
-| `PLATFORM_CRYPTO_KEY` | 否 | 平台账号「服务端加密」模式的密钥源（SHA-256 派生 AES-256-GCM 密钥）；缺省回退 `JWT_SECRET`。浏览器端 ANONv1 加密（默认）不依赖此项 |
+| `PLATFORM_CRYPTO_KEY` | 否 | 平台账号「服务端加密」模式的密钥源（SHA-256 派生 AES-256-GCM 密钥）；缺省回退 `JWT_SECRET`。浏览器端加密（默认，PBKDF2 60 万次 + AES-GCM）不依赖此项 |
 
 QQ 录入部署说明：群聊新录入和物料消息需 @机器人；订阅全量群消息后，报名/记账已有会话支持原发送者直接回复确认、取消或序号，仅订阅群 @消息则继续 @回复。群舞台授权由项目管理者逐群开启，默认关闭，重新绑定后关闭；无需新增环境变量。报名/记账草稿保留 10 分钟，物料暂存 30 分钟，均为进程内会话，重启后需重新发起；保存时复核实时权限与可见范围。任务相对日期按项目时区换算。操作步骤见 [QQ 使用说明](features.md#qq-机器人通知)。
 
@@ -118,7 +120,7 @@ docker build -t anon-frontend ./frontend  # 前端镜像（多阶段：vite buil
 echo "JWT_SECRET=$(openssl rand -hex 32)" > .env
 # 可选：SUPER_ADMIN_EMAIL / SMTP_* / CRON_SECRET / PLATFORM_CRYPTO_KEY，同 backend/.env.example
 
-# 2. 构建并启动全部服务（mongo + backend + frontend）
+# 2. 构建并启动全部服务（postgres + ferretdb + minio + backend + frontend）
 docker compose -f docker-compose.prod.yml up -d --build
 
 # 3. 访问 http://localhost:8080（局域网则 http://<主机IP>:8080）
@@ -127,7 +129,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 架构说明：
 
-- `frontend`（nginx，唯一对外端口 **8080**）：托管前端静态文件，SPA 路由回退，`/api` 反代到 `backend:4000`（上传限 50MB）
+- `frontend`（nginx，唯一对外端口 **8080**）：托管前端静态文件，SPA 路由回退，`/api` 反代到 `backend:4000`（请求体上限 1025MB，支持 1GB 物料分片与直传）
 - `backend`：不暴露宿主机端口，仅编排网络内可达；未配置 S3 时上传文件存 named volume `uploads-data`
 - `minio`：**内嵌对象存储**——S3 兼容 API，文件（含预览图）默认存这里，数据存 named volume `minio-data`；不暴露宿主机端口（API :9000 / 控制台 :9001 仅编排网络内可见）。默认账号 `S3_ACCESS_KEY`/`S3_SECRET_KEY`（缺省 `anon-minio` / `anon-minio-password`，公网部署务必修改）；在 `.env` 覆盖 `S3_*` 可切换外部 S3 服务，设 `S3_ENDPOINT=` 为空则回退本地磁盘且 minio 可不启动
 - `ferretdb` + `postgres`：**内嵌数据库（零依赖体验模式）**——FerretDB v2 提供 MongoDB 协议，后端存储为 PostgreSQL（DocumentDB 扩展），数据存 named volume `pg-data`；均不暴露宿主机端口
@@ -224,8 +226,8 @@ curl -X POST localhost:4000/api/admin/invite-codes \
 
 ## 备注
 
-- 「可见范围」（物料类型/资源、平台账号）优先于权限点；File 模型的预留字段仍未启用。
+- 「可见范围」（物料两层类别/资源逐级继承、平台账号、项目公告）优先于权限点；File 模型自身的预留字段未单独启用（资源版本与直链下载统一走所属资源/类别的可见范围校验）。
 - 前端技术栈：Vite + React + TypeScript + Tailwind CSS v4（`@tailwindcss/vite`）+ shadcn/ui（`frontend/components.json`，new-york / neutral）+ lucide-react + sonner；主题双风格（简洁/明快 × 日/夜）保存在本机 localStorage（`anon-theme` / `anon-style`）。
 - 运维约束：新增 shadcn 组件必须使用 `npx shadcn@3`（v4 CLI 移除了 `--base-color` 参数，与当前 `components.json` 不兼容）。
 - `backend/uploads/` 与 `backend/.env` 均已 gitignore，勿提交。
-- `/help` 帮助文档的界面截图存于 `frontend/public/help/`；界面变动后用 Playwright 重生成：`PLAYWRIGHT_BROWSERS_PATH=<浏览器目录> node frontend/scripts/capture-help-screenshots.mjs`（需前端 dev 服务器运行中）。
+- `/help` 帮助文档的界面截图（共 18 张）存于 `frontend/public/help/`，UI 变动后在真实容器或走查环境中通过 Playwright 重生成。

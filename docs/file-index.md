@@ -38,7 +38,7 @@
 | PWA 安装入口 | —（纯前端） | lib/pwaInstall.ts（事件捕获/状态）、components/PwaInstallGuide.tsx（指引弹层）、pages/ProjectHome.tsx（「更多」Sheet 行） | .walkthrough/pwa-install.mjs（走查） |
 | 试用模式 | services/trial.ts、models/TrialSession.ts、services/demoSeed.ts | components/TrialBanner.tsx | tests/trial.test.ts |
 | 纯前端演示站 | —（mock 后端契约） | demo/ 全目录、components/{DemoBadge,DemoBanner}.tsx、vite.config.ts | — |
-| 新手引导/帮助中心 | routes/me.ts（onboarded 端点） | onboarding/*、help/content.ts、pages/DocsPage.tsx | tests/onboarding.test.ts |
+| 新手引导/帮助中心/教程 | routes/me.ts（onboarded 端点） | components/onboarding/*、components/help/content.ts、pages/DocsPage.tsx；文档教程 docs/tutorial.md | tests/onboarding.test.ts |
 | 操作日志/动态 | models/Activity.ts、services/activity.ts、routes/activities.ts | —（暂未暴露界面） | — |
 | 可见范围（visibility） | services/visibility.ts、models/ResourceType.ts（visibilitySchema 共用子文档） | project/VisibilityPicker.tsx | 散见于各域测试 |
 | 个人中心/超管 | routes/{me,admin}.ts | pages/{Me,Admin}.tsx | tests/{me,admin}.test.ts |
@@ -268,6 +268,7 @@
 - `backend/Dockerfile` — tsc 编译 + 仅生产依赖，非 root，挂 uploads 卷
 - `.github/workflows/dependency-scan.yml` — osv-scanner 依赖漏洞周扫
 - `backend/.env.example` — 环境变量样例（数据库/认证/SMTP/VAPID/S3/加密密钥）
+- `docs/tutorial.md` — 从零筹备到现场执行的全流程实战使用教程（与按模块拆分的 `docs/features.md` 互补）
 - `docs/openapi.yaml` — OpenAPI 3.0 机器可读规范（181 操作；与 app.ts 挂载表经 `check-openapi-coverage.ts` 双向比对，接口语义以 docs/api.md 为准）
 
 ## 走查脚本 `.walkthrough/`（不入库的 Playwright 工具集）

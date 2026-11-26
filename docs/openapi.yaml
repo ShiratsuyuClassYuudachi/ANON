@@ -4881,7 +4881,7 @@ paths:
         - name: platform
           in: query
           schema: { type: string }
-          description: 按平台筛选（如 QQ/小红书/B站/微博/其他）
+          description: 按平台筛选（如 QQ/小红书/微博/其他）
       responses:
         '200':
           description: 账号列表

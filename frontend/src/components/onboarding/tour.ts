@@ -33,15 +33,15 @@ export async function startTour(opts: { nav: (to: string) => void; projectId?: s
         { element: '[data-tour=project-card]', data: { path: '/projects' }, popover: { title: '项目卡片：状态一眼看全', description: '卡片汇集健康度灯、你的角色、倒计时、当前阶段、待办进度与风险数。<br>点卡片进入项目工作台。' } },
         { element: isDesktop ? '[data-tour=tab-nav]' : '[data-tour=mobile-tab-nav]', data: { path: `/p/${pid}` }, popover: { title: '模块导航', description: isDesktop ? '左侧边栏切换各功能模块；下方「现场模式」进入活动当日专用页。' : '底部导航切换常用模块；看板、账号、现场、成员等其余模块收在「更多」里。' } },
         { element: '[data-tour=tab-dashboard]', data: { path: `/p/${pid}?tab=dashboard` }, popover: { title: '看板：项目全貌', description: '健康度、倒计时、阶段进度、风险与最新动态一屏总览；切换个人/项目视图，点指标卡直达对应模块。' } },
-        { element: '[data-tour=tab-todos]', data: { path: `/p/${pid}?tab=todos` }, popover: { title: '待办：任务追踪', description: '输入标题回车快速派任务，点「详细」可设负责人、截止时间与附件；成员报进度，到期自动邮件+推送提醒。' } },
+        { element: '[data-tour=tab-todos]', data: { path: `/p/${pid}?tab=todos` }, popover: { title: '待办：任务追踪', description: '输入标题回车快速派任务，点「详细」可设负责人、开展倒排截止时间与附件；成员报进度，到点自动多渠道提醒。' } },
         ...(canSeeFinance
-          ? [{ element: '[data-tour=tab-finance]', data: { path: `/p/${pid}?tab=finance` }, popover: { title: '财务：收支与门票', description: '「记一笔」登记收入/支出/报销并上传凭证；「门票设置」管理票种与售价；账目可导出 CSV 对账。' } } satisfies TourStep]
+          ? [{ element: '[data-tour=tab-finance]', data: { path: `/p/${pid}?tab=finance` }, popover: { title: '财务：收支与门票', description: '「记一笔」登记收支并传凭证，菜单可修改金额自动重算结算；「门票设置」管理多票种，支持按人导出 CSV 对账。' } } satisfies TourStep]
           : []),
-        { element: '[data-tour=tab-materials]', data: { path: `/p/${pid}?tab=materials` }, popover: { title: '物料：文件版本与实物', description: '数字资源按类型归档、逐版本上传可回溯；切到「实物清单」管理采购、借还与损耗。' } },
-        { element: '[data-tour=tab-accounts]', data: { path: `/p/${pid}?tab=accounts` }, popover: { title: '账号：平台凭证库', description: '「新建账号」登记各平台账号密码（加密存储）；按平台筛选，通过可见范围控制成员访问。' } },
-        { element: '[data-tour=tab-work]', data: { path: `/p/${pid}?tab=work` }, popover: { title: '现场分工：排班与任务单', description: '「新建模块」按时段与地点排人力；成员确认后「打印任务单」生成 A4 单发放。' } },
-        { element: '[data-tour=tab-members]', data: { path: `/p/${pid}?tab=members` }, popover: { title: '成员：邀请与角色', description: '「生成链接」邀请伙伴（可指定角色）；成员列表随时调整角色，角色决定各模块可见功能。' } },
-        { element: '[data-tour=onsite-content]', data: { path: `/p/${pid}/onsite` }, popover: { title: '现场模式：活动当日', description: '签到与完成任务、按分类查看安排、异常一键上报、联系人直拨；支持离线使用（PWA）。' } },
+        { element: '[data-tour=tab-materials]', data: { path: `/p/${pid}?tab=materials` }, popover: { title: '物料：文件版本与实物', description: '数字资源支持两级类别、1GB 上传、多版本回溯与多格式预览；切到「实物清单」管理物资采购、领用与损耗。' } },
+        { element: '[data-tour=tab-accounts]', data: { path: `/p/${pid}?tab=accounts` }, popover: { title: '账号：平台凭证库', description: '「新建账号」加密登记团队共用账号或合作方联系方式；按平台筛选，通过可见范围精准控制访问。' } },
+        { element: '[data-tour=tab-work]', data: { path: `/p/${pid}?tab=work` }, popover: { title: '现场分工：排班与任务单', description: '「新建模块」按时段与地点排人力（含未注册协作者）；成员确认或代确认后，「打印任务单」生成 A4 单发放。' } },
+        { element: '[data-tour=tab-members]', data: { path: `/p/${pid}?tab=members` }, popover: { title: '成员：邀请与角色', description: '「生成链接」邀请伙伴入项，临时协作者无需注册也可建档排班；角色决定各模块可见功能。' } },
+        { element: '[data-tour=onsite-content]', data: { path: `/p/${pid}/onsite` }, popover: { title: '现场模式：活动当日', description: '签到与完成任务、舞台执行控制、失物拍照登记、异常一键上报、联系人直拨；支持离线使用（PWA）。' } },
       ]
     : [];
 

@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-面向活动（展会、同人活动、演出等）组织团队的全流程追踪与协作工具。以「项目」为单位组织协作，覆盖项目看板、任务进度、财务收支、物料文件、平台账号与现场分工六大场景，移动端优先。
+面向活动（展会、同人活动、演出等）组织团队的全流程追踪与协作工具。以「项目」为单位组织协作，覆盖项目看板、任务进度、财务收支、物料与实物台账、平台账号、现场分工六大核心场景，内置舞台时间编排（含现场执行与公开投屏大屏）、舞台报名审核、失物招领等实用工具及自定义工具接入，配套邮件、Web Push 与 QQ 机器人三渠道通知，移动端优先。
 
 > **名字由来**：**A**ctivities, **N**eatly **O**rganized & **N**oted——「活动，被井然地组织与记录」。也呼应 *anonymous*：平台账号密码默认在浏览器端加密，服务端零明文。
 
@@ -111,17 +111,19 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 ## 文档
 
-- [docs/readme.md](docs/readme.md) — 部署、环境变量、cron 提醒、测试与冒烟
-- [docs/features.md](docs/features.md) — 功能使用指南
-- [docs/api.md](docs/api.md) — 接口契约
+- [docs/tutorial.md](docs/tutorial.md) — **全流程使用教程**（从立项组队、筹备排期、舞台征集编排到现场执行与展后复盘的完整实战指南）
+- [docs/features.md](docs/features.md) — 功能使用指南（按模块详述行为细节与权限规则）
+- [docs/readme.md](docs/readme.md) — 部署说明、环境变量、cron 提醒、Cloudflare Workers 边缘部署与安全配置
+- [docs/api.md](docs/api.md) — 接口契约（人类可读版）
 - [docs/openapi.yaml](docs/openapi.yaml) — OpenAPI 3.0 机器可读规范（覆盖率校验：`cd backend && npx tsx scripts/check-openapi-coverage.ts`）
-- [docs/plugin-development.md](docs/plugin-development.md) — 插件开发指南（自定义工具接入 + OpenAPI 模式对接）
-- [docs/design.md](docs/design.md) — 设计说明与变更记录
+- [docs/plugin-development.md](docs/plugin-development.md) — 自定义工具开发指南（外部 Web 组件接入 + OpenAPI 模式对接）
 - [docs/demo-site.md](docs/demo-site.md) — 纯前端演示站（Cloudflare Pages）：构建部署、mock 内核与会话保留语义
+- [docs/design.md](docs/design.md) / [docs/progress.md](docs/progress.md) — 设计演进说明与迭代日志
+- [docs/file-index.md](docs/file-index.md) — 全库「文件 → 功能模块」定位索引
 
 ## 贡献
 
-欢迎 Issue 与 PR。开发约定：后端改动需 `npm test`（vitest）与 `npm run typecheck` 全绿；前端需 `npm run build` 通过；提交信息使用 Conventional Commits 风格。依赖变更需过依赖扫描 CI（osv-scanner，见 `.github/workflows/dependency-scan.yml`）。
+欢迎 Issue 与 PR。开发约定：后端改动需 `npm test`（vitest）与 `npm run typecheck` 全绿；前端需 `npm run check:session` 与 `npm run build` 通过；接口增改同步更新 `docs/openapi.yaml` 并通过覆盖率校验；提交信息使用 Conventional Commits 风格。依赖变更需过依赖扫描 CI（osv-scanner，见 `.github/workflows/dependency-scan.yml`）。
 
 
 ## 依赖安全约束
