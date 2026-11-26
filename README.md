@@ -2,139 +2,172 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-面向活动（展会、同人活动、演出等）组织团队的全流程追踪与协作工具。以「项目」为单位组织协作，覆盖项目看板、任务进度、财务收支、物料与实物台账、平台账号、现场分工六大核心场景，内置舞台时间编排（含现场执行与公开投屏大屏）、舞台报名审核、失物招领等实用工具及自定义工具接入，配套邮件、Web Push 与 QQ 机器人三渠道通知，移动端优先。
+面向展会、同人志即卖会、舞台演出、校园祭等线下活动组织团队的**全流程协作与现场执行系统**。
 
-> **名字由来**：**A**ctivities, **N**eatly **O**rganized & **N**oted——「活动，被井然地组织与记录」。也呼应 *anonymous*：平台账号密码默认在浏览器端加密，服务端零明文。
+> **Activities, Neatly Organized & Noted** ——「活动，被井然地组织与记录」。名称亦呼应 *anonymous*：团队平台账号密码默认在浏览器端完成 PBKDF2 + AES-GCM 加密，服务端零明文落库。
 
-## 功能与界面
+---
 
-### 看板：项目总览
+## 核心亮点
 
-进入项目后的默认首页。聚合展示活动倒计时、项目健康度、待我处理事项、自动风险检测（人员不足/待办逾期/超预算等）、关键指标、近期日程与各模块摘要，一屏掌握项目全貌。
+- **全周期一处收口**：以「项目」为单位串联筹备期（看板、待办排期、经费记账、设计稿版本、社媒账号）与执行期（岗位排班、离线现场模式、舞台实时控台、免登录候场大屏、失物招领公开页）。
+- **不强制临时人员注册**：核心成员凭角色权限协作；当天帮忙的志愿者或外部协作者**仅需填姓名即可建档**，照常指派任务、排班与打印任务单，日后入项一键关联账号接续历史。
+- **精细权限与零明文凭证**：15 项细分权限点动态裁剪可见界面；物料、账号、公告支持**高于角色权限的「可见范围」白名单**；平台密码默认浏览器端加密。
+- **弱网现场可依赖**：移动端优先 PWA，支持添加到手机主屏；开展当日「现场模式」采用极简大字号触控设计，断网操作暂存本机队列，恢复信号自动补传。
+- **三渠道通知与 QQ 机器人交互**：统一管线驱动邮件、Web Push 与 QQ 机器人（单聊全量 + 多群精选）；支持在 QQ 群或私聊一句话 AI 建待办、AI 文字记账、提交舞台节目报名、分段上传物料及导出讨论纪要。
+- **零外部依赖一键自托管**：生产 Docker 编排内嵌 FerretDB（PostgreSQL 存储）与 MinIO 对象存储，一条命令即可在自有服务器拉起完整整栈，亦支持平滑切换外接 MongoDB 与云端 S3。
 
-- **快捷操作**：待我处理列表直接完成待办、确认现场任务，无需跳转
-- **风险闭环**：管理者可忽略风险（需填原因+选期限），修复后自动解除
-- **公告系统**：发布普通/重要/紧急公告，支持确认机制和可见范围
-- **最近动态**：操作审计流，继承原记录权限过滤
-- **视图切换**：个人视图 / 项目视图，卡片可折叠，偏好自动保存
-- **阶段管理**：8 阶段预设模板，看板头部进度条，设置页可增删改排
-- **里程碑**：关键时间节点管理，自动集成到日程时间线，到期前邮件提醒
-- **项目工作台**：汇总参与/进行中/有风险项目，按项目名、说明或阶段搜索；卡片显示文字健康状态、倒计时、角色与任务进度
+---
 
-![看板 Tab](frontend/public/help/tab-dashboard.png)
+## 功能与界面预览
 
-### 待办：进度追踪
+### 1. 项目工作台与总览看板
 
-快速创建（标题回车即建）与详细表单，按类别分组列表；日期字段支持按「开展前 N 天」倒排录入（保存为绝对日期，不联动重算）；完成前可多次提交进度（备注+附件）形成时间线，完成后卡片一键直达完成；编辑/重新打开、筛选排序、导出模板与按新项目日期一键批量生成一应俱全。
+外层项目工作台汇总参与项目、进行中活动与活跃风险，支持多维检索。进入项目默认打开**看板**，一屏聚合开展倒计时、8 阶段步进器、关键里程碑、个人/项目双视角指标、待我处理快捷操作与团队分级公告（支持「我已知悉」确认回执名单）。系统自动探测 8 类筹备风险（逾期、缺人、超支、空壳物料等），支持管理者带原因与期限忽略闭环。
 
-![待办 Tab](frontend/public/help/tab-todos.png)
+![项目看板](frontend/public/help/tab-dashboard.png)
 
-### 财务：收支与结算
+### 2. 待办排期与进度时间线
 
-多票种门票设置、收支记账（可传凭证）、账目菜单修改金额、按人净额与最简转账建议、按成员导出 CSV。修改金额后自动刷新汇总与结算，保留原凭证及其他账目信息。
+支持顶部回车极速建单与完整排期表单；已设开展日期的项目可开启**「开展倒排」**（按「开展前 N 天 + 时刻」录入并自动换算为日历日期）；支持正式成员与未注册临时档案混合指派。长周期任务可多次提交阶段进度与过程附件形成时间线；筹备清单可导出为相对偏移模板，供下一届活动锚定新日期一键批量生成。
 
-![财务 Tab](frontend/public/help/tab-finance.png)
+![待办排期](frontend/public/help/tab-todos.png)
 
-### 物料：文件与版本管理
+### 3. 财务收支、改额与最简结算
 
-数字资源默认以等高折叠卡片和小图展示，展开查看描述、切换版本或下载；点击小图查看适配屏幕的大图。
+支持多票种票房核算与日常收支垫付记账（可传多张发票/截图凭证，区分全员公款均摊与指定成员专项分摊）。账目金额变动时可直接**修改金额**（保留原凭证与分摊关系，实时重算全局数据）。系统精确到分计算每位成员应收/应付净额并给出**笔数最少的最简转账方案**，支持按成员导出 Excel 兼容的 UTF-8 BOM CSV 对账单。
 
-两级类别（一级 + 子类）与联动筛选、名称/描述搜索与排序、独立类别管理；资源与多版本管理，图片自动生成 WebP 预览，PDF/Markdown/音视频支持在线预览；切换版本时预览图随之更新；新建资源时可直接上传初始版本，大文件按 8MB 分片上传（单文件上限 1GB）并显示进度。类型/资源均可设可见范围。
+![财务结算](frontend/public/help/tab-finance.png)
 
-![物料版本切换](frontend/public/help/materials-version-switch.png)
+### 4. 数字物料库与实物物资台账
 
-### 账号：平台账号管理
+- **数字资源**：最多两级类别结构与联动筛选，单文件支持最大 **1GB**（超 8MB 自动按 8MB 分片串行上传并显示实时进度）；多版本迭代切换时缩略图、全屏预览与下载同步跟随；原生支持位图（自动生成轻量 WebP 缩略图、点击按屏幕等比缩放原图）、**PDF、Markdown 与常见音视频**在线安全预览。
+- **实物清单**：顶部分段开关一键切换实体物资台账，按分类追踪印刷品、设备、耗材的**计划 / 在库 / 使用 / 损耗**四维数量、备齐进度条与权限化变动审计日志。
 
-三种记录模式（完整账号 / OTP 辅助 / 联系人）；密码默认浏览器端 AES-GCM 加密，服务端零明文。
+![物料与版本管理](frontend/public/help/tab-materials.png)
 
-![账号 Tab](frontend/public/help/tab-accounts.png)
+### 5. 平台账号保险库
 
-### 现场：任务分工与任务单
+针对团队共用社媒账号、个人手机绑定的二步验证账号及外部合作方名录，分别提供**完整账号 / 二步验证辅助 / 联系人**三种模式。密码默认在浏览器本地经 `PBKDF2（60 万次 SHA-256）+ AES-GCM` 加密后上传，亦可选服务端密钥加密方便团队免口令共享。
 
-建任务模块（时间/地点/所需人力）并分配到人，成员在线确认；一键生成可打印任务单（含签字栏，可另存 PDF，支持全员连排）。
+![平台账号管理](frontend/public/help/tab-accounts.png)
 
-![现场 Tab](frontend/public/help/tab-work.png)
+### 6. 现场排班、A4 任务单与离线现场模式
 
-![任务单打印版式](frontend/public/help/work-sheet.png)
+展前按时段、地点与所需人力建立岗位任务模块，缺人自动预警；支持本人确认与管理员**代确认 / 代签到 / 代完成**；一键生成带签字栏的个人或全员分页连排 A4 任务单（浏览器直接打印或另存 PDF）。开展当天切入**「现场模式」**，一屏完成签到打卡、六分类异常上报、舞台控台推进、失物拍照快录与紧急电话直拨。
 
-### 成员与权限
+![现场任务排班](frontend/public/help/tab-work.png)
 
-邀请链接入项、预置/自定义角色与权限点；界面按权限过滤——成员只看到自己有权限的 Tab 与按钮。未注册的临时协作者也能建档（只需姓名）并被指派待办/现场任务，管理者可代其确认、签到与完成，对方日后入项可一键关联账号并接续全部历史。安全特性：短期访问令牌 + refresh token 滚动轮换（30 天）、登录限流防撞库、跨标签页登录同步与换号期间请求隔离、API 禁止缓存、安全响应头（CSP/nosniff/X-Frame-Options）、实物清单变动审计需 `materials:manage` 权限。
+### 7. 舞台编排、报名审核、失物招领与自定义工具
 
-![成员 Tab](frontend/public/help/tab-members.png)
+- **舞台报名审核**：按批次设定舞台可用容量收集节目，自动高亮同名**「撞名」**节目，勾选实时试算总时长盈亏，成员投票评议后侧滑拍板，已通过节目一键追加导入正式流程单。
+- **舞台时间编排（Rundown）与现场大屏**：拖拽或键盘调序自动推算全场起止时刻，支持自由勾选列导出长文本自动换行的 2 倍高清 PNG 与纯文本；演出当日开启**「执行模式」**实时双向级联推算后续预计时间，并可生成**免登录深色「现场大屏」**（`/screen/:token`）投屏至候场区（10 秒自动刷新、全员紧急公告上屏、自动隐去演员隐私信息）。
+- **失物招领**：默认全角色可拍照登记遗失物并流转认领状态；一键开启**免登录对外公开查找页**（`/lf/:token`），张贴服务台二维码供观众自助检索。
+- **自定义外部工具与 OpenAPI**：支持将团队自研独立 Web 组件以页内沙箱 iframe 或新窗口接入，经 `postMessage`（移动端独立窗口自动切换一次性 URL fragment）安全握手兑换按最小权限实时求交的 30 天 `anonk_` API 密钥；个人资料页亦支持自助生成 30 天或永久密钥供自动化脚本调用。
 
-### 工具：舞台时间编排 + 报名审核 + 失物招领 + 自定义工具接入
+![实用工具箱](frontend/public/help/tab-tools.png)
 
-录入节目（名称/时长/参与者 CN/素材文件），自动推算每个节目的起止时间；拖动或键盘快速排序，一键导出高清 PNG 表格（勾选列、长文本自动换行）与纯文本 rundown。演出当天进入**执行模式**：当前节目追踪、延误/提前与超时提示、一键顺延后续节目，执行中锁定编排；「现场大屏」生成免登录深色投屏页（当前节目特大字 + 时钟 + 紧急公告位，10 秒自动刷新，联系方式/备注/附件不上屏），现场模式页还有「舞台执行」卡可就地开始/推进/顺延。报名审核工具按批次收集报名节目，按名称排序暴露撞名，勾选实时预览合计时长与预计起止，成员投票（赞成/反对 + 意见）后由管理者拍板，已通过节目一键追加进既有 Rundown。失物招领工具登记现场捡到物品（照片/捡到地点）并跟踪认领状态，可一键开启免登录公开查找页（随机链接、可关闭可重置），观众扫码即可自助查失物；现场模式页也有失物登记卡片，捡到即录。
+### 8. 成员管理、角色矩阵与 QQ 机器人协作
 
-可登记自研独立组件为项目自定义工具（页内 iframe 嵌入或新标签页打开，`tools:manage` 管理）；开启「携带用户身份」后组件经短期启动令牌兑换 30 天 API 密钥（OpenAPI 模式，权限按勾选权限点 ∩ 用户角色实时收窄），「我的」页还可自助生成 30 天/永久 API 密钥供自动化脚本使用。
+- **成员与角色**：一次性角色邀请链接、预置与自定义角色矩阵、未注册临时协作者建档与入项关联。
+- **通知与 QQ 机器人**：配置 QQ 开放平台官方 Bot Webhook 后，成员私聊绑定收个人通知，项目可绑定多个工作群并逐群勾选 7 类精选通知；支持群内 `@机器人` 或私聊**一句话 AI 创建待办、AI 文字记账、提交舞台报名（支持逐群开关全员免绑报名授权）、免 AI 分段上传物料、合并转发或收集模式导出聊天记录为 Markdown**，发送 `帮助` 或 `/help` 随时查看指令菜单。
 
-### 通知：邮件 + Web Push + QQ 机器人
+![成员与未注册档案](frontend/public/help/tab-members.png)
 
-统一通知管线驱动邮件、浏览器推送与 QQ 机器人三渠道：被指派/改派待办、待办完成、现场任务分配、重要/紧急公告即时通知，异常上报与新风险直达管理者；待办节点/到期、里程碑临近、每周周报由 cron 统一提醒。配置 VAPID 后推送直达设备通知栏，点击跳转对应页面；未配置时静默回退纯邮件。配置 QQ 机器人（QQ 开放平台 Bot API v2）后，成员在「我的」页生成绑定码、QQ 私聊机器人发送「绑定 XXXXXX」即可在 QQ 单聊收取全部个人通知；项目「设置」页可生成群绑定码绑定多个 QQ 群，每群各自勾选接收的精选类型（里程碑临近/待办提醒/公告/风险/异常/周报），不刷高频消息；群里 @机器人 创建的待办，其提醒只回到来源群。群里或单聊里直接给机器人发任务描述还能由 AI 解析自动创建待办（相对时间自动换算、群里 @成员 自动指派，单聊属于多个进行中活动时回复序号选择归属）。
-
-QQ 机器人还支持舞台节目报名、AI 文字记账和物料上传：节目与账目先预览再确认，节目进入待审核；记账平摊对象不明确时默认全员，保存前可核对名单。项目设置可逐群开放全员舞台报名（含未绑定个人账号的成员），物料与记账仍按个人权限执行。已绑定 QQ 的成员可继续生成个人码补绑群内身份；任务日期按活动时区解析。私聊发送「帮助」「菜单」或 `/help` 可随时查看指令，群内先 @机器人；支持「帮助 报名」等六类分项说明，查看帮助保留当前草稿。详见 [QQ 使用说明](docs/features.md#qq-机器人通知)。
-
-### 更多体验
-
-试用模式（`admin@test.com` + 任意 ≥8 位密码即建独立演示环境，24h 自动销毁，全站「试用」横幅标识）、纯前端演示站（`npm run build:demo` 一键构建 Cloudflare Pages 预览站，浏览器内 mock 数据、访客免登录、修改会话内保留）、双风格主题（简洁/明快 × 日/夜）、新手引导（欢迎幻灯 + 自动跳页的全模块导览）、内置图文帮助文档（/help）、移动端优先布局（顶栏 Logo/项目名直回当前看板 + 项目切换器含「查看全部项目」、项目内桌面左侧边栏 / 移动端底部固定栏 + 更多弹窗，Tab 状态写入 URL 可分享、可前进后退）。
-
-## 技术栈
-
-- **后端**：Express 4 + TypeScript + MongoDB（Mongoose 8），JWT 鉴权（15 分钟 access + 轮换 refresh），登录限流，vitest + mongodb-memory-server
-- **前端**：Vite 6 + React 18 + TypeScript + Tailwind CSS v4 + shadcn/ui（Radix）+ lucide-react + sonner
+---
 
 ## 快速开始
 
-```bash
-docker compose up -d                                  # 启动 MongoDB（或用自有 MongoDB）
-cp backend/.env.example backend/.env                  # 配置 JWT_SECRET / SUPER_ADMIN_EMAIL
-cd backend && npm install && npm run dev              # 后端 :4000
-cd frontend && npm install && npm run dev             # 前端 :5173（/api 代理到 4000）
-```
+### 方式一：Docker 一键整栈部署（推荐）
 
-浏览器打开 http://localhost:5173 ，用 `SUPER_ADMIN_EMAIL` 注册首个账号（自动成为超管）→「管理」页创建邀请码 → 成员凭码注册。
-
-详细部署与环境变量说明见 [docs/readme.md](docs/readme.md)。
-
-## Docker 部署（推荐）
-
-无需 Node 环境，一条命令拉起整栈（内嵌数据库 FerretDB+PostgreSQL、内嵌对象存储 MinIO、backend、frontend）：
+无需在宿主机安装 Node.js 或数据库，一条命令拉起完整生产环境（内嵌 FerretDB + PostgreSQL、内嵌 MinIO 对象存储、后端 API 与前端 Nginx，仅暴露单一端口）：
 
 ```bash
-echo "JWT_SECRET=$(openssl rand -hex 32)" > .env   # 必填，可选 SMTP 等见 docs/readme.md
+echo "JWT_SECRET=$(openssl rand -hex 32)" > .env   # 必填（≥32 字符），更多可选配置见 docs/readme.md
 docker compose -f docker-compose.prod.yml up -d --build
-# 访问 http://localhost:8080（WEB_PORT 可改对外端口）
+# 浏览器访问 http://localhost:8080（在 .env 设置 WEB_PORT 可改端口）
 ```
 
-前端 nginx 托管静态文件并代理 `/api`（唯一对外端口）；默认使用内嵌 FerretDB（MongoDB 协议 + PostgreSQL/DocumentDB 存储，零外部依赖），在 `.env` 设 `MONGO_URI` 可切换为外接 MongoDB；数据存于 named volumes（`pg-data` / `uploads-data` / `minio-data`）。更多说明（数据库两级配置、日志、停止、单独构建镜像、cron 提醒）见 [docs/readme.md](docs/readme.md) 的「Docker 部署」节。
+### 方式二：本地源码开发
 
-## 文档
+环境要求：Node.js 20+ 与 MongoDB（可直接用仓库自带开发编排起 `mongo:7`）。
 
-- [docs/tutorial.md](docs/tutorial.md) — **全流程使用教程**（从立项组队、筹备排期、舞台征集编排到现场执行与展后复盘的完整实战指南）
-- [docs/features.md](docs/features.md) — 功能使用指南（按模块详述行为细节与权限规则）
-- [docs/readme.md](docs/readme.md) — 部署说明、环境变量、cron 提醒、Cloudflare Workers 边缘部署与安全配置
-- [docs/api.md](docs/api.md) — 接口契约（人类可读版）
-- [docs/openapi.yaml](docs/openapi.yaml) — OpenAPI 3.0 机器可读规范（覆盖率校验：`cd backend && npx tsx scripts/check-openapi-coverage.ts`）
-- [docs/plugin-development.md](docs/plugin-development.md) — 自定义工具开发指南（外部 Web 组件接入 + OpenAPI 模式对接）
-- [docs/demo-site.md](docs/demo-site.md) — 纯前端演示站（Cloudflare Pages）：构建部署、mock 内核与会话保留语义
-- [docs/design.md](docs/design.md) / [docs/progress.md](docs/progress.md) — 设计演进说明与迭代日志
-- [docs/file-index.md](docs/file-index.md) — 全库「文件 → 功能模块」定位索引
+```bash
+docker compose up -d                                  # 启动开发用 MongoDB (:27017)
+cp backend/.env.example backend/.env                  # 按需填写 JWT_SECRET 与 SUPER_ADMIN_EMAIL
+cd backend && npm install && npm run dev              # 启动后端 API (:4000)
+cd frontend && npm install && npm run dev             # 另开终端启动前端 (:5173，自动代理 /api)
+```
 
-## 贡献
+浏览器打开 `http://localhost:5173`：使用 `SUPER_ADMIN_EMAIL` 注册首个账号（免邀请码自动成为超管）→ 进入顶部「管理」页生成邀请码 → 团队成员凭邀请码注册。
 
-欢迎 Issue 与 PR。开发约定：后端改动需 `npm test`（vitest）与 `npm run typecheck` 全绿；前端需 `npm run check:session` 与 `npm run build` 通过；接口增改同步更新 `docs/openapi.yaml` 并通过覆盖率校验；提交信息使用 Conventional Commits 风格。依赖变更需过依赖扫描 CI（osv-scanner，见 `.github/workflows/dependency-scan.yml`）。
+### 方式三：免注册快速体验
 
+- **试用沙箱**：默认开启 `TRIAL_EMAIL=admin@test.com`，在登录页输入该邮箱与任意 ≥8 位密码即可进入带完整示例数据的独立环境（24 小时自动级联清理）。
+- **纯前端演示站**：执行 `cd frontend && npm run build:demo` 即可产出零后端依赖的静态演示包（浏览器内拦截 `/api` 模拟全部业务契约，可直接托管至 Cloudflare Pages 等静态平台）。
 
-## 依赖安全约束
+---
 
-前端仅通过 shadcn 包导入现有样式，新增组件仍按项目约定使用 `npx shadcn@3`。当前构建依赖的临时 npm overrides：
+## 架构与技术栈
 
-- `deepmerge` 固定为未受 GHSA-gcqx-w48m-w2h4 影响的 `4.1.1`；上游当前使用的 `4.2.0–4.3.1` 尚无修复版。
-- `@ts-morph/common` 的 `minimatch` 使用 `^11.0.1`，修复 GHSA-g3hv-75wg-m249。
-- `workbox-build` 的 `glob` 使用 `^14.0.2`，修复 GHSA-3g3m-2fjr-6pw4；生产构建同时验证服务工作线程生成。
+```text
+浏览器 / 手机 PWA
+  └─▶ [可选] Cloudflare Worker 边缘层（静态资产托管 + /api 反代 + QQ Webhook 边缘验签应答）
+        └─▶ Nginx 非特权容器（SPA 路由回退 + 安全响应头 + 1025MB 大文件上传反代）
+              └─▶ Express 4 + TypeScript 后端（JWT 双令牌轮换 / anonk_ 密钥收窄 / RBAC + 可见范围）
+                    ├─▶ MongoDB 协议存储（默认内嵌 FerretDB v2 + PostgreSQL，可切换外接 MongoDB）
+                    └─▶ 文件与缩略图存储（默认内嵌 MinIO S3，可切换外部 S3 或本地磁盘）
+```
 
-上游依赖升级至安全版本后移除对应覆盖，并重新执行 `npm ci`、生产/演示构建和 OSV 扫描；不通过漏洞豁免跳过检查。
+| 层级 | 核心技术选型 |
+| --- | --- |
+| **后端 (`backend/`)** | Express 4 · TypeScript · Mongoose 8 · JWT (15m access + 30d 轮换 refresh) · Multer 2.5 · Sharp (WebP 缩略图) · Nodemailer / Web-Push / TweetNaCl · Vitest 4 + Supertest |
+| **前端 (`frontend/`)** | Vite 6 · React 18 · TypeScript · Tailwind CSS v4 · shadcn/ui (Radix) · dnd-kit · driver.js · vite-plugin-pwa (Workbox + Web Push) |
+| **边缘 (`worker/`)** | Cloudflare Workers (Static Assets + 源站反代 + QQ Bot Ed25519 边缘验签) |
+
+---
+
+## 文档地图
+
+| 文档 | 内容说明 |
+| --- | --- |
+| [docs/tutorial.md](docs/tutorial.md) | **全流程实战教程**：按一场线下活动从立项到复盘的时间线手把手演示各模块配合 |
+| [docs/readme.md](docs/readme.md) | **部署与运维指南**：Docker 编排、环境变量全表、Cron 定时任务、Workers 边缘部署与安全基线 |
+| [docs/features.md](docs/features.md) | **功能参考手册**：按模块详述全部业务规则、交互细节与权限矩阵 |
+| [docs/api.md](docs/api.md) | **HTTP 接口契约**：全部端点的请求/响应结构、状态码与权限要求（人类可读版） |
+| [docs/openapi.yaml](docs/openapi.yaml) | **OpenAPI 3.0 规范**：181 个接口操作的机器可读规范（支持脚本双向覆盖率校验） |
+| [docs/plugin-development.md](docs/plugin-development.md) | **自定义工具开发指南**：外部 Web 组件接入、启动令牌握手协议与 OpenAPI 密钥调用示例 |
+| [docs/demo-site.md](docs/demo-site.md) | **纯前端演示站说明**：`build:demo` 构建原理、内存/IndexedDB Mock 内核与会话保留机制 |
+| [docs/design.md](docs/design.md) / [docs/progress.md](docs/progress.md) | 架构演进记录与阶段迭代日志 |
+| [docs/file-index.md](docs/file-index.md) | 全库「文件 → 功能模块」速查索引 |
+
+---
+
+## 开发与贡献
+
+欢迎提交 Issue 与 Pull Request。合入代码前请确保通过以下质量门：
+
+```bash
+cd backend && npm test && npm run typecheck                  # 后端集成测试与类型检查
+cd backend && npx tsx scripts/check-openapi-coverage.ts      # 接口变更时校验 OpenAPI 覆盖率
+cd frontend && npm run check:session && npm run build        # 前端会话安全回归与生产构建
+```
+
+- 提交信息遵循 Conventional Commits 规范（`feat:` / `fix:` / `docs:` / `chore:`）。
+- 新增 shadcn 组件请使用 `npx shadcn@3`（兼容当前 `components.json` 配置）。
+- 依赖锁文件变更会自动触发 GitHub Actions `osv-scanner` 漏洞扫描（见 `.github/workflows/dependency-scan.yml`）。
+
+### 构建依赖安全约束说明
+
+前端仅导入 shadcn 样式资产，当前 `frontend/package.json` 保留三项构建期传递依赖的临时 `overrides` 以确保零已知漏洞：
+
+- `deepmerge` 固定为未受 `GHSA-gcqx-w48m-w2h4` 影响的 `4.1.1`（上游 `4.2.0–4.3.1` 尚无补丁版）。
+- `@ts-morph/common` 下的 `minimatch` 指定 `^11.0.1`（修复 `GHSA-g3hv-75wg-m249`）。
+- `workbox-build` 下的 `glob` 指定 `^14.0.2`（修复 `GHSA-3g3m-2fjr-6pw4`）。
+
+待上游发布安全版本后可移除对应覆盖，并重新执行 `npm ci`、双模式构建与 OSV 扫描验证。
+
+---
 
 ## 许可证
 
