@@ -40,12 +40,12 @@ export function VisibilityPicker({ members, roles, value, onChange }: Props) {
                 checked={value.roleNames.includes(r)}
                 onCheckedChange={(c) => toggleRole(r, c === true)}
               />
-              角色:{r}
+              角色：{r}
             </label>
           ))}
         </div>
       )}
-      <p className="text-xs text-muted-foreground">都不勾选 = 全体成员可见</p>
+      <p className="text-xs text-muted-foreground">不勾选任何成员或角色时，默认对本活动全体成员可见</p>
     </div>
   );
 }

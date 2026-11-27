@@ -38,9 +38,9 @@ export function nameOf(db: Db, userId: string): string {
 export function requireProject(ctx: Ctx): { project: DbProject; membership: DbMembership } {
   const { db, params } = ctx;
   const project = db.projects.find((p) => p.id === params.pid);
-  if (!project) throw notFound('项目不存在');
+  if (!project) throw notFound('活动不存在');
   const membership = db.memberships.find((m) => m.projectId === project.id && m.userId === db.currentUserId);
-  if (!membership) throw notFound('项目不存在');
+  if (!membership) throw notFound('活动不存在');
   return { project, membership };
 }
 

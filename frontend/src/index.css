@@ -5,6 +5,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
+  color-scheme: light;
   --background: #f6f7f9;
   --foreground: #1c1e21;
   --card: #ffffff;
@@ -115,6 +116,78 @@
   --ring: #a78bfa;
 }
 
+:root[data-style='anon-tokyo'] {
+  --background: #fdfbfa;
+  --foreground: #201a1e;
+  --card: #ffffff;
+  --card-foreground: #201a1e;
+  --popover: #ffffff;
+  --popover-foreground: #201a1e;
+  --primary: #ce3d60;
+  --primary-foreground: #ffffff;
+  --secondary: #fbeff2;
+  --secondary-foreground: #8a2441;
+  --muted: #f5eff1;
+  --muted-foreground: #665860;
+  --accent: #ffe8ed;
+  --accent-foreground: #9e2547;
+  --border: #ede3e6;
+  --input: #8b7982;
+  --ring: #ce3d60;
+  --success: #0e7c6b;
+  --success-foreground: #ffffff;
+  --success-soft: #e3f8f2;
+  --success-soft-foreground: #0b6154;
+  --warning: #a35d08;
+  --warning-foreground: #ffffff;
+  --warning-soft: #fef4de;
+  --warning-soft-foreground: #834805;
+  --destructive: #c82333;
+  --destructive-foreground: #ffffff;
+  --destructive-soft: #fde8e8;
+  --destructive-soft-foreground: #9b1c1c;
+  --anon-pink: #ff8899;
+  --anon-surf: #73d9be;
+  --radius: 0.5rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 0.75rem;
+}
+
+.dark[data-style='anon-tokyo'] {
+  --background: #141216;
+  --foreground: #f5eff1;
+  --card: #1d1a20;
+  --card-foreground: #f5eff1;
+  --popover: #1d1a20;
+  --popover-foreground: #f5eff1;
+  --primary: #ff8899;
+  --primary-foreground: #2a0d15;
+  --secondary: #2b2127;
+  --secondary-foreground: #ffd1d9;
+  --muted: #252026;
+  --muted-foreground: #b3a4ac;
+  --accent: #3a232d;
+  --accent-foreground: #ffd8df;
+  --border: #322b32;
+  --input: #8e7c86;
+  --ring: #ff8899;
+  --success: #73d9be;
+  --success-foreground: #07261f;
+  --success-soft: #14342e;
+  --success-soft-foreground: #a7f0dc;
+  --warning: #fbbf24;
+  --warning-foreground: #3b1e02;
+  --warning-soft: #452a0b;
+  --warning-soft-foreground: #fde68a;
+  --destructive: #ff6b6b;
+  --destructive-foreground: #24090b;
+  --destructive-soft: #4c161b;
+  --destructive-soft-foreground: #fecaca;
+  --anon-pink: #ff8899;
+  --anon-surf: #73d9be;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -167,6 +240,9 @@
   ::selection {
     background: color-mix(in oklab, var(--primary) 22%, transparent);
   }
+  :where([data-style='anon-tokyo']) ::selection {
+    background: color-mix(in oklab, var(--anon-pink) 30%, transparent);
+  }
   /* 细滚动条 */
   ::-webkit-scrollbar {
     width: 8px;
@@ -191,4 +267,150 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+@layer components {
+  .editorial-title {
+    font-size: clamp(1.5rem, 1.25rem + 1vw, 2rem);
+    font-weight: 600;
+    line-height: 1.25;
+    letter-spacing: -0.025em;
+    text-wrap: balance;
+    overflow-wrap: anywhere;
+  }
+
+  .editorial-heading {
+    font-size: clamp(1.25rem, 1.2rem + 0.25vw, 1.375rem);
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  .editorial-subheading {
+    font-size: clamp(0.9375rem, 0.9rem + 0.2vw, 1rem);
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  .editorial-list {
+    @apply divide-y border-y;
+  }
+
+  .editorial-row {
+    @apply min-w-0 py-3.5 transition-colors hover:bg-accent/30;
+    overflow-wrap: anywhere;
+  }
+
+  .editorial-band {
+    @apply grid border-y;
+  }
+
+  .editorial-card {
+    @apply min-w-0 rounded-xl border bg-card shadow-none transition-colors hover:border-primary/40;
+  }
+
+  @media (hover: hover) {
+    :where([data-style='anon-tokyo']) .editorial-card:hover {
+      border-color: color-mix(in oklab, var(--anon-pink) 55%, var(--border));
+    }
+  }
+
+  .style-swatch {
+    forced-color-adjust: none;
+  }
+
+  :where([data-style='anon-tokyo']) .auth-cover-rule {
+    height: 2px;
+    border: 0;
+    border-radius: 9999px;
+    background-image: linear-gradient(90deg, var(--anon-pink), var(--anon-surf));
+  }
+
+  :where([data-style='anon-tokyo']) aside [aria-current='page'] {
+    box-shadow: inset 2px 0 0 var(--anon-pink);
+  }
+
+  .editorial-section {
+    @apply min-w-0 space-y-4 border-t pt-4;
+  }
+
+  .editorial :where(p, dd):not(.editorial-excluded *) {
+    overflow-wrap: anywhere;
+    text-wrap: pretty;
+  }
+
+  html:has(.editorial-shell) {
+    scroll-padding-block-start: 4rem;
+  }
+
+  html:has(.editorial-workspace) {
+    scroll-padding-block-end: calc(4.75rem + env(safe-area-inset-bottom));
+  }
+
+  @media (width >= 48rem) {
+    html:has(.editorial-workspace) {
+      scroll-padding-block: 0.5rem;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .editorial [aria-current='page'] {
+      outline: 1px solid Highlight;
+      outline-offset: -1px;
+    }
+    :where([data-style='anon-tokyo']) .auth-cover-rule {
+      height: 0;
+      border-top: 2px solid CanvasText;
+      background-image: none;
+    }
+  }
+}
+
+
+/* 画册页和居中弹层的文本随字号增长，触控区由最小尺寸保证。 */
+:where(.editorial, html:has(.editorial):not(:has(.editorial-excluded)) [data-form-overlay])
+  :is([data-slot='button'], [data-slot='badge'], [data-slot='select-trigger']):not(.editorial-excluded *) {
+  height: auto;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+:where(.editorial, html:has(.editorial):not(:has(.editorial-excluded)) [data-form-overlay])
+  :is([data-slot='input'], [data-slot='textarea'], [data-slot='select-trigger']):not(.editorial-excluded *) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.editorial [data-slot='select-value']:not(.editorial-excluded *) {
+  display: block;
+  min-width: 0;
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@media (pointer: coarse), (width < 48rem) {
+  :where(.editorial, html:has(.editorial):not(:has(.editorial-excluded)) [data-form-overlay])
+    :is([data-slot='button'], [data-slot='select-trigger']):not(.editorial-excluded *) {
+    min-height: 2.75rem;
+  }
+
+  .editorial [data-slot='button'][data-size^='icon']:not(.editorial-excluded *) {
+    min-width: 2.75rem;
+  }
+}
+
+@media (pointer: fine) and (width >= 48rem) {
+  :where(.editorial, html:has(.editorial):not(:has(.editorial-excluded)) [data-form-overlay])
+    :is([data-slot='button'], [data-slot='select-trigger']):not(.editorial-excluded *) {
+    min-height: 2rem;
+  }
+}
+
+.editorial [data-slot='button'].min-h-14 {
+  min-height: 3.5rem;
+}
+
+html:has([data-demo-banner]) [data-demo-badge] {
+  display: none;
 }

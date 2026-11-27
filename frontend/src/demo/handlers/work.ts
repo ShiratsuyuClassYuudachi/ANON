@@ -34,7 +34,7 @@ function moduleJson(db: Db, m: DbWorkModule) {
 function findModule(ctx: Ctx): DbWorkModule {
   const { db, params } = ctx;
   const m = db.workModules.find((x) => x.id === params.mid && x.projectId === params.pid);
-  if (!m) throw notFound('任务模块不存在');
+  if (!m) throw notFound('现场岗位不存在');
   return m;
 }
 
@@ -49,7 +49,7 @@ function resolveTarget(ctx: Ctx) {
   if (externalId || target !== ctx.db.currentUserId) requirePeoplePermission(ctx, 'work:manage');
   normalizeWork(ctx.db, m);
   const a = externalId && !linked ? m.externalAssignees?.find((x) => x.externalMemberId === target) : m.assignees.find((x) => x.userId === target);
-  if (!a) throw badRequest('该成员未被分配到此模块');
+  if (!a) throw badRequest('该成员未被安排到此岗位');
   return { m, a };
 }
 
@@ -92,7 +92,7 @@ function parseModuleBody(ctx: Ctx, b: Record<string, unknown>, kept: string[] = 
     if (!Array.isArray(b.assigneeIds)) return badRequest('assigneeIds 须为数组');
     const ids = [...new Set(b.assigneeIds.map(String))];
     const members = ctx.db.memberships.filter((m) => m.projectId === ctx.params.pid);
-    if (ids.some((id) => !members.some((m) => m.userId === id))) return badRequest('assigneeIds 含非项目成员');
+    if (ids.some((id) => !members.some((m) => m.userId === id))) return badRequest('排班成员含非活动成员');
     out.assigneeIds = ids;
   }
   if (b.externalAssigneeIds !== undefined) out.externalAssigneeIds = externalIds(ctx, b.externalAssigneeIds, kept);
@@ -243,7 +243,7 @@ export const workRoutes: Route[] = [
     let moduleId: string | null = null;
     if (b.moduleId !== undefined && b.moduleId !== null && b.moduleId !== '') {
       const mod = db.workModules.find((m) => m.id === String(b.moduleId) && m.projectId === params.pid);
-      if (!mod) return badRequest('关联模块不存在');
+      if (!mod) return badRequest('关联岗位不存在');
       moduleId = mod.id;
     }
     const inc = {
@@ -283,7 +283,7 @@ async function workSheet(ctx: Ctx, targetUserId: string, external = false): Prom
   const linked = external ? linkedUser(db, params.pid, targetUserId) : null;
   if (linked) targetUserId = linked;
   const member = external && !linked ? (profile ? { userId: profile.id, name: profile.name } : undefined) : membersJson(db, params.pid).find((m) => m.userId === targetUserId);
-  if (!member) return notFound('该用户不是项目成员');
+  if (!member) return notFound('该用户不是活动成员');
   const items = db.workModules
     .filter((m) => m.projectId === params.pid && (external && !linked ? m.externalAssignees?.some((a) => a.externalMemberId === targetUserId) : workAssignments(db, m).registered.some((a) => a.userId === targetUserId)))
     .sort((a, b) => {

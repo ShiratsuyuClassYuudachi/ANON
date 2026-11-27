@@ -25,9 +25,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { ListRow } from '@/components/ui/list-row';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -308,18 +306,17 @@ export default function PhysicalTab({ project, members, myPermissions }: Props) 
 
   return (
     <div className="space-y-3">
-      {err && <Card className="p-4 text-sm text-destructive">{err}</Card>}
+      {err && <p role="alert" className="py-4 text-sm text-destructive">{err}</p>}
 
       {summary && (
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-base">实物准备进度</CardTitle></CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-              <div><p className="text-xs text-muted-foreground">物资条目</p><p className="text-xl font-semibold">{summary.total.count}</p></div>
+        <section className="space-y-3">
+          <div>
+            <div className="editorial-band grid-cols-3 sm:grid-cols-5 [&>div]:p-2 [&>div:not(:first-child)]:border-l max-sm:[&>div:nth-child(n+4)]:border-t">
+              <div><p className="text-xs text-muted-foreground">物资种类</p><p className="text-xl font-semibold">{summary.total.count}</p></div>
               <div><p className="text-xs text-muted-foreground">计划总数</p><p className="text-xl font-semibold">{summary.total.planned}</p></div>
-              <div><p className="text-xs text-muted-foreground">在库</p><p className="text-xl font-semibold">{summary.total.onHand}</p></div>
-              <div><p className="text-xs text-muted-foreground">使用中</p><p className="text-xl font-semibold">{summary.total.used}</p></div>
-              <div><p className="text-xs text-muted-foreground">损耗</p><p className="text-xl font-semibold text-destructive">{summary.total.lost}</p></div>
+              <div><p className="text-xs text-muted-foreground">当前在库</p><p className="text-xl font-semibold">{summary.total.onHand}</p></div>
+              <div><p className="text-xs text-muted-foreground">投入使用</p><p className="text-xl font-semibold">{summary.total.used}</p></div>
+              <div><p className="text-xs text-muted-foreground">损耗数量</p><p className="text-xl font-semibold text-destructive">{summary.total.lost}</p></div>
             </div>
             {summary.total.planned > 0 && (
               <div className="mt-3 flex items-center gap-2">
@@ -329,26 +326,26 @@ export default function PhysicalTab({ project, members, myPermissions }: Props) 
                     style={{ width: `${totalPct}%` }}
                   />
                 </div>
-                <span className="text-xs text-muted-foreground">备齐 {totalPct}%</span>
+                <span className="text-xs text-muted-foreground">已备齐 {totalPct}%</span>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       )}
 
       {canManage && (
-        <Card>
-          <CardHeader className="pb-2">
+        <section className="space-y-3">
+          <header>
             <div className="flex items-center justify-between gap-2">
-              <CardTitle className="text-base">分类管理</CardTitle>
-              <Button variant="ghost" size="sm" onClick={() => setCatOpen((o) => !o)}>
+              <h2 className="editorial-subheading">分类管理</h2>
+              <Button variant="ghost" size="sm" aria-expanded={catOpen} onClick={() => setCatOpen((o) => !o)}>
                 {categories.length} 个分类
                 <ChevronDown className={cn('ml-1 size-4 transition-transform', catOpen && 'rotate-180')} />
               </Button>
             </div>
-          </CardHeader>
+          </header>
           {catOpen && (
-            <CardContent className="space-y-3">
+            <div className="space-y-3">
               <form onSubmit={createCategory} className="flex gap-2">
                 <Input
                   placeholder="新建分类（如 印刷品、设备）"
@@ -414,26 +411,26 @@ export default function PhysicalTab({ project, members, myPermissions }: Props) 
                   ),
                 )}
               </div>
-            </CardContent>
+            </div>
           )}
-        </Card>
+        </section>
       )}
 
-      <Card>
-        <CardHeader className="pb-2">
+      <section className="space-y-3">
+        <header>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle className="text-base">物资清单</CardTitle>
+            <h2 className="editorial-subheading">物资清单</h2>
             {canManage && (
               <Button size="sm" onClick={openCreate}><Plus className="mr-1 size-4" />新建物资</Button>
             )}
           </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
+        </header>
+        <div className="space-y-3">
           <div className="flex flex-wrap gap-2">
             <div className="relative min-w-40 flex-1 sm:max-w-64">
               <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="搜索名称 / 规格 / 位置 / 标签"
+                aria-label="搜索物资" placeholder="搜索物资名称、规格、位置或标签"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-8"
@@ -464,16 +461,16 @@ export default function PhysicalTab({ project, members, myPermissions }: Props) 
             items.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-10 text-muted-foreground">
                 <Package className="size-8" />
-                <p className="text-sm">{canManage ? '暂无物资，点击「新建物资」开始登记' : '尚未登记实物清单'}</p>
+                <p className="text-sm">{canManage ? '还没有登记实物物资，点击右上角「新建物资」开始建立台账。' : '暂未登记实物清单'}</p>
               </div>
             ) : (
               <p className="py-6 text-center text-sm text-muted-foreground">没有符合筛选条件的物资</p>
             )
           ) : (
-            <div className="space-y-2">
+            <div className="editorial-list">
               {visible.map((it) => (
-                <ListRow key={it.id}>
-                  <div className="flex items-start justify-between gap-2">
+                <article key={it.id} className="editorial-row">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-medium">{it.name}</span>
@@ -485,9 +482,9 @@ export default function PhysicalTab({ project, members, myPermissions }: Props) 
                     <div className="flex shrink-0 gap-1">
                       {canManage && (
                         <>
-                          <Button variant="ghost" size="icon" onClick={() => openLog(it)} title="数量变动 / 记录"><History className="size-4" /></Button>
+                          <Button variant="ghost" size="icon" onClick={() => openLog(it)} aria-label="库存变动"><History className="size-4" /></Button>
                           <Button variant="ghost" size="sm" onClick={() => openEdit(it)}>编辑</Button>
-                          <Button variant="ghost" size="icon" onClick={() => setDeleteItem(it)}><Trash2 className="size-4" /></Button>
+                          <Button variant="ghost" size="icon" aria-label="删除物资" onClick={() => setDeleteItem(it)}><Trash2 className="size-4" /></Button>
                         </>
                       )}
                     </div>
@@ -501,37 +498,37 @@ export default function PhysicalTab({ project, members, myPermissions }: Props) 
                   <QtyProgress onHand={it.onHandQty} planned={it.plannedQty} />
                   <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                     {it.responsible && <span>负责人：{it.responsible.name}</span>}
-                    {it.location && <span>位置：{it.location}</span>}
+                    {it.location && <span>存放位置：{it.location}</span>}
                     {it.tags.map((t) => <Badge key={t} variant="outline" className="text-[10px]">{t}</Badge>)}
                   </div>
                   {it.note && <p className="mt-1.5 text-xs text-muted-foreground">备注：{it.note}</p>}
-                </ListRow>
+                </article>
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       {/* 新建 / 编辑表单 */}
       <FormOverlay open={formOpen} onOpenChange={setFormOpen} title={editing ? '编辑物资' : '新建物资'}>
         <form onSubmit={submitItem} className="space-y-3">
           <div className="space-y-1">
-            <Label>名称 *</Label>
+            <Label>物资名称</Label>
             <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>规格</Label>
-              <Input value={form.spec} onChange={(e) => setForm({ ...form, spec: e.target.value })} placeholder="如 A3 铜版纸" />
+              <Label>规格型号</Label>
+              <Input value={form.spec} onChange={(e) => setForm({ ...form, spec: e.target.value })} placeholder="如：A3 铜版纸、对讲机" />
             </div>
             <div className="space-y-1">
-              <Label>单位</Label>
+              <Label>计量单位</Label>
               <Input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} placeholder="个" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>分类 *</Label>
+              <Label>所属分类</Label>
               <Select value={form.categoryId} onValueChange={(v) => setForm({ ...form, categoryId: v })}>
                 <SelectTrigger><SelectValue placeholder="选择分类" /></SelectTrigger>
                 <SelectContent>
@@ -540,7 +537,7 @@ export default function PhysicalTab({ project, members, myPermissions }: Props) 
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>状态</Label>
+              <Label>当前状态</Label>
               <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as PhysicalItemStatus })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -568,12 +565,12 @@ export default function PhysicalTab({ project, members, myPermissions }: Props) 
             </div>
             <div className="space-y-1">
               <Label>存放位置</Label>
-              <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="如 仓库 A 架" />
+              <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="如：仓库 A 架、主舞台侧幕" />
             </div>
           </div>
           <div className="space-y-1">
             <Label>标签（逗号分隔）</Label>
-            <Input value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} placeholder="易碎, 贵重" />
+            <Input value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} placeholder="如：易碎, 贵重" />
           </div>
           <div className="space-y-1">
             <Label>备注</Label>
@@ -587,7 +584,7 @@ export default function PhysicalTab({ project, members, myPermissions }: Props) 
       </FormOverlay>
 
       {/* 数量变动 / 日志 */}
-      <FormOverlay open={!!logFor} onOpenChange={(o) => { if (!o) setLogFor(null); }} title={logFor ? `变动记录 · ${logFor.name}` : ''}>
+      <FormOverlay open={!!logFor} onOpenChange={(o) => { if (!o) setLogFor(null); }} title={logFor ? `库存变动 · ${logFor.name}` : ''}>
         <div className="space-y-3">
           <div className="grid grid-cols-3 gap-3">
             <NumField label="在库" value={logFor?.onHandQty ?? 0} onChange={() => {}} readOnly />
@@ -599,16 +596,16 @@ export default function PhysicalTab({ project, members, myPermissions }: Props) 
             <Select value={adj.type} onValueChange={(v) => setAdj({ ...adj, type: v })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="adjust_on_hand">在库 ±</SelectItem>
-                <SelectItem value="adjust_used">使用 ±</SelectItem>
-                <SelectItem value="adjust_lost">损耗 ±</SelectItem>
+                <SelectItem value="adjust_on_hand">在库数量增减</SelectItem>
+                <SelectItem value="adjust_used">使用数量增减</SelectItem>
+                <SelectItem value="adjust_lost">损耗数量增减</SelectItem>
                 <SelectItem value="status_change">状态变更</SelectItem>
               </SelectContent>
             </Select>
           </div>
           {adj.type === 'status_change' ? (
             <div className="space-y-1">
-              <Label>新状态</Label>
+              <Label>目标状态</Label>
               <Select value={adj.status} onValueChange={(v) => setAdj({ ...adj, status: v as PhysicalItemStatus })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -618,17 +615,17 @@ export default function PhysicalTab({ project, members, myPermissions }: Props) 
             </div>
           ) : (
             <div className="space-y-1">
-              <Label>变动量（正=增加，负=减少）</Label>
+              <Label>变动数值（正数为增加，负数为减少）</Label>
               <Input type="number" value={adj.delta} onChange={(e) => setAdj({ ...adj, delta: Number(e.target.value) || 0 })} />
             </div>
           )}
           <div className="space-y-1">
-            <Label>备注</Label>
-            <Input value={adj.note} onChange={(e) => setAdj({ ...adj, note: e.target.value })} placeholder="如 到货 / 现场领用" />
+            <Label>变动说明</Label>
+            <Input value={adj.note} onChange={(e) => setAdj({ ...adj, note: e.target.value })} placeholder="如：印刷厂到货、现场领用" />
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setLogFor(null)}>关闭</Button>
-            <Button type="button" onClick={submitLog}>{adj.type === 'status_change' ? '记录状态变更' : '记录变动'}</Button>
+            <Button type="button" onClick={submitLog}>记录变动</Button>
           </div>
           {logs.length > 0 && (
             <div className="space-y-1 border-t pt-3">

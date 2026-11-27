@@ -114,7 +114,7 @@ export default function ToolsTab({ project, myPermissions }: Props) {
     return (
       <div className="space-y-3">
         <Button variant="ghost" size="sm" onClick={() => setBuiltin(null)}>
-          <ArrowLeft className="size-4" /> 全部工具
+          <ArrowLeft className="size-4" /> 返回全部工具
         </Button>
         <StageRundownTool project={project} myPermissions={myPermissions} />
       </div>
@@ -125,7 +125,7 @@ export default function ToolsTab({ project, myPermissions }: Props) {
     return (
       <div className="space-y-3">
         <Button variant="ghost" size="sm" onClick={() => setBuiltin(null)}>
-          <ArrowLeft className="size-4" /> 全部工具
+          <ArrowLeft className="size-4" /> 返回全部工具
         </Button>
         <LostFoundTool project={project} myPermissions={myPermissions} />
       </div>
@@ -136,7 +136,7 @@ export default function ToolsTab({ project, myPermissions }: Props) {
     return (
       <div className="space-y-3">
         <Button variant="ghost" size="sm" onClick={() => setBuiltin(null)}>
-          <ArrowLeft className="size-4" /> 全部工具
+          <ArrowLeft className="size-4" /> 返回全部工具
         </Button>
         <StageSignupTool project={project} myPermissions={myPermissions} />
       </div>
@@ -148,22 +148,30 @@ export default function ToolsTab({ project, myPermissions }: Props) {
   }
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="space-y-4">
+      <header className="space-y-1">
+        <h1 className="editorial-heading">工具</h1>
+        <p className="text-sm text-muted-foreground">面向舞台演出、现场服务与外部扩展的专项协作工具</p>
+      </header>
+      <div className="grid gap-3 lg:grid-cols-2">
       <Card
         role="button"
         tabIndex={0}
-        className="cursor-pointer transition-colors hover:border-primary/50"
+        className="editorial-card cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring motion-safe:hover:-translate-y-0.5"
         onClick={() => setBuiltin('stage-rundown')}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') setBuiltin('stage-rundown');
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setBuiltin('stage-rundown');
+          }
         }}
       >
         <CardContent className="flex items-start gap-3 p-4">
           <CalendarClock className="mt-0.5 size-6 shrink-0 text-primary" />
           <div className="space-y-1">
-            <p className="font-medium">舞台时间编排助手</p>
+            <p className="font-medium">舞台时间编排</p>
             <p className="text-sm text-muted-foreground">
-              录入节目与时长，自动推算每个节目的起止时间；拖动排序，一键导出图片/文本 rundown
+              编排节目单与预计时长，自动推算起止时刻；支持现场控台推进、顺延重算与免登录投屏大屏。
             </p>
           </div>
         </CardContent>
@@ -171,10 +179,13 @@ export default function ToolsTab({ project, myPermissions }: Props) {
       <Card
         role="button"
         tabIndex={0}
-        className="cursor-pointer transition-colors hover:border-primary/50"
+        className="editorial-card cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring motion-safe:hover:-translate-y-0.5"
         onClick={() => setBuiltin('stage-signup')}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') setBuiltin('stage-signup');
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setBuiltin('stage-signup');
+          }
         }}
       >
         <CardContent className="flex items-start gap-3 p-4">
@@ -182,7 +193,7 @@ export default function ToolsTab({ project, myPermissions }: Props) {
           <div className="space-y-1">
             <p className="font-medium">舞台报名审核</p>
             <p className="text-sm text-muted-foreground">
-              录入报名节目与时长，按名称排序排查撞名，勾选预览总时长，投票与拍板审核，通过后可导入 Rundown
+              收集待审节目批次，排查撞名与总时长，团队内部投票拍板后一键导入时间编排。
             </p>
           </div>
         </CardContent>
@@ -190,10 +201,13 @@ export default function ToolsTab({ project, myPermissions }: Props) {
       <Card
         role="button"
         tabIndex={0}
-        className="cursor-pointer transition-colors hover:border-primary/50"
+        className="editorial-card cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring motion-safe:hover:-translate-y-0.5"
         onClick={() => setBuiltin('lost-found')}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') setBuiltin('lost-found');
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setBuiltin('lost-found');
+          }
         }}
       >
         <CardContent className="flex items-start gap-3 p-4">
@@ -201,7 +215,7 @@ export default function ToolsTab({ project, myPermissions }: Props) {
           <div className="space-y-1">
             <p className="font-medium">失物招领</p>
             <p className="text-sm text-muted-foreground">
-              登记捡到的物品与照片，按认领状态跟踪；可生成免登录公开查找页给观众自行查询
+              拍照登记现场拾获物品并跟踪认领状态，支持开启免登录公开查找页供观众自助核对。
             </p>
           </div>
         </CardContent>
@@ -212,10 +226,13 @@ export default function ToolsTab({ project, myPermissions }: Props) {
           key={t.id}
           role="button"
           tabIndex={0}
-          className="cursor-pointer transition-colors hover:border-primary/50"
+          className="editorial-card cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring motion-safe:hover:-translate-y-0.5"
           onClick={() => openTool(t)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') openTool(t);
+            if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+              e.preventDefault();
+              void openTool(t);
+            }
           }}
         >
           <CardContent className="flex items-start gap-3 p-4">
@@ -269,31 +286,35 @@ export default function ToolsTab({ project, myPermissions }: Props) {
         <Card
           role="button"
           tabIndex={0}
-          className="cursor-pointer border-dashed transition-colors hover:border-primary/50"
+          className="editorial-card cursor-pointer border-dashed outline-none focus-visible:ring-2 focus-visible:ring-ring"
           onClick={() => setEditing('new')}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') setEditing('new');
+            if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setEditing('new');
+          }
           }}
         >
           <CardContent className="flex items-start gap-3 p-4">
             <Plus className="mt-0.5 size-6 shrink-0 text-muted-foreground" />
             <div className="space-y-1">
               <p className="font-medium">添加自定义工具</p>
-              <p className="text-sm text-muted-foreground">接入自研组件：页内 iframe 嵌入或新标签页打开</p>
+              <p className="text-sm text-muted-foreground">通过页内嵌入或新窗口接入外部网页组件，支持按权限安全传递成员身份。</p>
             </div>
           </CardContent>
         </Card>
       )}
 
+      </div>
+
       <AlertDialog open={!!pendingLink} onOpenChange={(o) => !o && setPendingLink(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              在新窗口打开{pendingLink ? `「${pendingLink.tool.name}」` : ''}
+              在外部浏览器打开{pendingLink ? `「${pendingLink.tool.name}」` : ''}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              当前处于独立窗口（App）模式，与外部浏览器之间无法建立安全握手通道。本次打开将随链接一次性携带
-              5 分钟启动令牌（仅放在链接 fragment 中，不会进入对方服务器日志；组件接收后会立即抹除）。
+              当前处于主屏幕独立应用模式，本次将在链接末尾片段中一次性附带 5 分钟启动令牌（不经过服务器日志，组件读取后立即清除）。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -307,7 +328,7 @@ export default function ToolsTab({ project, myPermissions }: Props) {
                 setPendingLink(null);
               }}
             >
-              打开
+              确认打开
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -316,9 +337,9 @@ export default function ToolsTab({ project, myPermissions }: Props) {
       <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>删除自定义工具</AlertDialogTitle>
+            <AlertDialogTitle>删除自定义工具「{deleting?.name}」？</AlertDialogTitle>
             <AlertDialogDescription>
-              删除后该工具签发的所有 API 密钥将一并失效，且不可恢复。
+              删除后该工具已签发的所有访问密钥将立即失效，不可恢复。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

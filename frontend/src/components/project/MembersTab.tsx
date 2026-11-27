@@ -7,7 +7,6 @@ import ExternalMembersPanel from './ExternalMembersPanel';
 import type { ExternalMember, Member, ProjectDetail } from '../../types';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -16,13 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { FormOverlay } from '@/components/FormOverlay';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -68,11 +61,9 @@ export default function MembersTab({ project, members, externalMembers, myPermis
 
   return (
     <div data-tour="tab-members" className="space-y-3">
-      <ExternalMembersPanel projectId={project.id} members={members} externalMembers={externalMembers} canManage={canManage} onChanged={onChanged} />
+      <h1 className="editorial-heading">成员</h1>
       {canManage && (
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-base">邀请成员</CardTitle></CardHeader>
-          <CardContent className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex flex-col gap-2 sm:flex-row">
             <Select value={roleName} onValueChange={setRoleName}>
               <SelectTrigger className="sm:w-40"><SelectValue placeholder="角色" /></SelectTrigger>
               <SelectContent>
@@ -80,24 +71,23 @@ export default function MembersTab({ project, members, externalMembers, myPermis
               </SelectContent>
             </Select>
             <Input
-              placeholder="指定用户 ID（可留空）"
+              placeholder="指定用户 ID（留空则为通用邀请链接）"
               value={targetUserId}
               onChange={(e) => setTargetUserId(e.target.value)}
             />
-            <Button onClick={createInvite}><Link2 className="size-4" /> 生成链接</Button>
-          </CardContent>
-        </Card>
+            <Button onClick={createInvite}><Link2 className="size-4" /> 生成邀请链接</Button>
+        </div>
       )}
 
+      <div className="editorial-list">
       {members.map((m) => (
-        <Card key={m.userId}>
-          <CardContent className="flex items-center gap-3">
+        <article key={m.userId} className="editorial-row flex flex-wrap items-center gap-2">
             <Avatar>
               <AvatarFallback>{m.name.slice(0, 1)}</AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
-              <p className="truncate font-medium">{m.name}</p>
-              <p className="truncate text-sm text-muted-foreground">{m.email}</p>
+              <p className="wrap-anywhere font-medium">{m.name}</p>
+              <p className="wrap-anywhere text-sm text-muted-foreground">{m.email}</p>
               {m.externalProfiles?.map((profile) => <div key={profile.id} className="break-words text-sm text-muted-foreground">
                 {profile.duty && <p>岗位：{profile.duty}</p>}
                 {profile.contacts.map((c, i) => <p key={i}>{c.platform}：{c.value}</p>)}
@@ -116,7 +106,7 @@ export default function MembersTab({ project, members, externalMembers, myPermis
                 })
               }
             >
-              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {project.roles.map((r) => <SelectItem key={r.name} value={r.name}>{r.name}</SelectItem>)}
               </SelectContent>
@@ -131,18 +121,19 @@ export default function MembersTab({ project, members, externalMembers, myPermis
                 <UserMinus className="size-4" />
               </Button>
             )}
-          </CardContent>
-        </Card>
+        </article>
       ))}
+      </div>
+      <ExternalMembersPanel projectId={project.id} members={members} externalMembers={externalMembers} canManage={canManage} onChanged={onChanged} />
 
-      <Dialog open={!!inviteUrl} onOpenChange={(o) => !o && setInviteUrl('')}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>邀请链接已生成</DialogTitle>
-            <DialogDescription>把链接发给对方，对方用已注册账号登录后打开即可加入项目。</DialogDescription>
-          </DialogHeader>
+      <FormOverlay
+        open={!!inviteUrl}
+        onOpenChange={(open) => !open && setInviteUrl('')}
+        title="邀请链接已生成"
+        description="将链接发给团队伙伴，对方登录账号后打开即可加入本场活动。"
+      >
           <div className="flex gap-2">
-            <Input readOnly value={inviteUrl} onFocus={(e) => e.target.select()} />
+            <Input aria-label="邀请链接" readOnly value={inviteUrl} onFocus={(e) => e.target.select()} />
             <Button
               onClick={() => {
                 navigator.clipboard?.writeText(inviteUrl).then(
@@ -151,17 +142,16 @@ export default function MembersTab({ project, members, externalMembers, myPermis
                 );
               }}
             >
-              复制
+              复制链接
             </Button>
           </div>
-        </DialogContent>
-      </Dialog>
+      </FormOverlay>
 
       <AlertDialog open={!!removingId} onOpenChange={(o) => !o && setRemovingId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>移除成员「{removingMember?.name}」？</AlertDialogTitle>
-            <AlertDialogDescription>对方将失去该项目的访问权限。</AlertDialogDescription>
+            <AlertDialogDescription>移除后对方将不再拥有本场活动的访问权限。</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
@@ -177,7 +167,7 @@ export default function MembersTab({ project, members, externalMembers, myPermis
                 setRemovingId(null);
               }}
             >
-              移除
+              确认移除
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

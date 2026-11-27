@@ -223,7 +223,7 @@ describe('QQ 事件绑定流程', () => {
     expect(sendGroupMock).toHaveBeenCalledTimes(1);
     const [to, text, opts] = sendGroupMock.mock.calls[0];
     expect(to).toBe('grp-1');
-    expect(text).toContain('已绑定项目');
+    expect(text).toContain('已绑定活动');
     expect(text).toContain('QQ 通知测试活动');
     expect(opts).toEqual({ msgId: 'gmsg-1' });
   });

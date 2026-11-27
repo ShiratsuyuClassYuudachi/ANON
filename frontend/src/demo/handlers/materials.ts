@@ -73,7 +73,7 @@ function versionJson(db: Db, v: DbResourceVersion) {
 function findResource(ctx: Ctx): DbResource {
   const { db, params } = ctx;
   const r = db.resources.find((x) => x.id === params.rid && x.projectId === params.pid);
-  if (!r) throw notFound('资源不存在');
+  if (!r) throw notFound('资料不存在');
   return r;
 }
 
@@ -144,11 +144,11 @@ export const materialRoutes: Route[] = [
     const { db, params } = ctx;
     requireProject(ctx);
     const b = bodyObj(ctx);
-    if (!b.name || !String(b.name).trim()) return badRequest('类型名称必填');
+    if (!b.name || !String(b.name).trim()) return badRequest('分类名称必填');
     const parentId = b.parentId === undefined || b.parentId === null ? null : String(b.parentId);
     const parent = parentId ? db.resourceTypes.find((x) => x.id === parentId && x.projectId === params.pid) : null;
-    if (parentId && !parent) return badRequest('上级类别不存在');
-    if (parent?.parentId) return badRequest('类别最多支持两层');
+    if (parentId && !parent) return badRequest('上级分类不存在');
+    if (parent?.parentId) return badRequest('分类最多支持两层');
     const t = { id: uid(), projectId: params.pid, name: String(b.name).trim(), parentId, visibility: parseVis(b.visibility), createdAt: nowIso() };
     db.resourceTypes.push(t);
     return json({ type: { id: t.id, name: t.name, parentId: t.parentId, visibility: t.visibility } }, 201);
@@ -158,21 +158,21 @@ export const materialRoutes: Route[] = [
     const { db, params } = ctx;
     requireProject(ctx);
     const t = db.resourceTypes.find((x) => x.id === params.typeId && x.projectId === params.pid);
-    if (!t) return notFound('资源类型不存在');
+    if (!t) return notFound('资料分类不存在');
     const b = bodyObj(ctx);
     if (b.name !== undefined) {
       const name = String(b.name).trim();
-      if (!name) return badRequest('类型名称必填');
+      if (!name) return badRequest('分类名称必填');
       t.name = name;
     }
     if (b.parentId !== undefined) {
       const oldParentId = t.parentId ?? null;
       const parentId = b.parentId === null ? null : String(b.parentId);
       const parent = parentId ? db.resourceTypes.find((x) => x.id === parentId && x.projectId === params.pid) : null;
-      if (parentId && !parent) return badRequest('上级类别不存在');
-      if (parent?.parentId) return badRequest('类别最多支持两层');
-      if (parent?.id === t.id) return badRequest('不能将类别设为自己的上级');
-      if (oldParentId !== parentId && db.resourceTypes.some((x) => x.parentId === t.id)) return badRequest('含有子类别的一级类别不能调整为二级');
+      if (parentId && !parent) return badRequest('上级分类不存在');
+      if (parent?.parentId) return badRequest('分类最多支持两层');
+      if (parent?.id === t.id) return badRequest('不能将分类设为自己的上级');
+      if (oldParentId !== parentId && db.resourceTypes.some((x) => x.parentId === t.id)) return badRequest('含有子分类的一级分类不能调整为二级');
       t.parentId = parentId;
     }
     if (b.visibility !== undefined) t.visibility = parseVis(b.visibility);
@@ -183,9 +183,9 @@ export const materialRoutes: Route[] = [
     const { db, params } = ctx;
     requireProject(ctx);
     const t = db.resourceTypes.find((x) => x.id === params.typeId && x.projectId === params.pid);
-    if (!t) return notFound('资源类型不存在');
-    if (db.resources.some((r) => r.typeId === t.id)) return badRequest('类型下仍有资源，无法删除');
-    if (db.resourceTypes.some((x) => x.parentId === t.id)) return badRequest('类别下仍有子类别，无法删除');
+    if (!t) return notFound('资料分类不存在');
+    if (db.resources.some((r) => r.typeId === t.id)) return badRequest('分类下仍有资料，无法删除');
+    if (db.resourceTypes.some((x) => x.parentId === t.id)) return badRequest('分类下仍有子分类，无法删除');
     db.resourceTypes.splice(db.resourceTypes.indexOf(t), 1);
     return json({ ok: true });
   }),
@@ -212,9 +212,9 @@ export const materialRoutes: Route[] = [
     const isForm = ctx.body instanceof FormData;
     const fields = isForm ? Object.fromEntries([...form(ctx).entries()].map(([k, v]) => [k, typeof v === 'string' ? v : ''])) : bodyObj(ctx);
     const name = String(fields.name ?? '').trim();
-    if (!name) return badRequest('资源名称必填');
+    if (!name) return badRequest('资料名称必填');
     const typeId = String(fields.typeId ?? '');
-    if (!db.resourceTypes.some((t) => t.id === typeId && t.projectId === params.pid)) return badRequest('资源类型不存在');
+    if (!db.resourceTypes.some((t) => t.id === typeId && t.projectId === params.pid)) return badRequest('资料分类不存在');
     const resource: DbResource = {
       id: uid(),
       projectId: params.pid,
@@ -256,7 +256,7 @@ export const materialRoutes: Route[] = [
     if (b.name !== undefined) resource.name = String(b.name).trim();
     if (b.description !== undefined) resource.description = String(b.description);
     if (b.typeId !== undefined) {
-      if (!db.resourceTypes.some((t) => t.id === b.typeId && t.projectId === params.pid)) return badRequest('资源类型不存在');
+      if (!db.resourceTypes.some((t) => t.id === b.typeId && t.projectId === params.pid)) return badRequest('资料分类不存在');
       resource.typeId = String(b.typeId);
     }
     if (b.visibility !== undefined) resource.visibility = parseVis(b.visibility);
@@ -326,7 +326,7 @@ export const materialRoutes: Route[] = [
     requireProject(ctx);
     const resource = findResource(ctx);
     const latest = latestVersionOf(ctx.db, resource.id);
-    if (!latest) return notFound('资源尚无版本');
+    if (!latest) return notFound('资料尚无版本');
     return previewOf(ctx, latest);
   }),
 ];

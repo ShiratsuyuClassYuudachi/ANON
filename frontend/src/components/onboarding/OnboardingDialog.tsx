@@ -5,15 +5,15 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 const SLIDES = [
   {
     title: '欢迎使用 ANON',
-    body: '面向活动组织团队的全流程协作工具。\n\n核心概念很简单：一个「项目」就是一场活动；项目内按模块分区（看板/待办/财务/物料/账号/现场/实用工具）；每个成员有角色，角色决定权限——你只会看到有权限的功能。',
+    body: '专为漫展、演出与同人企划团队打造的活动全流程协作工具。\n\n在这里，一场活动就是一个独立协作册，按「看板、待办、财务、物料、账号、现场、工具」清晰分章；每位成员按角色持有权限，界面只呈现与你相关的板块。',
   },
   {
-    title: '四步快速上手',
-    body: '1. 建项目：首页「新建项目」，填名称与起止日期\n2. 组团队：「成员」Tab 生成邀请链接，临时协作者只需填姓名即可建档\n3. 筹备推进：待办倒排追踪、财务记账结算、物料两级分类与版本预览、舞台征集与编排\n4. 现场执行：排班打印任务单，开展当天用「现场模式」离线打卡、控台投屏与失物招领',
+    title: '四步跑通一场活动',
+    body: '1. 立项建册：在「我的活动」新建活动并设定开展日期\n2. 召集伙伴：在「成员」生成邀请链接，临时支援人员无需注册也能直接建档排班\n3. 筹备推进：开展倒排追踪待办、登记收支自动算出平摊结算、归档两级分类设计稿与实物台账\n4. 现场收官：提前打印排班单，开展当天切入「现场模式」离线打卡、控台推进与登记失物',
   },
   {
-    title: '随时可查的文档中心',
-    body: '右上角头像菜单 →「帮助文档」，内置「活动全流程」导读与各模块图文说明，支持全文搜索。\n\n接下来将带你快速浏览界面要点（可随时跳过）。',
+    title: '随时查阅图文指南',
+    body: '点击头像菜单中的「帮助中心」，即可按筹备全流程查阅图文教程并支持全文检索。\n\n接下来用一分钟带你快速认清各处入口（可随时跳过）。',
   },
 ];
 
@@ -37,13 +37,7 @@ export function OnboardingDialog({
           <DialogDescription className="sr-only">新手引导 {idx + 1}/{SLIDES.length}</DialogDescription>
         </DialogHeader>
         <p className="whitespace-pre-line text-sm leading-6">{SLIDES[idx].body}</p>
-        <div className="flex items-center gap-2">
-          <div className="flex gap-1">
-            {SLIDES.map((_, i) => (
-              <span key={i} className={`size-1.5 rounded-full ${i === idx ? 'bg-primary' : 'bg-muted'}`} />
-            ))}
-          </div>
-          <span className="flex-1" />
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <Button variant="ghost" size="sm" onClick={onSkip}>跳过</Button>
           {last ? (
             <Button size="sm" onClick={onStartTour}>开始导览</Button>

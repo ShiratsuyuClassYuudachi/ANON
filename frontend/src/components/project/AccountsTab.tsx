@@ -6,11 +6,9 @@ import { decryptWithPassphrase, encryptWithPassphrase } from '../../crypto';
 import type { Member, PlatformAccountItem, ProjectDetail, Visibility } from '../../types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ListRow } from '@/components/ui/list-row';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Select,
@@ -19,13 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,9 +44,9 @@ interface Props {
 
 const PLATFORMS = ['QQ', '小红书', 'B站', '微博', '其他'];
 const MODE_LABELS: Record<PlatformAccountItem['mode'], string> = {
-  full: '完整账号',
+  full: '完整凭证',
   otp: '二步验证',
-  contact: '联系人',
+  contact: '合作方联络',
 };
 
 export default function AccountsTab({ project, members, myPermissions }: Props) {
@@ -101,7 +92,7 @@ export default function AccountsTab({ project, members, myPermissions }: Props) 
           body.cipherKeySource = 'server';
           body.password = form.password;
         } else {
-          if (!form.passphrase) throw new Error('请设置保险库口令');
+          if (!form.passphrase) throw new Error('请设置解密口令');
           body.passwordCipher = await encryptWithPassphrase(form.password, form.passphrase);
         }
       }
@@ -124,7 +115,7 @@ export default function AccountsTab({ project, members, myPermissions }: Props) 
       if (a.cipherKeySource === 'server') {
         setRevealed({ ...revealed, [a.id]: d.password! });
       } else {
-        if (!revealPass) throw new Error('请输入保险库口令');
+        if (!revealPass) throw new Error('请输入解密口令');
         setRevealed({ ...revealed, [a.id]: await decryptWithPassphrase(d.cipher!, revealPass) });
       }
       setRevealingId(null);
@@ -159,14 +150,15 @@ export default function AccountsTab({ project, members, myPermissions }: Props) 
     const { userIds, roleNames } = a.visibility;
     if (!userIds.length && !roleNames.length) return '全体成员';
     const names = userIds.map((id) => members.find((m) => m.userId === id)?.name ?? id);
-    return [...names, ...roleNames.map((r) => `角色:${r}`)].join('、');
+    return [...names, ...roleNames.map((r) => `角色：${r}`)].join('、');
   };
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2" data-tour="tab-accounts">
+      <div className="flex flex-wrap items-center justify-between gap-2" data-tour="tab-accounts">
+        <h1 className="editorial-heading mr-auto">账号</h1>
         <Select value={platformFilter || 'all'} onValueChange={(v) => setPlatformFilter(v === 'all' ? '' : v)}>
-          <SelectTrigger className="w-36"><SelectValue placeholder="平台" /></SelectTrigger>
+          <SelectTrigger className="w-32" aria-label="所属平台"><SelectValue placeholder="平台" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全部平台</SelectItem>
             {PLATFORMS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
@@ -179,19 +171,19 @@ export default function AccountsTab({ project, members, myPermissions }: Props) 
         )}
       </div>
 
-      {err && <Card className="p-4 text-sm text-destructive">{err}</Card>}
+      {err && <p role="alert" className="py-4 text-sm text-destructive">{err}</p>}
 
+      {accounts.length > 0 && <div className="editorial-list">
       {accounts.map((a) => (
-        <Card key={a.id}>
-          <CardContent className="space-y-2 p-4">
+        <article key={a.id} className="editorial-row space-y-2">
             <div className="flex items-start justify-between gap-2">
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="font-medium">{a.account}</p>
                 <div className="mt-1 flex flex-wrap gap-1.5">
                   <Badge variant="secondary">{a.platform}</Badge>
                   <Badge variant="outline">{MODE_LABELS[a.mode]}</Badge>
                   {a.hasPassword && (
-                    <Badge variant="outline">{a.cipherKeySource === 'user' ? '浏览器加密' : '服务端加密'}</Badge>
+                    <Badge variant="outline">{a.cipherKeySource === 'user' ? '浏览器端加密' : '服务端加密'}</Badge>
                   )}
                 </div>
               </div>
@@ -215,7 +207,7 @@ export default function AccountsTab({ project, members, myPermissions }: Props) 
               )}
             </div>
             <p className="text-sm text-muted-foreground">
-              {a.addedBy ? `添加人：${a.addedBy.name}` : ''} 可见范围：{visText(a)}
+              {a.addedBy && `录入：${a.addedBy.name} · `}可见范围：{visText(a)}
             </p>
             {a.mode === 'otp' && a.addedBy && a.addedBy.contacts.length > 0 && (
               <p className="text-sm">
@@ -226,7 +218,7 @@ export default function AccountsTab({ project, members, myPermissions }: Props) 
             {a.hasPassword && (
               revealed[a.id] !== undefined ? (
                 <div className="flex items-center gap-2">
-                  <code className="rounded bg-muted px-2 py-1 text-sm">{revealed[a.id]}</code>
+                  <code className="min-w-0 rounded bg-muted px-2 py-1 text-sm wrap-anywhere">{revealed[a.id]}</code>
                   <Button variant="ghost" size="sm" onClick={() => setRevealed((r) => { const n = { ...r }; delete n[a.id]; return n; })}>隐藏</Button>
                 </div>
               ) : (
@@ -240,23 +232,23 @@ export default function AccountsTab({ project, members, myPermissions }: Props) 
               )
             )}
             {canManage && editingVisId === a.id && (
-              <ListRow className="space-y-2">
+              <div className="space-y-2 border-t pt-3">
                 <VisibilityPicker members={members} roles={roles} value={visDraft} onChange={setVisDraft} />
                 <div className="flex gap-2">
                   <Button size="sm" onClick={() => saveVisibility(a.id)}>保存</Button>
                   <Button size="sm" variant="ghost" onClick={() => setEditingVisId(null)}>取消</Button>
                 </div>
-              </ListRow>
+              </div>
             )}
-          </CardContent>
-        </Card>
+        </article>
       ))}
-      {!accounts.length && <p className="text-sm text-muted-foreground">暂无账号。</p>}
+      </div>}
+      {!err && !accounts.length && <p className="text-sm text-muted-foreground">尚未登记任何平台账号或合作方联络信息</p>}
 
       <FormOverlay open={createOpen} onOpenChange={setCreateOpen} title="新建账号">
         <form onSubmit={create} className="space-y-3">
           <div className="space-y-1.5">
-            <Label>平台</Label>
+            <Label>所属平台</Label>
             <Select value={form.platform} onValueChange={(v) => setForm({ ...form, platform: v })}>
               <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -265,7 +257,7 @@ export default function AccountsTab({ project, members, myPermissions }: Props) 
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="account-account">账号 / 联系方式</Label>
+            <Label htmlFor="account-account">账号或联络标识</Label>
             <Input
               id="account-account"
               required
@@ -282,22 +274,22 @@ export default function AccountsTab({ project, members, myPermissions }: Props) 
               <div className="flex items-start gap-2">
                 <RadioGroupItem value="full" id="mode-full" className="mt-0.5" />
                 <div>
-                  <Label htmlFor="mode-full" className="font-normal">完整账号</Label>
-                  <p className="text-xs text-muted-foreground">账号 + 密码</p>
+                  <Label htmlFor="mode-full" className="font-normal">完整凭证</Label>
+                  <p className="text-xs text-muted-foreground">保存账号与加密密码</p>
                 </div>
               </div>
               <div className="flex items-start gap-2">
                 <RadioGroupItem value="otp" id="mode-otp" className="mt-0.5" />
                 <div>
                   <Label htmlFor="mode-otp" className="font-normal">二步验证</Label>
-                  <p className="text-xs text-muted-foreground">仅账号 + 添加人，便于索取验证码</p>
+                  <p className="text-xs text-muted-foreground">仅存账号与持有人联系方式，登录时联系对方取码</p>
                 </div>
               </div>
               <div className="flex items-start gap-2">
                 <RadioGroupItem value="contact" id="mode-contact" className="mt-0.5" />
                 <div>
-                  <Label htmlFor="mode-contact" className="font-normal">仅联系人</Label>
-                  <p className="text-xs text-muted-foreground">仅记录联系方式</p>
+                  <Label htmlFor="mode-contact" className="font-normal">合作方联络</Label>
+                  <p className="text-xs text-muted-foreground">仅登记场馆、印刷或供应商联络方式</p>
                 </div>
               </div>
             </RadioGroup>
@@ -305,7 +297,7 @@ export default function AccountsTab({ project, members, myPermissions }: Props) 
           {form.mode === 'full' && (
             <>
               <div className="space-y-1.5">
-                <Label htmlFor="account-password">密码</Label>
+                <Label htmlFor="account-password">登录密码</Label>
                 <Input
                   id="account-password"
                   type="password"
@@ -322,7 +314,7 @@ export default function AccountsTab({ project, members, myPermissions }: Props) 
                 >
                   <div className="flex items-center gap-2">
                     <RadioGroupItem value="user" id="ks-user" />
-                    <Label htmlFor="ks-user" className="font-normal">浏览器端加密（推荐）</Label>
+                    <Label htmlFor="ks-user" className="font-normal">浏览器端口令加密（推荐，服务端零明文）</Label>
                   </div>
                   <div className="flex items-center gap-2">
                     <RadioGroupItem value="server" id="ks-server" />
@@ -332,12 +324,12 @@ export default function AccountsTab({ project, members, myPermissions }: Props) 
               </div>
               {form.keySource === 'user' && (
                 <div className="space-y-1.5">
-                  <Label htmlFor="account-passphrase">保险库口令</Label>
+                  <Label htmlFor="account-passphrase">解密口令</Label>
                   <Input
                     id="account-passphrase"
                     type="password"
                     required
-                    placeholder="服务端不存储，遗忘无法找回"
+                    placeholder="口令不上传服务端，遗忘将无法找回"
                     value={form.passphrase}
                     onChange={(e) => setForm({ ...form, passphrase: e.target.value })}
                   />
@@ -346,7 +338,7 @@ export default function AccountsTab({ project, members, myPermissions }: Props) 
             </>
           )}
           <div className="space-y-1.5">
-            <Label htmlFor="account-note">备注</Label>
+            <Label htmlFor="account-note">备注说明（可选）</Label>
             <Textarea
               id="account-note"
               value={form.note}
@@ -357,16 +349,11 @@ export default function AccountsTab({ project, members, myPermissions }: Props) 
             <Label>可见范围</Label>
             <VisibilityPicker members={members} roles={roles} value={vis} onChange={setVis} />
           </div>
-          <Button type="submit" className="w-full">创建</Button>
+          <Button type="submit" className="w-full">保存账号</Button>
         </form>
       </FormOverlay>
 
-      <Dialog open={!!revealingId} onOpenChange={(o) => { if (!o) { setRevealingId(null); setRevealPass(''); } }}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>输入保险库口令</DialogTitle>
-            <DialogDescription>密码在你的浏览器内解密，口令不会上传。</DialogDescription>
-          </DialogHeader>
+      <FormOverlay open={!!revealingId} onOpenChange={(o) => { if (!o) { setRevealingId(null); setRevealPass(''); } }} title="输入解密口令" description="密码仅在你的浏览器本地完成解密，口令不会发送至服务器。">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -375,17 +362,16 @@ export default function AccountsTab({ project, members, myPermissions }: Props) 
             }}
             className="space-y-3"
           >
-            <Input type="password" autoFocus value={revealPass} onChange={(e) => setRevealPass(e.target.value)} />
+            <Input type="password" aria-label="解密口令" autoFocus value={revealPass} onChange={(e) => setRevealPass(e.target.value)} />
             <Button type="submit" className="w-full">解密查看</Button>
           </form>
-        </DialogContent>
-      </Dialog>
+      </FormOverlay>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>删除账号「{deleteTarget?.account}」？</AlertDialogTitle>
-            <AlertDialogDescription>该操作不可撤销。</AlertDialogDescription>
+            <AlertDialogDescription>删除后不可恢复。</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>

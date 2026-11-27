@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { ArrowRight, Download, MoreHorizontal, Paperclip, Plus, Trash2 } from 'lucide-react';
+import { Download, MoreHorizontal, Paperclip, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, authorizedFetch, downloadFile } from '../../api/client';
 import { useAuth } from '../../auth';
@@ -15,9 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   DropdownMenu,
@@ -47,7 +45,7 @@ function yuan(cents: number): string {
   return (cents / 100).toFixed(2);
 }
 function signed(cents: number): string {
-  return `${cents >= 0 ? '+' : '−'}${yuan(Math.abs(cents))}`;
+  return `${cents === 0 ? '' : cents > 0 ? '+' : '−'}¥${yuan(Math.abs(cents))}`;
 }
 function fmtDate(v: string): string {
   const d = new Date(v);
@@ -227,7 +225,7 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
   return (
     <div className="space-y-3">
       <div data-tour="tab-finance" className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-lg font-semibold">财务</h3>
+        <h1 className="editorial-heading">财务</h1>
         <div className="flex w-full flex-wrap justify-end gap-2 sm:w-auto">
           {canManage && (
             <Button variant="outline" size="sm" onClick={openTicket}>
@@ -251,11 +249,11 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
         </div>
       </div>
 
-      {err && <Card className="p-4 text-sm text-destructive">{err}</Card>}
+      {err && <p role="alert" className="py-4 text-sm text-destructive">{err}</p>}
 
       {summary && (
         <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="editorial-band grid-cols-2 lg:grid-cols-4">
             {(() => {
               const legacyCount = summary.ticketPriceCents > 0 || summary.ticketCount > 0 ? summary.ticketCount : 0;
               const breakdown = [
@@ -263,50 +261,47 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
                 ...(legacyCount > 0 ? [`门票×${legacyCount}`] : []),
               ].join(' · ');
               return [
-                { label: '门票收入', value: yuan(summary.ticketIncomeCents), cls: '', sub: breakdown },
-                { label: '记账收入', value: yuan(summary.incomeCents), cls: '', sub: '' },
-                { label: '总支出', value: yuan(summary.expenseCents), cls: '', sub: '' },
-                { label: '盈亏', value: signed(summary.profitCents), cls: summary.profitCents < 0 ? 'text-destructive' : 'text-success', sub: '' },
+                { label: '门票收入', value: `¥${yuan(summary.ticketIncomeCents)}`, cls: '', sub: breakdown },
+                { label: '其他收入', value: `¥${yuan(summary.incomeCents)}`, cls: '', sub: '' },
+                { label: '总支出', value: `¥${yuan(summary.expenseCents)}`, cls: '', sub: '' },
+                { label: '当前结余', value: summary.profitCents < 0 ? signed(summary.profitCents) : `¥${yuan(summary.profitCents)}`, cls: summary.profitCents < 0 ? 'text-destructive' : summary.profitCents > 0 ? 'text-success' : '', sub: '' },
               ].map((s) => (
-                <Card key={s.label} className="py-0">
-                  <CardContent className="p-4">
+                <div key={s.label} className="min-w-0 px-3 py-4 odd:pl-0 even:border-l max-lg:nth-[n+3]:border-t lg:not-first:border-l lg:not-first:pl-3">
                     <p className="text-xs text-muted-foreground">{s.label}</p>
-                    <p className={`mt-1 break-words text-lg font-semibold tabular-nums ${s.cls}`}>¥{s.value}</p>
-                    {s.sub && <p className="mt-0.5 truncate text-xs text-muted-foreground" title={s.sub}>{s.sub}</p>}
-                  </CardContent>
-                </Card>
+                    <p className={`mt-1 break-words text-lg font-semibold tabular-nums ${s.cls}`}>{s.value}</p>
+                    {s.sub && <p className="mt-0.5 text-xs text-muted-foreground" title={s.sub}>{s.sub}</p>}
+                </div>
               ));
             })()}
           </div>
 
-          <div className="grid items-start gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-base">按人净额</CardTitle></CardHeader>
-              <CardContent className="divide-y">
+          <div className="grid items-start gap-5 lg:grid-cols-2">
+            <section className="min-w-0 space-y-2">
+              <h2 className="editorial-subheading">按人净额</h2>
+              <div className="editorial-list">
                 {summary.perUser.map((u) => (
-                  <div key={u.userId} className="flex items-center justify-between py-2 text-sm">
-                    <span>{u.name}</span>
-                    <span className={`min-w-0 break-words text-right tabular-nums ${u.netCents < 0 ? 'text-destructive' : ''}`}>{signed(u.netCents)}</span>
+                  <div key={u.userId} className="editorial-row flex justify-between gap-3 text-sm">
+                    <span className="min-w-0">{u.name}</span>
+                    <span className={`shrink-0 text-right ${u.netCents < 0 ? 'text-destructive' : ''}`}>{signed(u.netCents)}</span>
                   </div>
                 ))}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-base">建议转账</CardTitle></CardHeader>
-              <CardContent className="space-y-1.5">
+              </div>
+            </section>
+            <section className="min-w-0 space-y-2 lg:border-l lg:pl-5">
+              <h2 className="editorial-subheading">结算转账建议</h2>
+              <div className="editorial-list">
                 {summary.settlement.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">无需转账</p>
+                  <p className="editorial-row text-sm text-muted-foreground">账目已平，无需转账</p>
                 ) : (
                   summary.settlement.map((s, i) => (
-                    <p key={i} className="break-words text-sm">
-                      {s.from.name} <ArrowRight className="inline size-3.5" /> {s.to.name}：
-                      <span className="break-words font-medium tabular-nums">¥{yuan(s.amountCents)}</span>
-                    </p>
+                    <div key={i} className="editorial-row flex justify-between gap-3 text-sm">
+                      <span className="min-w-0">{s.from.name} → {s.to.name}</span>
+                      <span className="shrink-0 font-medium">¥{yuan(s.amountCents)}</span>
+                    </div>
                   ))
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </section>
           </div>
           </>
         )}
@@ -317,53 +312,54 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
           <Skeleton className="h-28 w-full" />
         </>
       )}
-      {transactions.map((t) => (
-        <Card key={t.id} className="py-0">
-          <CardContent className="space-y-2 p-4">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                {t.type === 'income' ? (
-                  <Badge variant="success-soft">收入</Badge>
-                ) : (
-                  <Badge variant="destructive">支出</Badge>
-                )}
-                <span className="min-w-0 break-words font-semibold tabular-nums">¥{yuan(t.amountCents)}</span>
-              </div>
-              {(canManage || (canAdd && t.createdBy === user?.id)) && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" aria-label="账目操作"><MoreHorizontal className="size-4" /></Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => { setEditAmount(yuan(t.amountCents)); setEditingTx(t); }}>修改金额</DropdownMenuItem>
-                    <DropdownMenuItem variant="destructive" onClick={() => setDeletingId(t.id)}>删除</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
+      {!loading && !err && (
+        <section className="space-y-2">
+          <h2 className="editorial-subheading">收支明细 <span className="ml-2 text-xs font-normal text-muted-foreground">{transactions.length} 笔</span></h2>
+          {transactions.length === 0 ? (
+            <p className="py-4 text-sm text-muted-foreground">暂无收支记录，点击右上角「记一笔」开始记账。</p>
+          ) : (
+            <div className="editorial-list">
+              {transactions.map((t) => {
+                const income = t.type === 'income';
+                const split = t.splitAmong.length ? t.splitAmong.map((u) => u.name).join('、') : '全员';
+                const canEdit = canManage || (canAdd && t.createdBy === user?.id);
+                return (
+                  <article key={t.id} className="editorial-row grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1">
+                    <p className={`min-w-0 self-center text-sm font-medium ${t.note ? '' : 'text-muted-foreground'}`}>{t.note || `未填事由 · ${income ? '收入' : '支出'}`}</p>
+                    <div className="flex items-center justify-end gap-1">
+                      <span className={`text-right text-lg font-semibold ${income ? 'text-success' : ''}`}>{signed(income ? t.amountCents : -t.amountCents)}</span>
+                      {canEdit && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon-sm" aria-label="账目操作"><MoreHorizontal aria-hidden="true" /></Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => { setEditAmount(yuan(t.amountCents)); setEditingTx(t); }}>修改金额</DropdownMenuItem>
+                            <DropdownMenuItem variant="destructive" onClick={() => setDeletingId(t.id)}>删除</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </div>
+                    <p className="col-span-2 text-xs text-muted-foreground sm:col-span-1">
+                      {income ? '收款' : '付款'}：{t.payer.name}
+                      {!income && ` · 分摊：${split}`} · {fmtDate(t.createdAt)}
+                      {income && t.createdBy !== t.payer.userId && ` · 录入：${t.createdByName}`}
+                    </p>
+                    {t.attachments.length > 0 && (
+                      <div className="col-span-2 flex flex-wrap gap-1.5">
+                        {t.attachments.map((a) => (
+                          <Button key={a.id} variant="ghost" size="sm" className="max-w-full" onClick={() => downloadFile(a.id, a.filename)}>
+                            <Paperclip aria-hidden="true" /><span className="min-w-0 wrap-anywhere">{a.filename}</span>
+                          </Button>
+                        ))}
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
             </div>
-            <div className="text-sm text-muted-foreground">
-              <p>{t.type === 'income' ? '收款' : '付款'}：{t.payer.name}</p>
-              {t.type === 'expense' && (
-                <p>平摊：{t.splitAmong.length ? t.splitAmong.map((u) => u.name).join('、') : '全员'}</p>
-              )}
-              <p>添加人 {t.createdByName} ｜ {fmtDate(t.createdAt)}</p>
-            </div>
-            {t.note && <p className="text-sm">{t.note}</p>}
-            {t.attachments.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {t.attachments.map((a) => (
-                  <Button key={a.id} variant="outline" size="sm" className="max-w-full" onClick={() => downloadFile(a.id, a.filename)}>
-                    <Paperclip className="size-3.5" />
-                    <span className="min-w-0 truncate" title={a.filename}>{a.filename}</span>
-                  </Button>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      ))}
-      {!loading && !err && !transactions.length && (
-        <Card className="p-8 text-center text-sm text-muted-foreground">暂无账目。</Card>
+          )}
+        </section>
       )}
 
       <FormOverlay open={!!editingTx} onOpenChange={(open) => { if (!open && !savingAmount) setEditingTx(null); }} title="修改金额">
@@ -390,7 +386,7 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
         </form>
       </FormOverlay>
 
-      <FormOverlay open={ticketOpen} onOpenChange={setTicketOpen} title="门票设置">
+      <FormOverlay open={ticketOpen} onOpenChange={setTicketOpen} title="门票收入设置">
         <div className="space-y-3">
           <div className="space-y-2">
             {ticketRows.map((r, i) => (
@@ -398,7 +394,7 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
                 <div className="min-w-0 flex-1 space-y-1.5">
                   {i === 0 && <Label>票种名称</Label>}
                   <Input
-                    placeholder="如：预售票"
+                    placeholder="如：早鸟预售票"
                     value={r.name}
                     onChange={(e) => setTicketRow(i, { name: e.target.value })}
                   />
@@ -415,7 +411,7 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
                   />
                 </div>
                 <div className="w-20 space-y-1.5">
-                  {i === 0 && <Label>数量</Label>}
+                  {i === 0 && <Label>售出数量</Label>}
                   <Input
                     type="number"
                     min="0"
@@ -446,16 +442,16 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
             <Plus className="size-4" /> 添加票种
           </Button>
           <p className="text-sm text-muted-foreground">
-            门票收入：<span className="font-medium text-foreground tabular-nums">¥{yuan(ticketTotalCents)}</span>（实时计入盈亏）
+            门票合计收入：<span className="font-medium text-foreground tabular-nums">¥{yuan(ticketTotalCents)}</span>（自动计入活动总收入与结余）
           </p>
-          <Button className="w-full" onClick={saveTicket}>保存门票设置</Button>
+          <Button className="w-full" onClick={saveTicket}>保存设置</Button>
         </div>
       </FormOverlay>
 
-      <FormOverlay open={exportOpen} onOpenChange={setExportOpen} title="导出 CSV">
+      <FormOverlay open={exportOpen} onOpenChange={setExportOpen} title="导出账目明细（CSV）">
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label>成员</Label>
+            <Label>结算视角成员</Label>
             <Select value={exportUserId || 'me'} onValueChange={(v) => setExportUserId(v === 'me' ? '' : v)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -464,7 +460,7 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
               </SelectContent>
             </Select>
           </div>
-          <Button className="w-full" onClick={exportCsv}>导出该成员账目</Button>
+          <Button className="w-full" onClick={exportCsv}>导出 CSV 文件</Button>
         </div>
       </FormOverlay>
 
@@ -472,7 +468,7 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
         <form onSubmit={create} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>类型</Label>
+              <Label>收支类型</Label>
               <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v as 'income' | 'expense' })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -488,7 +484,7 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
                 type="number"
                 step="0.01"
                 min="0.01"
-                placeholder="金额（元）"
+                placeholder="0.00"
                 value={form.amount}
                 onChange={(e) => setForm({ ...form, amount: e.target.value })}
                 required
@@ -506,7 +502,7 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
           </div>
           {form.type === 'expense' && (
             <div className="space-y-1.5">
-              <Label>参与平摊人（不选 = 全员）</Label>
+              <Label>分摊范围（不勾选默认全员平摊）</Label>
               <div className="flex flex-wrap gap-1.5">
                 {members.map((m) => (
                   <label
@@ -530,15 +526,16 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
             </div>
           )}
           <div className="space-y-1.5">
-            <Label htmlFor="entry-note">备注</Label>
+            <Label htmlFor="entry-note">账目事由</Label>
             <Textarea
               id="entry-note"
+              placeholder="如：舞台桁架定金、场刊印刷尾款"
               value={form.note}
               onChange={(e) => setForm({ ...form, note: e.target.value })}
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="entry-files">凭证</Label>
+            <Label htmlFor="entry-files">凭证附件</Label>
             <Input
               id="entry-files"
               type="file"
@@ -553,8 +550,8 @@ export default function FinanceTab({ project, members, myPermissions }: Props) {
       <AlertDialog open={!!deletingId} onOpenChange={(o) => !o && setDeletingId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>删除账目？</AlertDialogTitle>
-            <AlertDialogDescription>该操作不可撤销。</AlertDialogDescription>
+            <AlertDialogTitle>删除这笔账目？</AlertDialogTitle>
+            <AlertDialogDescription>删除后将重新计算净额与结算建议，且不可恢复。</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>

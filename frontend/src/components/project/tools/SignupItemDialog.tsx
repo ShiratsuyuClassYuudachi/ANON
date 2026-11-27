@@ -103,6 +103,7 @@ export default function SignupItemDialog({ open, onOpenChange, base, item, onSav
                 type="button"
                 variant="ghost"
                 size="icon"
+                aria-label="移除报名人"
                 onClick={() => setParticipants((prev) => prev.filter((_, j) => j !== i))}
               >
                 <X className="size-4" />

@@ -1,6 +1,6 @@
-import { Check, ClipboardList, MoreHorizontal, Pencil, Plus, Printer, Trash2, Users } from 'lucide-react';
+import { Check, MoreHorizontal, Pencil, Plus, Printer, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
 import { useAuth } from '../../auth';
@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -143,80 +143,80 @@ export default function WorkTab({ project, members, externalMembers, myPermissio
   const myItems = (modules ?? []).filter((m) => user && m.assignees.some((a) => a.userId === user.id));
   const myAssignment = (m: WorkModuleItem) => m.assignees.find((a) => a.userId === user?.id);
 
-  if (err) return <Card><CardContent className="p-4 text-sm text-destructive">{err}</CardContent></Card>;
+  if (err) return <p role="alert" className="py-4 text-sm text-destructive">{err}</p>;
   if (!modules) return <div className="space-y-3"><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></div>;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2" data-tour="tab-work">
-        <h3 className="text-lg font-semibold">现场</h3>
+      <div className="flex flex-wrap items-center gap-2" data-tour="tab-work">
+        <h1 className="editorial-heading mr-auto">现场</h1>
+        <Button asChild variant="outline" size="sm"><Link to={`/p/${project.id}/onsite`}>进入现场模式</Link></Button>
         {canManage && (
-          <Button size="sm" onClick={openCreate}><Plus className="size-4" /> 新建模块</Button>
+          <Button size="sm" onClick={openCreate}><Plus className="size-4" /> 新建岗位</Button>
         )}
       </div>
 
-      {/* 我的任务单（全体成员可见） */}
-      <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-base">我的任务单</CardTitle>
+      {/* 我的排班（全体成员可见） */}
+      <section className="space-y-3">
+        <header className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="editorial-subheading">我的排班</h2>
           <Button variant="outline" size="sm" onClick={() => printSheet('me')}>
-            <Printer className="size-4" /> 打印任务单
+            <Printer className="size-4" /> 打印个人排班单
           </Button>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {myItems.length === 0 && <p className="text-sm text-muted-foreground">暂无分配给你的任务</p>}
+        </header>
+        <div className={myItems.length ? 'editorial-list' : ''}>
+          {myItems.length === 0 && <p className="text-sm text-muted-foreground">暂未给你安排现场岗位</p>}
           {myItems.map((m) => {
             const a = myAssignment(m)!;
             return (
-              <div key={m.id} className="flex items-start justify-between gap-2">
+              <div key={m.id} className="editorial-row flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <p className="font-medium">{m.name}</p>
                   <p className="text-sm text-muted-foreground">
-                    {[fmtRange(m), m.location].filter(Boolean).join(' ｜ ')}
+                    {[fmtRange(m), m.location].filter(Boolean).join(' · ')}
                   </p>
                   {m.description && <p className="text-sm">{m.description}</p>}
                 </div>
                 {a.confirmedAt ? (
                   <Badge variant="success-soft" className="shrink-0">
-                    已确认 {fmtLocal(a.confirmedAt)}
+                    已确认 · {fmtLocal(a.confirmedAt)}
                   </Badge>
                 ) : (
-                  <Button size="sm" className="shrink-0" onClick={() => setConfirmed(m.id, true)}>确认</Button>
+                  <Button size="sm" className="shrink-0" onClick={() => setConfirmed(m.id, true)}>确认到岗</Button>
                 )}
               </div>
             );
           })}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       {/* 模块管理（work:manage） */}
       {canManage && (
         <div className="space-y-3">
-          <h4 className="text-sm font-medium text-muted-foreground">任务模块（{modules.length}）</h4>
+          <h2 className="editorial-subheading">现场岗位（{modules.length}）</h2>
           {modules.length === 0 && (
-            <Card className="flex flex-col items-center gap-3 py-10 text-center">
-              <ClipboardList className="size-8 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">还没有任务模块，点击「新建模块」开始分工</p>
-            </Card>
+            <div className="py-8 text-center">
+              <p className="text-sm text-muted-foreground">还没有设置现场岗位，点击右上角「新建岗位」开始排班。</p>
+            </div>
           )}
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3 lg:grid-cols-2">
             {modules.map((m) => {
               const shortage = m.requiredCount - (m.assignees.length + (m.externalAssignees?.length ?? 0));
               return (
-                <Card key={m.id}>
+                <Card key={m.id} className="editorial-card">
                   <CardContent className="space-y-2 p-4">
                     <div className="flex items-start justify-between gap-2">
-                      <div>
+                      <div className="min-w-0">
                         <p className="font-medium">{m.name}</p>
                         <div className="mt-1 flex flex-wrap gap-1.5">
                           <Badge variant="secondary">需 {m.requiredCount} 人</Badge>
-                          <Badge variant="outline">已分配 {(m.assignees.length + (m.externalAssignees?.length ?? 0))}</Badge>
-                          {shortage > 0 && <Badge variant="destructive">缺 {shortage}</Badge>}
+                          <Badge variant="outline">已排 {(m.assignees.length + (m.externalAssignees?.length ?? 0))} 人</Badge>
+                          {shortage > 0 && <Badge variant="destructive">缺 {shortage} 人</Badge>}
                         </div>
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" aria-label="模块操作"><MoreHorizontal className="size-4" /></Button>
+                          <Button variant="ghost" size="icon" aria-label="岗位操作"><MoreHorizontal className="size-4" /></Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => openEdit(m)}><Pencil className="size-4" /> 编辑</DropdownMenuItem>
@@ -225,11 +225,11 @@ export default function WorkTab({ project, members, externalMembers, myPermissio
                       </DropdownMenu>
                     </div>
                     {(fmtRange(m) || m.location) && (
-                      <p className="text-sm text-muted-foreground">{[fmtRange(m), m.location].filter(Boolean).join(' ｜ ')}</p>
+                      <p className="text-sm text-muted-foreground">{[fmtRange(m), m.location].filter(Boolean).join(' · ')}</p>
                     )}
                     {m.description && <p className="text-sm">{m.description}</p>}
                     {(m.assignees.length + (m.externalAssignees?.length ?? 0)) > 0 && (
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="flex flex-wrap gap-1.5 border-t pt-2">
                         {[...m.assignees.map((a) => ({ ...a, key: a.userId, target: { userId: a.userId }, label: a.name })),
                           ...(m.externalAssignees ?? []).map((a) => ({ ...a, key: `external:${a.externalMemberId}`, target: { externalMemberId: a.externalMemberId }, label: `${a.name}（${a.archivedAt ? '已归档' : '未注册'}）` }))].map((a) => (
                           <DropdownMenu key={a.key}>
@@ -251,42 +251,42 @@ export default function WorkTab({ project, members, externalMembers, myPermissio
         </div>
       )}
 
-      {/* 成员任务单（work:manage） */}
+      {/* 全员排班单（work:manage） */}
       {canManage && (
-        <Card>
-          <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-base flex items-center gap-1.5"><Users className="size-4" /> 成员任务单</CardTitle>
+        <section className="space-y-3">
+          <header className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="editorial-subheading">全员排班单</h2>
             <Button variant="outline" size="sm" onClick={() => printSheet('all')}>
-              <Printer className="size-4" /> 打印全员任务单
+              <Printer className="size-4" /> 打印全员排班单
             </Button>
-          </CardHeader>
-          <CardContent className="divide-y">
+          </header>
+          <div className="editorial-list">
             {members.map((mb) => {
               const cnt = modules.filter((m) => m.assignees.some((a) => a.userId === mb.userId)).length;
               return (
-                <div key={mb.userId} className="flex items-center justify-between py-2 text-sm">
-                  <span>{mb.name} <span className="text-muted-foreground">（{cnt} 项任务）</span></span>
-                  <Button variant="ghost" size="sm" onClick={() => printSheet(mb.userId)}>任务单</Button>
+                <div key={mb.userId} className="editorial-row flex items-center justify-between gap-2 text-sm">
+                  <span>{mb.name} <span className="text-muted-foreground">（{cnt} 个岗位）</span></span>
+                  <Button variant="ghost" size="sm" onClick={() => printSheet(mb.userId)}>预览打印</Button>
                 </div>
               );
             })}
             {externalMembers.filter((mb) => (!mb.linkedUserId || !members.some((u) => u.userId === mb.linkedUserId)) && (!mb.archivedAt || modules.some((m) => m.externalAssignees?.some((a) => a.externalMemberId === mb.id)))).map((mb) => {
               const cnt = modules.filter((m) => m.externalAssignees?.some((a) => a.externalMemberId === mb.id)).length;
-              return <div key={mb.id} className="flex items-center justify-between gap-2 py-2 text-sm">
-                <span>{mb.name} <span className="text-muted-foreground">（{mb.archivedAt ? '已归档' : '未注册'} · {cnt} 项任务）</span></span>
-                <Button variant="ghost" size="sm" onClick={() => printSheet(`external:${mb.id}`)}>任务单</Button>
+              return <div key={mb.id} className="editorial-row flex items-center justify-between gap-2 text-sm">
+                <span>{mb.name} <span className="text-muted-foreground">（{mb.archivedAt ? '已归档' : '未注册'} · {cnt} 个岗位）</span></span>
+                <Button variant="ghost" size="sm" onClick={() => printSheet(`external:${mb.id}`)}>预览打印</Button>
               </div>;
             })}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       )}
 
       {/* 新建/编辑弹层 */}
-      <FormOverlay open={editOpen} onOpenChange={setEditOpen} title={editing ? '编辑模块' : '新建模块'}>
+      <FormOverlay open={editOpen} onOpenChange={setEditOpen} title={editing ? '编辑岗位' : '新建岗位'}>
         <form onSubmit={save} className="space-y-3">
           <div className="space-y-1.5">
-            <Label htmlFor="wm-name">模块名称</Label>
-            <Input id="wm-name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="如：检票 / 舞台协助" />
+            <Label htmlFor="wm-name">岗位名称</Label>
+            <Input id="wm-name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="如：正门检票、主舞台催场" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -300,25 +300,25 @@ export default function WorkTab({ project, members, externalMembers, myPermissio
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="wm-loc">地点</Label>
+              <Label htmlFor="wm-loc">执勤地点</Label>
               <Input id="wm-loc" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="wm-req">所需人力</Label>
+              <Label htmlFor="wm-req">所需人数</Label>
               <Input id="wm-req" type="number" min={1} step={1} required value={form.requiredCount} onChange={(e) => setForm({ ...form, requiredCount: e.target.value })} />
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label>分配成员（{assigneeIds.length + externalAssigneeIds.length}）</Label>
+            <Label>排班人员（已选 {assigneeIds.length + externalAssigneeIds.length} 人）</Label>
             <TaskAssigneePicker members={members} externalMembers={externalMembers} assigneeIds={assigneeIds} externalAssigneeIds={externalAssigneeIds}
               keptExternalIds={editing?.externalAssignees?.map((a) => a.externalMemberId) ?? []}
               onUsersChange={setAssigneeIds} onExternalChange={setExternalAssigneeIds} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="wm-desc">工作内容</Label>
+            <Label htmlFor="wm-desc">工作内容与注意事项</Label>
             <Textarea id="wm-desc" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
           </div>
-          <Button type="submit" className="w-full">{editing ? '保存' : '创建'}</Button>
+          <Button type="submit" className="w-full">{editing ? '保存修改' : '创建岗位'}</Button>
         </form>
       </FormOverlay>
 
@@ -326,8 +326,8 @@ export default function WorkTab({ project, members, externalMembers, myPermissio
       <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>删除模块「{deleting?.name}」？</AlertDialogTitle>
-            <AlertDialogDescription>分配与确认记录将一并删除，该操作不可撤销。</AlertDialogDescription>
+            <AlertDialogTitle>删除岗位「{deleting?.name}」？</AlertDialogTitle>
+            <AlertDialogDescription>该岗位下的人员排班与确认签到记录将一并删除，不可恢复。</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>

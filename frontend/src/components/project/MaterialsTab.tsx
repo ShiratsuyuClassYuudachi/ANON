@@ -27,7 +27,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import {
   DropdownMenu,
@@ -83,10 +83,10 @@ function UploadErrorDialog({ message, onClose }: { message: string; onClose: () 
 
 function categoryLabel(typeId: string, categories: ResourceTypeItem[]): string {
   const type = categories.find((item) => item.id === typeId);
-  if (!type) return '受限类别';
+  if (!type) return '受限分类';
   if (!type.parentId) return type.name;
   const parent = categories.find((item) => item.id === type.parentId);
-  return `${parent?.name ?? '受限类别'} / ${type.name}`;
+  return `${parent?.name ?? '受限分类'} / ${type.name}`;
 }
 
 function ResourceCard({
@@ -180,7 +180,7 @@ function ResourceCard({
     try {
       await api(base, { method: 'PATCH', body: editDraft });
       setEditDraft(null);
-      await onChanged().catch((error) => toast.error(`资源已保存，列表刷新失败：${(error as Error).message}`));
+      await onChanged().catch((error) => toast.error(`资料已保存，列表刷新失败：${(error as Error).message}`));
     } catch (error) {
       toast.error((error as Error).message);
     } finally {
@@ -192,15 +192,15 @@ function ResourceCard({
   const kind = previewKindOf(selectedVersion?.file?.mime, selectedVersion?.file?.filename);
 
   return (
-    <Card className="min-w-0 gap-0 py-0">
+    <Card className="editorial-card h-full gap-0 py-0">
       <CardContent className="space-y-3 p-4">
-        <div className="flex h-20 items-start gap-3">
+        <div className="flex min-h-20 items-start gap-2 sm:gap-3">
           {selectedVersion?.hasPreview && kind ? (
             <button
               type="button"
               onClick={() => setZoom(true)}
               aria-label={`预览 ${resource.name}`}
-              className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {kind === 'image' && (
                 <AuthImg
@@ -215,15 +215,15 @@ function ResourceCard({
               {kind === 'markdown' && <FileType2 className="size-7 text-muted-foreground" />}
             </button>
           ) : (
-            <div className="flex size-20 shrink-0 items-center justify-center rounded-lg border border-dashed bg-muted/40 text-muted-foreground">
+            <div className="flex size-20 shrink-0 items-center justify-center rounded-lg bg-muted/40 text-muted-foreground">
               <File className="size-7" aria-hidden="true" />
               <span className="sr-only">{resource.latestVersion ? '文件暂无预览' : '暂无版本'}</span>
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <p className="line-clamp-2 h-10 break-all text-sm font-medium leading-5" title={resource.name}>{resource.name}</p>
-            <div className="mt-2 flex min-w-0 items-center gap-1.5">
-              <Badge variant="secondary" className="min-w-0 shrink"><span className="truncate" title={categoryLabel(resource.typeId, categories)}>{categoryLabel(resource.typeId, categories)}</span></Badge>
+            <p className="line-clamp-2 wrap-anywhere text-sm font-medium leading-5" title={resource.name}>{resource.name}</p>
+            <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
+              <Badge variant="secondary" className="min-w-0 shrink"><span className="wrap-anywhere" title={categoryLabel(resource.typeId, categories)}>{categoryLabel(resource.typeId, categories)}</span></Badge>
               <Badge variant="outline" className="shrink-0">v{selected || resource.latestVersion || '—'}</Badge>
             </div>
           </div>
@@ -233,7 +233,7 @@ function ResourceCard({
                 <Button variant="ghost" size="icon" className="shrink-0" aria-label={`管理 ${resource.name}`}><MoreHorizontal className="size-4" /></Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setEditDraft({ name: resource.name, description: resource.description, typeId: resource.typeId })}>编辑资源</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setEditDraft({ name: resource.name, description: resource.description, typeId: resource.typeId })}>编辑资料</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setUploadOpen(true)}>上传新版本</DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => {
@@ -257,7 +257,7 @@ function ResourceCard({
           onClick={() => setExpanded(!expanded)}
         >
           {expanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
-          {expanded ? '收起详情' : '展开详情'}
+          {expanded ? '收起详情' : '展开详情与下载'}
         </Button>
         {expanded && (
           <div id={`resource-details-${resource.id}`} className="space-y-3 border-t pt-3">
@@ -266,7 +266,7 @@ function ResourceCard({
             {versions.length > 0 ? (
               <div className="flex flex-wrap items-center gap-2">
                 <Select value={String(selected)} onValueChange={(v) => setSelected(Number(v))}>
-                  <SelectTrigger className="w-28" aria-label="选择资源版本"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-28" aria-label="选择资料版本"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {versions.map((v) => (
                       <SelectItem key={v.version} value={String(v.version)}>v{v.version}</SelectItem>
@@ -284,37 +284,37 @@ function ResourceCard({
                     )
                   }
                 >
-                  <Download className="size-4" /> 下载该版本
+                  <Download className="size-4" /> 下载当前版本
                 </Button>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">暂无版本{canManage ? '，可通过右上角菜单上传文件。' : '。'}</p>
+              <p className="text-sm text-muted-foreground">{canManage ? '暂未上传文件，可通过右上角菜单上传初始版本。' : '暂未上传文件。'}</p>
             )}
           </div>
         )}
       </CardContent>
 
       {canManage && (
-        <FormOverlay open={!!editDraft} onOpenChange={(open) => { if (!open && !savingEdit) setEditDraft(null); }} title="编辑资源">
+        <FormOverlay open={!!editDraft} onOpenChange={(open) => { if (!open && !savingEdit) setEditDraft(null); }} title="编辑资料">
           {editDraft && (
             <form className="space-y-3" onSubmit={saveEdit}>
               <fieldset disabled={savingEdit} className="space-y-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor={`edit-resource-name-${resource.id}`}>资源名称</Label>
+                  <Label htmlFor={`edit-resource-name-${resource.id}`}>资料名称</Label>
                   <Input id={`edit-resource-name-${resource.id}`} value={editDraft.name} required onChange={(event) => setEditDraft({ ...editDraft, name: event.target.value })} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>所属类别</Label>
+                  <Label>所属分类</Label>
                   <Select value={editDraft.typeId} onValueChange={(typeId) => setEditDraft({ ...editDraft, typeId })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {!categories.some((type) => type.id === editDraft.typeId) && <SelectItem value={editDraft.typeId}>受限类别（保留当前）</SelectItem>}
+                      {!categories.some((type) => type.id === editDraft.typeId) && <SelectItem value={editDraft.typeId}>受限分类（保留当前）</SelectItem>}
                       {categories.map((type) => <SelectItem key={type.id} value={type.id}>{categoryLabel(type.id, categories)}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor={`edit-resource-description-${resource.id}`}>描述</Label>
+                  <Label htmlFor={`edit-resource-description-${resource.id}`}>资料说明（可选）</Label>
                   <Textarea id={`edit-resource-description-${resource.id}`} value={editDraft.description} onChange={(event) => setEditDraft({ ...editDraft, description: event.target.value })} />
                 </div>
                 <div className="flex justify-end gap-2">
@@ -328,7 +328,7 @@ function ResourceCard({
       )}
 
       {canManage && (
-        <FormOverlay open={showVis} onOpenChange={setShowVis} title="资源可见范围">
+        <FormOverlay open={showVis} onOpenChange={setShowVis} title="资料可见范围">
           <div className="space-y-3">
             <VisibilityPicker members={members} roles={roles} value={visDraft} onChange={setVisDraft} />
             <div className="flex gap-2">
@@ -362,7 +362,7 @@ function ResourceCard({
       <FormOverlay open={uploadOpen} onOpenChange={(open) => { if (!uploading) setUploadOpen(open); }} title="上传新版本">
         <fieldset disabled={uploading} className="space-y-3">
           <div className="space-y-1.5">
-            <Label htmlFor={`upload-file-${resource.id}`}>文件</Label>
+            <Label htmlFor={`upload-file-${resource.id}`}>选择文件</Label>
             <Input
               id={`upload-file-${resource.id}`}
               type="file"
@@ -378,7 +378,7 @@ function ResourceCard({
                 }
               }}
             />
-            <p className="text-xs text-muted-foreground">单个文件最大 1 GB（1024 MB）</p>
+            <p className="text-xs text-muted-foreground">单个文件最大支持 1 GB</p>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor={`upload-note-${resource.id}`}>版本备注（可选）</Label>
@@ -390,7 +390,7 @@ function ResourceCard({
             />
           </div>
           {uploading && <MaterialUploadProgress percent={uploadPercent} />}
-          <Button className="w-full" disabled={uploading} onClick={uploadVersion}>{uploading ? '上传中…' : '上传'}</Button>
+          <Button className="w-full" disabled={uploading} onClick={uploadVersion}>{uploading ? '上传中…' : '开始上传'}</Button>
         </fieldset>
       </FormOverlay>
 
@@ -399,8 +399,8 @@ function ResourceCard({
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>删除该资源及其全部版本？</AlertDialogTitle>
-            <AlertDialogDescription>该操作不可撤销。</AlertDialogDescription>
+            <AlertDialogTitle>删除该资料及其全部历史版本？</AlertDialogTitle>
+            <AlertDialogDescription>删除后不可恢复。</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
@@ -481,10 +481,9 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
       types.filter((type) => !type.parentId).map((type) => ({ id: type.id, name: type.name, type, restricted: false }));
     const rootIds = new Set(roots.map((root) => root.id));
     const missingParents = [...new Set(types.map((type) => type.parentId).filter((id): id is string => !!id && !rootIds.has(id)))];
-    for (const id of missingParents) roots.push({ id, name: '受限类别', type: null, restricted: true });
+    for (const id of missingParents) roots.push({ id, name: '受限分类', type: null, restricted: true });
     return roots;
   })();
-  const selectedRoot = rootOptions.find((root) => root.id === filterRoot);
   const selectedChildren = filterRoot ? types.filter((type) => type.parentId === filterRoot) : [];
   const rootTypes = types.filter((type) => !type.parentId);
   const categoryCanChangeParent = !categoryDraft?.id || !!categoryDraft.parentId || !types.some((type) => type.parentId === categoryDraft.id);
@@ -586,7 +585,7 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
       if (resFileInput.current) resFileInput.current.value = '';
       setResNote('');
       setResourceOpen(false);
-      await load().catch((error) => toast.error('资源已创建，列表刷新失败：' + (error as Error).message));
+      await load().catch((error) => toast.error('资料已创建，列表刷新失败：' + (error as Error).message));
     } catch (error) {
       if (resFile) setUploadError((error as Error).message);
       else toast.error((error as Error).message);
@@ -608,14 +607,14 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
 
   const viewSwitcher = (
     <Tabs value={view} onValueChange={(value) => setView(value as 'digital' | 'physical')}>
-      <TabsList><TabsTrigger value="digital">数字资源</TabsTrigger><TabsTrigger value="physical">实物清单</TabsTrigger></TabsList>
+      <TabsList><TabsTrigger value="digital">文件资料</TabsTrigger><TabsTrigger value="physical">实物清单</TabsTrigger></TabsList>
     </Tabs>
   );
 
   if (view === 'physical') {
     return (
       <div className="space-y-3">
-        <div data-tour="tab-materials" className="flex items-center justify-between gap-2"><h3 className="text-lg font-semibold">物料</h3>{viewSwitcher}</div>
+        <div data-tour="tab-materials" className="flex items-center justify-between gap-2"><h1 className="editorial-heading">物料</h1>{viewSwitcher}</div>
         <PhysicalTab project={project} members={members} myPermissions={myPermissions} />
       </div>
     );
@@ -623,51 +622,51 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
 
   return (
     <div className="space-y-3">
-      <div data-tour="tab-materials" className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-lg font-semibold">物料</h3>{viewSwitcher}</div>
-      {err && <Card className="p-4 text-sm text-destructive">{err}</Card>}
+      <div data-tour="tab-materials" className="flex flex-wrap items-center justify-between gap-2"><h1 className="editorial-heading">物料</h1>{viewSwitcher}</div>
+      {err && <p role="alert" className="py-4 text-sm text-destructive">{err}</p>}
 
       {categoryView ? (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setCategoryView(false)}><ArrowLeft className="size-4" /> 返回资源</Button>
-              <h4 className="text-base font-semibold">类别管理</h4>
+              <Button variant="ghost" size="sm" onClick={() => setCategoryView(false)}><ArrowLeft className="size-4" /> 返回资料列表</Button>
+              <h2 className="editorial-subheading">资料分类管理</h2>
             </div>
-            <Button size="sm" onClick={() => openNewCategory()}><Plus className="size-4" /> 新建一级类别</Button>
+            <Button size="sm" onClick={() => openNewCategory()}><Plus className="size-4" /> 新建一级分类</Button>
           </div>
           {rootOptions.length ? rootOptions.map((root) => {
             const children = types.filter((type) => type.parentId === root.id);
             return (
-              <Card key={root.id}>
-                <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-                  <CardTitle className="min-w-0 truncate text-base">{root.name}</CardTitle>
+              <section key={root.id} className="border-t py-2">
+                <header className="flex flex-wrap items-center justify-between gap-2 py-2">
+                  <h3 className="editorial-subheading min-w-0 wrap-anywhere">{root.name}</h3>
                   {!root.restricted && root.type && (
                     <div className="flex shrink-0 items-center gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => openNewCategory(root.id)}><Plus className="size-4" /> 添加子类</Button>
+                      <Button variant="ghost" size="sm" onClick={() => openNewCategory(root.id)}><Plus className="size-4" /> 新建二级分类</Button>
                       <Button variant="ghost" size="icon" aria-label={'编辑' + root.name} onClick={() => openEditCategory(root.type!)}><Pencil className="size-4" /></Button>
                       <Button variant="ghost" size="icon" aria-label={'删除' + root.name} disabled={children.length > 0} onClick={() => setDeleteTypeFor(root.type)}><Trash2 className="size-4" /></Button>
                     </div>
                   )}
-                  {root.restricted && <span className="text-xs text-muted-foreground">父类别不可见</span>}
-                </CardHeader>
+                  {root.restricted && <span className="text-xs text-muted-foreground">父分类不可见</span>}
+                </header>
                 {children.length > 0 && (
-                  <CardContent className="space-y-1 pt-0">
+                  <div className="editorial-list ml-3">
                     {children.map((child) => (
-                      <div key={child.id} className="flex min-w-0 items-center gap-2 border-l pl-3">
+                      <div key={child.id} className="editorial-row flex flex-wrap items-center gap-2 pl-3">
                         <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-                        <span className="min-w-0 flex-1 truncate text-sm">{child.name}</span>
+                        <span className="min-w-0 flex-1 wrap-anywhere text-sm">{child.name}</span>
                         <div className="flex shrink-0 items-center gap-1">
                           <Button variant="ghost" size="sm" onClick={() => openEditCategory(child)}><Pencil className="size-4" /> 编辑</Button>
                           <Button variant="ghost" size="icon" aria-label={'删除' + child.name} onClick={() => setDeleteTypeFor(child)}><Trash2 className="size-4" /></Button>
                         </div>
                       </div>
                     ))}
-                  </CardContent>
+                  </div>
                 )}
-                {!children.length && root.restricted && <CardContent className="pt-0 text-sm text-muted-foreground">暂无可见子类别。</CardContent>}
-              </Card>
+                {!children.length && root.restricted && <p className="text-sm text-muted-foreground">暂无可见子分类。</p>}
+              </section>
             );
-          }) : !loading && !err && <Card className="p-4 text-sm text-muted-foreground">还没有类别，先新建一级类别。</Card>}
+          }) : !loading && !err && <p className="py-4 text-sm text-muted-foreground">还没有分类，先新建一级分类。</p>}
         </div>
       ) : (
         <>
@@ -675,73 +674,73 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
             <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
               <div className="relative min-w-0 w-full sm:flex-1 sm:max-w-sm">
                 <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input aria-label="搜索物料资源" placeholder="搜索名称或描述" className="pl-9" value={search} onChange={(event) => setSearch(event.target.value)} />
+                <Input aria-label="搜索文件资料" placeholder="搜索资料名称或说明" className="pl-9" value={search} onChange={(event) => setSearch(event.target.value)} />
               </div>
               <Select value={sort} onValueChange={(value) => setSort(value as 'newest' | 'oldest' | 'name')}>
-                <SelectTrigger className="w-full sm:w-40" aria-label="资源排序"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-full sm:w-40" aria-label="资料排序"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="newest">最新创建</SelectItem><SelectItem value="oldest">最早创建</SelectItem><SelectItem value="name">名称排序</SelectItem>
+                  <SelectItem value="newest">最新上传</SelectItem><SelectItem value="oldest">最早上传</SelectItem><SelectItem value="name">按名称排序</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             {canManage && (
               <div className="flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" onClick={() => setCategoryView(true)}>类别管理</Button>
-                <Button size="sm" disabled={loading || !types.length} onClick={openNewResource}><Plus className="size-4" /> 新建资源</Button>
+                <Button variant="outline" size="sm" onClick={() => setCategoryView(true)}>分类管理</Button>
+                <Button size="sm" disabled={loading || !types.length} onClick={openNewResource}><Plus className="size-4" /> 新建资料</Button>
               </div>
             )}
           </div>
 
-          <Card className="space-y-3 p-3">
+          <div className="space-y-3 border-b pb-2">
             <div className="grid gap-2 sm:grid-cols-2">
               <Select value={filterRoot || 'all'} onValueChange={(value) => { const next = value === 'all' ? '' : value; if (next !== filterRoot || filterChild !== 'all') setLoading(true); setFilterRoot(next); setFilterChild('all'); }}>
-                <SelectTrigger className="w-full min-w-0" aria-label="一级类别"><SelectValue placeholder="全部一级类别" /></SelectTrigger>
+                <SelectTrigger className="w-full min-w-0" aria-label="一级分类"><SelectValue placeholder="全部一级分类" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">全部一级类别</SelectItem>
+                  <SelectItem value="all">全部一级分类</SelectItem>
                   {rootOptions.map((root) => <SelectItem key={root.id} value={root.id}>{root.name}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={filterChild} disabled={!filterRoot} onValueChange={(value) => { if (value !== filterChild) setLoading(true); setFilterChild(value); }}>
-                <SelectTrigger className="w-full min-w-0" aria-label="二级类别"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-full min-w-0" aria-label="二级分类"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">全部（含一级直属）</SelectItem>
-                  <SelectItem value="direct">{selectedRoot?.name ?? '一级类别'}直属资源</SelectItem>
+                  <SelectItem value="all">本分类及子分类</SelectItem>
+                  <SelectItem value="direct">仅本分类</SelectItem>
                   {selectedChildren.map((child) => <SelectItem key={child.id} value={child.id}>{child.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-              <span className="text-muted-foreground" role="status" aria-busy={loading}>{loading ? '加载中…' : `找到 ${visible.length} 项`}</span>
+              <span className="text-muted-foreground" role="status" aria-busy={loading}>{loading ? '正在加载…' : `共 ${visible.length} 份资料`}</span>
               <Button variant="ghost" size="sm" disabled={!filterRoot && !search && sort === 'newest'} onClick={() => { if (filterRoot || filterChild !== 'all') setLoading(true); setFilterRoot(''); setFilterChild('all'); setSearch(''); setSort('newest'); }}>清空筛选</Button>
             </div>
-          </Card>
+          </div>
 
-          <div className="grid items-start gap-3 md:grid-cols-2" aria-busy={loading}>
+          <div className="grid gap-3 lg:grid-cols-2" aria-busy={loading}>
             {loading ? (
               <><Skeleton className="h-40 w-full" /><Skeleton className="h-40 w-full" /></>
             ) : !err && visible.map((resource) => (
               <ResourceCard key={resource.id} project={project} resource={resource} categories={types} members={members} roles={roles} canManage={canManage} onChanged={load} />
             ))}
           </div>
-          {!loading && !err && !visible.length && <p className="py-6 text-center text-sm text-muted-foreground">{search.trim() ? '没有符合搜索条件的资源。' : '暂无资源。'}</p>}
+          {!loading && !err && !visible.length && <p className="py-6 text-center text-sm text-muted-foreground">{!types.length ? '请先在「分类管理」中创建一级分类，再新建资料。' : search.trim() || filterRoot ? '没有找到匹配的资料' : '还没有上传文件资料'}</p>}
         </>
       )}
 
-      <FormOverlay open={resourceOpen} onOpenChange={(open) => { if (!creating) setResourceOpen(open); }} title="新建资源" description="可以先创建资源，再上传初始版本文件。">
+      <FormOverlay open={resourceOpen} onOpenChange={(open) => { if (!creating) setResourceOpen(open); }} title="新建资料" description="可同时上传首个版本文件，也可先建条目稍后补传">
         <form className="space-y-3" onSubmit={createResource}>
           <fieldset disabled={creating} className="space-y-3">
             <div className="space-y-1.5">
-              <Label htmlFor="new-resource-name">资源名称</Label>
-              <Input id="new-resource-name" placeholder="资源名称" value={resForm.name} required onChange={(event) => setResForm({ ...resForm, name: event.target.value })} />
+              <Label htmlFor="new-resource-name">资料名称</Label>
+              <Input id="new-resource-name" placeholder="资料名称" value={resForm.name} required onChange={(event) => setResForm({ ...resForm, name: event.target.value })} />
             </div>
             <div className="space-y-1.5">
-              <Label>所属类别</Label>
+              <Label>所属分类</Label>
               <Select value={resForm.typeId} onValueChange={(typeId) => setResForm({ ...resForm, typeId })}>
-                <SelectTrigger><SelectValue placeholder="请选择类别" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="请选择分类" /></SelectTrigger>
                 <SelectContent>{types.map((type) => <SelectItem key={type.id} value={type.id}>{typeLabel(type.id)}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <Textarea placeholder="描述（可选）" value={resForm.description} onChange={(event) => setResForm({ ...resForm, description: event.target.value })} />
+            <Textarea aria-label="资料说明（可选）" placeholder="资料说明（可选）" value={resForm.description} onChange={(event) => setResForm({ ...resForm, description: event.target.value })} />
             <div className="space-y-1.5">
               <Label htmlFor="new-resource-file">初始版本文件（可选）</Label>
               <Input id="new-resource-file" ref={resFileInput} type="file" onChange={(event) => {
@@ -753,9 +752,9 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
                   event.target.value = ''; setResFile(null); setUploadError((error as Error).message);
                 }
               }} />
-              <p className="text-xs text-muted-foreground">单个文件最大 1 GB（1024 MB）</p>
+              <p className="text-xs text-muted-foreground">单个文件最大支持 1 GB</p>
             </div>
-            {resFile && <Input placeholder="版本备注（可选）" value={resNote} onChange={(event) => setResNote(event.target.value)} />}
+            {resFile && <Input aria-label="版本备注（可选）" placeholder="版本备注（可选）" value={resNote} onChange={(event) => setResNote(event.target.value)} />}
             {creating && resFile && <MaterialUploadProgress percent={uploadPercent} />}
             <div className="flex justify-end gap-2">
               <Button type="button" variant="ghost" disabled={creating} onClick={() => setResourceOpen(false)}>取消</Button>
@@ -765,28 +764,28 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
         </form>
       </FormOverlay>
 
-      <FormOverlay open={!!categoryDraft} onOpenChange={(open) => { if (!open && !savingCategory) setCategoryDraft(null); }} title={categoryDraft?.id ? '编辑类别' : categoryDraft?.parentId ? '新建二级类别' : '新建一级类别'}>
+      <FormOverlay open={!!categoryDraft} onOpenChange={(open) => { if (!open && !savingCategory) setCategoryDraft(null); }} title={categoryDraft?.id ? '编辑分类' : categoryDraft?.parentId ? '新建二级分类' : '新建一级分类'}>
         {categoryDraft && (
           <form className="space-y-3" onSubmit={saveCategory}>
             <fieldset disabled={savingCategory} className="space-y-3">
               <div className="space-y-1.5">
-                <Label htmlFor="category-name">类别名称</Label>
+                <Label htmlFor="category-name">分类名称</Label>
                 <Input id="category-name" value={categoryDraft.name} required onChange={(event) => setCategoryDraft({ ...categoryDraft, name: event.target.value })} />
               </div>
               <div className="space-y-1.5">
-                <Label>所属一级类别</Label>
+                <Label>上级分类</Label>
                 <Select value={categoryDraft.parentId ?? 'root'} onValueChange={(value) => setCategoryDraft({ ...categoryDraft, parentId: value === 'root' ? null : value })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="root">一级类别</SelectItem>
-                    {categoryDraft.parentId && !rootTypes.some((type) => type.id === categoryDraft.parentId) && <SelectItem value={categoryDraft.parentId}>受限类别（保留当前归属）</SelectItem>}
+                    <SelectItem value="root">设为一级分类</SelectItem>
+                    {categoryDraft.parentId && !rootTypes.some((type) => type.id === categoryDraft.parentId) && <SelectItem value={categoryDraft.parentId}>受限分类（保留当前归属）</SelectItem>}
                     {categoryCanChangeParent && rootTypes.filter((type) => type.id !== categoryDraft.id).map((type) => <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>可见范围</Label>
-                <p className="text-xs text-muted-foreground">留空时二级类别继承上级范围，一级类别对全体成员可见。</p>
+                <p className="text-xs text-muted-foreground">二级分类未单独勾选时自动继承上级分类范围；一级分类留空则全体成员可见。</p>
                 <VisibilityPicker members={members} roles={roles} value={categoryDraft.visibility} onChange={(visibility) => setCategoryDraft({ ...categoryDraft, visibility })} />
               </div>
               <div className="flex justify-end gap-2">
@@ -802,8 +801,8 @@ export default function MaterialsTab({ project, members, myPermissions }: Props)
       <AlertDialog open={!!deleteTypeFor} onOpenChange={(open) => { if (!open) setDeleteTypeFor(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>删除类别「{deleteTypeFor?.name}」？</AlertDialogTitle>
-            <AlertDialogDescription>类别下仍有资源或子类别时无法删除。</AlertDialogDescription>
+            <AlertDialogTitle>删除分类「{deleteTypeFor?.name}」？</AlertDialogTitle>
+            <AlertDialogDescription>分类下仍存在资料或子分类时无法删除。</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>

@@ -88,7 +88,7 @@ export const authRoutes: Route[] = [
       const project = db.projects.find((p) => p.id === inv.projectId);
       return json({
         invite: {
-          projectName: project?.name ?? '未知项目',
+          projectName: project?.name ?? '未知活动',
           roleName: inv.roleName,
           expiresAt: inv.expiresAt,
           targeted: !!inv.targetUserId,

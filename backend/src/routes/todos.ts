@@ -197,7 +197,7 @@ todosRouter.patch(
     }
     people.normalizeTodo(todo);
     await todo.save();
-    if (assignedAdded.length) notify({ projectId: req.project!._id, type: 'todo:assigned', title: `你被指派了待办：${todo.title}`, body: todoAssignBody(todo), link: todoLink(req.project!._id), metadata: { todoId: String(todo._id) }, recipients: assignedAdded, actorId: req.userId! });
+    if (assignedAdded.length) notify({ projectId: req.project!._id, type: 'todo:assigned', title: `你被设为待办负责人：${todo.title}`, body: todoAssignBody(todo), link: todoLink(req.project!._id), metadata: { todoId: String(todo._id) }, recipients: assignedAdded, actorId: req.userId! });
     logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'todo:update', message: `${req.user!.name}修改了待办「${todo.title}」`, sourceType: 'todo', sourceId: todo._id });
     res.json({ todo: await todoJson(todo) });
   }),

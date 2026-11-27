@@ -28,7 +28,7 @@ invitesRouter.get(
     const project = await Project.findById(invite.projectId);
     res.json({
       invite: {
-        projectName: project?.name ?? '未知项目',
+        projectName: project?.name ?? '未知活动',
         roleName: invite.roleName,
         expiresAt: invite.expiresAt,
         targeted: !!invite.targetUserId,

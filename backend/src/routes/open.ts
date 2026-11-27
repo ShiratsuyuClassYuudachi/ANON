@@ -85,11 +85,11 @@ openRouter.post(
     const tool = await CustomTool.findById(launch.toolId);
     if (!tool) throw new AppError(404, 'not_found', '工具不存在或已删除');
     const project = await Project.findById(launch.projectId);
-    if (!project) throw new AppError(404, 'not_found', '项目不存在');
+    if (!project) throw new AppError(404, 'not_found', '活动不存在');
     const user = await User.findById(launch.userId);
     if (!user) throw new AppError(401, 'unauthorized', '用户不存在');
     const perms = await projectPermissionsOf(user, launch.projectId, roleMapOf(project));
-    if (!perms) throw new AppError(403, 'forbidden', '不是项目成员');
+    if (!perms) throw new AppError(403, 'forbidden', '不是活动成员');
     const effectiveScopes = tool.scopes.filter((s) => perms.includes(s));
     // 顶替语义：同 (user, tool) 重复兑换使旧 key 立即失效
     await ApiKey.deleteMany({ userId: user._id, toolId: tool._id });
@@ -117,7 +117,7 @@ openRouter.get(
   ah(async (req, res) => {
     if (!req.apiKey) throw new AppError(403, 'api_key_required', '需要 API 密钥');
     const project = await Project.findById(req.apiKey.projectId);
-    if (!project) throw new AppError(404, 'not_found', '项目不存在');
+    if (!project) throw new AppError(404, 'not_found', '活动不存在');
     const perms = (await projectPermissionsOf(req.user!, req.apiKey.projectId, roleMapOf(project))) ?? [];
     const key = await ApiKey.findById(req.apiKey.keyId).lean();
     res.json({
@@ -139,9 +139,9 @@ openRouter.post(
     if (!name) throw new AppError(400, 'bad_request', '名称不能为空');
     if (name.length > 50) throw new AppError(400, 'bad_request', '名称过长');
     const project = await Project.findById(String(projectId ?? ''));
-    if (!project) throw new AppError(404, 'not_found', '项目不存在');
+    if (!project) throw new AppError(404, 'not_found', '活动不存在');
     const perms = await projectPermissionsOf(req.user!, project._id.toString(), roleMapOf(project));
-    if (!perms) throw new AppError(403, 'forbidden', '不是项目成员');
+    if (!perms) throw new AppError(403, 'forbidden', '不是活动成员');
     // 超集静默收窄：仅保留合法且用户实际持有的权限点
     const storedScopes = (Array.isArray(scopes) ? scopes : [])
       .map((s) => String(s))
@@ -175,7 +175,7 @@ openRouter.get(
       keys: keys.map((k) =>
         keyJson(
           k,
-          projectNameById.get(k.projectId.toString()) ?? '已删除项目',
+          projectNameById.get(k.projectId.toString()) ?? '已删除活动',
           k.toolId ? (toolNameById.get(k.toolId.toString()) ?? '已删除工具') : null,
         ),
       ),

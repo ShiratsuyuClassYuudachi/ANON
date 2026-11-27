@@ -36,7 +36,7 @@ export default function WorkSheetPrint() {
         ]);
         // 批量打印入口需 work:manage（project:manage 等价放行）
         if (!detail.myPermissions.includes('project:manage') && !detail.myPermissions.includes('work:manage')) {
-          setErr('需要现场分工管理权限');
+          setErr('需要现场排班管理权限才能批量打印全员排班单');
           return;
         }
         const generatedAt = new Date().toISOString();
@@ -82,7 +82,7 @@ export default function WorkSheetPrint() {
     );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="editorial min-h-dvh bg-background print:bg-white print:text-black">
       <div className="mx-auto max-w-[210mm] p-4 md:p-6 print:p-0">
         {/* 工具栏：打印时隐藏 */}
         <div className="mb-4 flex items-center gap-2 print:hidden">
@@ -91,42 +91,49 @@ export default function WorkSheetPrint() {
           </Button>
           <span className="flex-1" />
           <Button size="sm" onClick={() => window.print()}>
-            <Printer className="size-4" /> 打印 / 下载 PDF
+            <Printer className="size-4" /> 打印 / 导出 PDF
           </Button>
         </div>
 
-        {sheets.length === 0 && <p className="text-sm text-muted-foreground">没有可打印的任务单。</p>}
+        {sheets.length === 0 && <p className="text-sm text-muted-foreground">当前没有可打印的排班记录</p>}
 
         {sheets.map((s) => (
           <section key={s.user.id} className="sheet-page mb-6 rounded-lg border bg-card p-6 print:mb-0 print:rounded-none print:border-0 print:p-0">
             <header className="mb-4 border-b pb-3">
-              <h1 className="text-xl font-bold">{s.project.name} · 现场任务单</h1>
+              <h1 className="text-xl font-bold">{s.project.name} · 现场排班单</h1>
               <p className="mt-1 text-sm text-muted-foreground">
                 姓名：<span className="font-medium text-foreground">{s.user.name}</span>
                 <span className="mx-2">｜</span>生成时间：{fmt(s.generatedAt)}
               </p>
             </header>
-            <table className="w-full border-collapse text-sm">
+            <table className="w-full table-fixed border-collapse text-sm wrap-anywhere">
+              <colgroup>
+                <col className="w-[17%]" />
+                <col className="w-[23%]" />
+                <col className="w-[15%]" />
+                <col className="w-[29%]" />
+                <col className="w-[16%]" />
+              </colgroup>
               <thead>
                 <tr>
-                  {['任务模块', '时间', '地点', '工作内容', '确认'].map((h) => (
+                  {['岗位', '时间', '地点', '工作内容', '确认状态'].map((h) => (
                     <th key={h} className="border px-2 py-1.5 text-left font-medium">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {s.items.length === 0 && (
-                  <tr><td colSpan={5} className="border px-2 py-4 text-center text-muted-foreground">暂无分配任务</td></tr>
+                  <tr><td colSpan={5} className="border px-2 py-4 text-center text-muted-foreground">暂无排班</td></tr>
                 )}
                 {s.items.map((m) => (
                   <tr key={m.id}>
                     <td className="border px-2 py-1.5 font-medium">{m.name}</td>
-                    <td className="border px-2 py-1.5 whitespace-nowrap">
+                    <td className="border px-2 py-1.5">
                       {m.startAt || m.endAt ? `${fmt(m.startAt) || '…'} ~ ${fmt(m.endAt) || '…'}` : '—'}
                     </td>
                     <td className="border px-2 py-1.5">{m.location || '—'}</td>
                     <td className="border px-2 py-1.5">{m.description || '—'}</td>
-                    <td className="border px-2 py-1.5 whitespace-nowrap">
+                    <td className="border px-2 py-1.5">
                       {(s.user.externalMemberId ? m.externalAssignees?.find((a) => a.externalMemberId === s.user.externalMemberId) : m.assignees.find((a) => a.userId === s.user.id))?.confirmedAt
                         ? `已确认 ${fmt((s.user.externalMemberId ? m.externalAssignees?.find((a) => a.externalMemberId === s.user.externalMemberId) : m.assignees.find((a) => a.userId === s.user.id))!.confirmedAt)}`
                         : '待确认'}
@@ -135,8 +142,8 @@ export default function WorkSheetPrint() {
                 ))}
               </tbody>
             </table>
-            <footer className="mt-6 flex gap-12 text-sm">
-              <p>签字：＿＿＿＿＿＿＿＿</p>
+            <footer className="mt-6 flex flex-wrap gap-x-12 gap-y-3 text-sm">
+              <p>本人签字：＿＿＿＿＿＿＿＿</p>
               <p>日期：＿＿＿＿＿＿＿＿</p>
             </footer>
           </section>
@@ -144,16 +151,19 @@ export default function WorkSheetPrint() {
 
         {userParam === 'all' && unassigned.length > 0 && (
           <p className="mt-4 text-sm text-muted-foreground print:hidden">
-            未分配任务：{unassigned.join('、')}
+            尚未安排岗位成员：{unassigned.join('、')}
           </p>
         )}
       </div>
 
       {/* 打印版式：每张任务单分页 */}
       <style>{`
+        @page { size: A4; margin: 12mm; }
         @media print {
           .sheet-page { page-break-after: always; }
-          .sheet-page:last-child { page-break-after: auto; }
+          .sheet-page:last-of-type { page-break-after: auto; }
+          .sheet-page, .sheet-page * { color: #000; background: #fff; border-color: #666; }
+          .sheet-page tr { break-inside: avoid; }
         }
       `}</style>
     </div>

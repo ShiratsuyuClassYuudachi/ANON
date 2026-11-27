@@ -208,7 +208,7 @@ onsiteRouter.post(
     if (moduleId !== undefined && moduleId !== null && moduleId !== '') {
       if (!isValidObjectId(moduleId)) throw new AppError(400, 'bad_request', 'moduleId 非法');
       const mod = await WorkModule.findOne({ _id: moduleId, projectId });
-      if (!mod) throw new AppError(400, 'bad_request', '关联模块不存在');
+      if (!mod) throw new AppError(400, 'bad_request', '关联岗位不存在');
       mid = mod._id as Types.ObjectId;
     }
     const inc = await Incident.create({

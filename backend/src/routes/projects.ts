@@ -60,7 +60,7 @@ projectsRouter.post(
   rejectApiKey,
   ah(async (req, res) => {
     const { name, description, startDate, endDate } = req.body ?? {};
-    if (!name || !String(name).trim()) throw new AppError(400, 'bad_request', '项目名称必填');
+    if (!name || !String(name).trim()) throw new AppError(400, 'bad_request', '活动名称必填');
     const project = await Project.create({
       name: String(name).trim(),
       description: String(description ?? ''),
@@ -160,7 +160,7 @@ projectsRouter.patch(
     if (currentStage !== undefined) p.currentStage = String(currentStage);
     await p.save();
     if (status !== undefined && status !== oldStatus) {
-      logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'project:status_change', message: `${req.user!.name}将项目状态变更为「${status}」`, sourceType: 'project', sourceId: p._id });
+      logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'project:status_change', message: `${req.user!.name}将活动状态变更为「${status}」`, sourceType: 'project', sourceId: p._id });
     }
     res.json({ project: projectJson(p) });
   }),
@@ -242,7 +242,7 @@ projectsRouter.delete(
       userId: req.params.userId,
     });
     if (!m) throw new AppError(404, 'not_found', '成员不存在');
-    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'member:leave', message: `${req.user!.name}将一名成员移出了项目`, sourceType: 'member' });
+    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'member:leave', message: `${req.user!.name}将一名成员移出了活动`, sourceType: 'member' });
     res.json({ members: await membersJson(req.project!._id) });
   }),
 );

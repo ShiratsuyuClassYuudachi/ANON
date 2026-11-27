@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { getPushStatus, subscribePush, unsubscribePush, type PushStatus } from '../lib/push';
@@ -11,11 +10,11 @@ export function notifyPushChanged(): void {
 }
 
 const HINTS: Partial<Record<PushStatus, string>> = {
-  unsupported: '当前浏览器不支持推送通知',
-  unconfigured: '部署未启用推送（未配置 VAPID），邮件提醒不受影响',
-  denied: '浏览器已禁止本站通知，需在浏览器站点设置中重新允许后再开启',
-  subscribed: '已开启：被指派、待办到期、紧急公告等动态会推送到这台设备',
-  off: '未开启：开启后本设备可收到系统通知，即使没开着网页',
+  unsupported: '当前浏览器不支持网页推送通知。',
+  unconfigured: '当前站点未启用网页推送，邮件与 QQ 提醒不受影响。',
+  denied: '浏览器已拦截本站通知权限，请在浏览器地址栏设置中允许通知后重试。',
+  subscribed: '已开启：被指派待办、任务临期与紧急公告会直接推送到此设备。',
+  off: '开启后，即使未打开网页也能在此设备收到重要提醒。',
 };
 
 /** 「个人资料」页的推送通知管理卡片：按设备开关 Web Push 订阅 */
@@ -62,25 +61,24 @@ export default function PushSettingsCard() {
   };
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">推送通知</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2">
+    <section className="editorial-section">
+      <header className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="editorial-subheading">设备推送通知</h2>
+      </header>
+      <div className="space-y-2">
         <div className="flex items-center gap-2">
           <Switch
             id="push-toggle"
-            aria-label="本设备推送开关"
             checked={status === 'subscribed'}
             disabled={!toggleable || busy}
             onCheckedChange={toggle}
           />
-          <Label htmlFor="push-toggle">本设备接收推送</Label>
+          <Label htmlFor="push-toggle">在此设备接收系统推送</Label>
         </div>
         <p className="text-sm text-muted-foreground">
-          {status === null ? '检测中…' : HINTS[status]}
+          {status === null ? '正在检查浏览器推送状态…' : HINTS[status]}
         </p>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

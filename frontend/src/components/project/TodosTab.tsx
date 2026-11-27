@@ -16,7 +16,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -198,7 +197,7 @@ export default function TodosTab({ project, members, externalMembers, myPermissi
     setErr('');
     const f = importFile.current?.files?.[0];
     if (!f || !importDate) {
-      toast.error('请选择模板文件并填写锚定日期');
+      toast.error('请选择模板文件并填写基准日期');
       return;
     }
     try {
@@ -216,7 +215,7 @@ export default function TodosTab({ project, members, externalMembers, myPermissi
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2" data-tour="tab-todos">
-        <h3 className="text-lg font-semibold">待办</h3>
+        <h1 className="editorial-heading">待办</h1>
         {canManage && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -236,13 +235,13 @@ export default function TodosTab({ project, members, externalMembers, myPermissi
         <form onSubmit={quickCreate} className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2">
           <Input
             className="col-span-3 min-w-0 sm:col-span-1"
-            placeholder="快速新建：输入标题，回车创建"
+            aria-label="快速添加待办" placeholder="输入待办事项，按回车快速添加"
             value={quickTitle}
             onChange={(e) => setQuickTitle(e.target.value)}
           />
           <div className="col-span-3 flex justify-end gap-2 sm:col-span-2">
             <Button type="submit" size="sm" className="shrink-0" disabled={!quickTitle.trim()}>
-              <Plus className="size-4" /> 创建
+              <Plus className="size-4" /> 添加
             </Button>
             <Button
               type="button"
@@ -251,17 +250,16 @@ export default function TodosTab({ project, members, externalMembers, myPermissi
               className="shrink-0"
               onClick={() => setFormInitial({ title: quickTitle })}
             >
-              详细
+              详细设置
             </Button>
           </div>
         </form>
       )}
 
-      <Card className="py-0">
-        <CardContent className="grid grid-cols-2 gap-2 p-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4" aria-label="待办筛选">
           <Input
             className="w-full min-w-0"
-            placeholder="按类别筛选"
+            aria-label="按分类筛选" placeholder="按分类筛选"
             list="todo-filter-categories"
             value={filters.category}
             onChange={(e) => setFilters({ ...filters, category: e.target.value })}
@@ -273,9 +271,9 @@ export default function TodosTab({ project, members, externalMembers, myPermissi
             value={filters.assignee || 'all'}
             onValueChange={(v) => setFilters({ ...filters, assignee: v === 'all' ? '' : v })}
           >
-            <SelectTrigger className="w-full min-w-0"><SelectValue placeholder="指派人" /></SelectTrigger>
+            <SelectTrigger className="w-full min-w-0" aria-label="负责人"><SelectValue placeholder="负责人" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">全部指派人</SelectItem>
+              <SelectItem value="all">全部负责人</SelectItem>
               {members.map((m) => <SelectItem key={m.userId} value={m.userId}>{m.name}</SelectItem>)}
               {externalMembers.filter((m) => !m.linkedUserId).map((m) => <SelectItem key={m.id} value={`external:${m.id}`}>{m.name}（{m.archivedAt ? '已归档' : '未注册'}）</SelectItem>)}
             </SelectContent>
@@ -284,7 +282,7 @@ export default function TodosTab({ project, members, externalMembers, myPermissi
             value={filters.status || 'all'}
             onValueChange={(v) => setFilters({ ...filters, status: v === 'all' ? '' : v })}
           >
-            <SelectTrigger className="w-full min-w-0"><SelectValue placeholder="状态" /></SelectTrigger>
+            <SelectTrigger className="w-full min-w-0" aria-label="待办状态"><SelectValue placeholder="状态" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部状态</SelectItem>
               <SelectItem value="open">进行中</SelectItem>
@@ -295,140 +293,142 @@ export default function TodosTab({ project, members, externalMembers, myPermissi
             value={`${filters.sort}:${filters.order}`}
             onValueChange={(v) => { const [sort, order] = v.split(':'); setFilters({ ...filters, sort, order }); }}
           >
-            <SelectTrigger className="w-full min-w-0"><SelectValue placeholder="排序" /></SelectTrigger>
+            <SelectTrigger className="w-full min-w-0" aria-label="待办排序"><SelectValue placeholder="排序" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="createdAt:desc">最新创建</SelectItem>
-              <SelectItem value="dueAt:asc">到期时间↑</SelectItem>
-              <SelectItem value="nodeAt:asc">节点时间↑</SelectItem>
+              <SelectItem value="createdAt:desc">最新添加</SelectItem>
+              <SelectItem value="dueAt:asc">截止时间从早到晚</SelectItem>
+              <SelectItem value="nodeAt:asc">节点时间从早到晚</SelectItem>
             </SelectContent>
           </Select>
-        </CardContent>
-      </Card>
+      </div>
 
 
       {err ? (
-        <Card className="p-4 text-sm text-destructive">{err}</Card>
+        <p role="alert" className="py-4 text-sm text-destructive">{err}</p>
       ) : loading ? (
         <>
           <Skeleton className="h-28 w-full" />
           <Skeleton className="h-28 w-full" />
         </>
       ) : todos.length === 0 ? (
-        <Card className="p-8 text-center text-sm text-muted-foreground">没有符合条件的待办</Card>
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          {filters.category || filters.assignee || filters.status
+            ? '没有符合筛选条件的待办事项'
+            : '还没有待办事项，在上方输入标题即可快速添加。'}
+        </p>
       ) : (
         <div className="space-y-4">
           {groups.map(([category, items]) => (
             <div key={category || '__none'} className="space-y-2">
               <div className="flex items-center gap-2 px-0.5">
-                <h4 className="text-sm font-medium text-muted-foreground">{category || '未分类'}</h4>
+                <h2 className="editorial-subheading min-w-0 wrap-anywhere">{category || '未分类'}</h2>
                 <Badge variant="secondary">{items.length}</Badge>
               </div>
-              {items.map((t) => (
-                <Card key={t.id} className="py-0">
-                  <CardContent className="space-y-2 p-4">
-                    <div className="flex items-start gap-2">
-                      {/* 客户端不预检完成权限，服务端 403 由 toast 呈现 */}
-                      {t.status === 'open' ? (
-                        <button
-                          aria-label={`完成待办：${t.title}`}
-                          className="mt-0.5 flex size-11 shrink-0 items-center justify-center rounded-full border text-muted-foreground hover:text-primary"
-                          onClick={() => setSheet({ kind: 'complete', id: t.id })}
-                        >
-                          <Circle className="size-4" />
-                        </button>
-                      ) : (
-                        <CheckCircle2 className="mt-0.5 size-8 shrink-0 p-1.5 text-success" />
-                      )}
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <p className={`break-words font-medium ${t.status === 'done' ? 'text-muted-foreground line-through' : ''}`}>{t.title}</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {t.category && <Badge variant="secondary">{t.category}</Badge>}
-                          {t.status === 'done' ? (
-                            <Badge variant="success-soft">已完成</Badge>
-                          ) : isOverdue(t) ? (
-                            <Badge variant="destructive">已逾期</Badge>
-                          ) : (
-                            <Badge variant="outline">进行中</Badge>
+              <div className="editorial-list">
+                {items.map((t) => {
+                  const assignees = [
+                    ...t.assignees.map((assignee) => assignee.name),
+                    ...(t.externalAssignees ?? []).map((assignee) => `${assignee.name}（${assignee.archivedAt ? '已归档' : '未注册'}）`),
+                  ].join('、');
+                  const overdue = isOverdue(t);
+
+                  return (
+                    <article key={t.id} className="editorial-row space-y-1.5">
+                      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-2 gap-y-1 lg:grid-cols-[auto_minmax(0,1fr)_minmax(9rem,0.75fr)_auto] lg:items-center">
+                        {t.status === 'open' ? (
+                          <button
+                            aria-label={`完成待办：${t.title}`}
+                            className="col-start-1 row-start-1 flex size-11 items-center justify-center rounded-full text-muted-foreground hover:text-primary focus-visible:outline-2 focus-visible:outline-ring md:size-8"
+                            onClick={() => setSheet({ kind: 'complete', id: t.id })}
+                          >
+                            <Circle className="size-4" aria-hidden="true" />
+                          </button>
+                        ) : (
+                          <CheckCircle2 aria-hidden="true" className="col-start-1 row-start-1 size-11 p-2.5 text-success md:size-8 md:p-1.5" />
+                        )}
+                        <p className={`col-start-2 row-start-1 min-w-0 self-center text-sm leading-relaxed font-medium ${t.status === 'done' ? 'text-muted-foreground line-through' : ''}`}>{t.title}</p>
+                        {(assignees || t.nodeAt || t.dueAt || overdue || t.status === 'done') && (
+                          <div className="col-span-2 col-start-2 row-start-2 flex min-w-0 flex-wrap items-baseline gap-x-1 gap-y-1 text-xs text-muted-foreground lg:col-span-1 lg:col-start-3 lg:row-start-1">
+                            {assignees && <span>负责人：{assignees}</span>}
+                            {t.nodeAt && <span>{assignees && ' · '}节点：{fmt(t.nodeAt)}</span>}
+                            {t.dueAt && <span>{(assignees || t.nodeAt) && ' · '}截止：{fmt(t.dueAt)}</span>}
+                            {t.status === 'done' && <Badge variant="success-soft">已完成</Badge>}
+                            {overdue && <Badge variant="destructive">已逾期</Badge>}
+                          </div>
+                        )}
+                        <div className="col-start-3 row-start-1 flex items-center justify-end lg:col-start-4">
+                          {canManage && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon-sm" aria-label={`待办操作：${t.title}`}><MoreHorizontal aria-hidden="true" /></Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                {t.status === 'open' && <DropdownMenuItem onClick={() => setFormInitial(t)}>编辑</DropdownMenuItem>}
+                                {t.status === 'done' && <DropdownMenuItem onClick={() => void reopen(t.id)}>重新打开</DropdownMenuItem>}
+                                <DropdownMenuItem variant="destructive" onClick={() => setDeletingId(t.id)}>删除</DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           )}
                         </div>
                       </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" aria-label={`待办操作：${t.title}`}><MoreHorizontal className="size-4" /></Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {t.status === 'open' && canManage && (
-                            <DropdownMenuItem onClick={() => setFormInitial(t)}>编辑</DropdownMenuItem>
-                          )}
-                          {t.status === 'done' && canManage && (
-                            <DropdownMenuItem onClick={() => void reopen(t.id)}>重新打开</DropdownMenuItem>
-                          )}
-                          {canManage && (
-                            <DropdownMenuItem variant="destructive" onClick={() => setDeletingId(t.id)}>删除</DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                    <div className="break-words text-sm text-muted-foreground">
-                      {(t.assignees.length > 0 || !!t.externalAssignees?.length) && <p className="break-words">指派：{[...t.assignees.map((a) => a.name), ...(t.externalAssignees ?? []).map((a) => `${a.name}（${a.archivedAt ? '已归档' : '未注册'}）`)].join('、')}</p>}
-                      {t.nodeAt && <p>节点：{fmt(t.nodeAt)}</p>}
-                      {t.dueAt && <p>到期：{fmt(t.dueAt)}</p>}
-                    </div>
-                    {t.note && <p className="break-words text-sm">{t.note}</p>}
-                    {t.completionNote && <p className="break-words text-sm text-muted-foreground">完成备注:{t.completionNote}</p>}
-                    {t.attachments.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5">
-                        {t.attachments.map((a) => (
-                          <Button key={a.id} variant="outline" size="sm" className="max-w-full" onClick={() => downloadFile(a.id, a.filename)}>
-                            <Paperclip className="size-3.5" /> <span className="min-w-0 truncate" title={a.filename}>{a.filename}</span>
-                          </Button>
-                        ))}
-                      </div>
-                    )}
-                    {t.updates.length > 0 && (() => {
-                      const sorted = [...t.updates].sort(
-                        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-                      );
-                      const expanded = !!expandedUpdates[t.id];
-                      const visible = expanded ? sorted : sorted.slice(0, 2);
-                      return (
-                        <div className="space-y-2 border-t pt-2">
-                          {visible.map((u, i) => (
-                            <div key={i} className="space-y-1">
-                              <p className="text-xs text-muted-foreground">{u.createdByName} · {fmt(u.createdAt)}</p>
-                              {u.note && <p className="break-words text-sm">{u.note}</p>}
-                              {u.attachments.length > 0 && (
-                                <div className="flex flex-wrap gap-1.5">
-                                  {u.attachments.map((a) => (
-                                    <Button key={a.id} variant="outline" size="sm" className="max-w-full" onClick={() => downloadFile(a.id, a.filename)}>
-                                      <Paperclip className="size-3.5" /> <span className="min-w-0 truncate" title={a.filename}>{a.filename}</span>
-                                    </Button>
-                                  ))}
+                      <div className="space-y-1.5 pl-[3.25rem] md:pl-10 empty:hidden">
+                        {t.note && <p className="break-words text-sm">{t.note}</p>}
+                        {t.completionNote && <p className="break-words text-sm text-muted-foreground">完成说明：{t.completionNote}</p>}
+                        {t.attachments.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {t.attachments.map((a) => (
+                              <Button key={a.id} variant="outline" size="sm" className="max-w-full" onClick={() => downloadFile(a.id, a.filename)}>
+                                <Paperclip className="size-3.5" /> <span className="min-w-0 truncate" title={a.filename}>{a.filename}</span>
+                              </Button>
+                            ))}
+                          </div>
+                        )}
+                        {t.updates.length > 0 && (() => {
+                          const sorted = [...t.updates].sort(
+                            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+                          );
+                          const expanded = !!expandedUpdates[t.id];
+                          const visible = expanded ? sorted : sorted.slice(0, 2);
+                          return (
+                            <div className="space-y-2 border-t pt-2">
+                              {visible.map((u, i) => (
+                                <div key={i} className="space-y-1">
+                                  <p className="text-xs text-muted-foreground">{u.createdByName} · {fmt(u.createdAt)}</p>
+                                  {u.note && <p className="break-words text-sm">{u.note}</p>}
+                                  {u.attachments.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {u.attachments.map((a) => (
+                                        <Button key={a.id} variant="outline" size="sm" className="max-w-full" onClick={() => downloadFile(a.id, a.filename)}>
+                                          <Paperclip className="size-3.5" /> <span className="min-w-0 truncate" title={a.filename}>{a.filename}</span>
+                                        </Button>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
+                              ))}
+                              {sorted.length > 2 && (
+                                <button
+                                  className="text-xs text-primary hover:underline"
+                                  onClick={() => setExpandedUpdates({ ...expandedUpdates, [t.id]: !expanded })}
+                                >
+                                  {expanded ? '收起进度' : `展开全部 ${sorted.length} 条进度`}
+                                </button>
                               )}
                             </div>
-                          ))}
-                          {sorted.length > 2 && (
-                            <button
-                              className="text-xs text-primary hover:underline"
-                              onClick={() => setExpandedUpdates({ ...expandedUpdates, [t.id]: !expanded })}
-                            >
-                              {expanded ? '收起' : `展开全部 ${sorted.length} 条进度`}
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })()}
-                    {t.status === 'open' && (
-                      <div className="pt-1">
-                        <Button variant="outline" size="sm" onClick={() => setSheet({ kind: 'progress', id: t.id })}>
-                          <MessageSquarePlus className="size-3.5" /> 进度
-                        </Button>
+                          );
+                        })()}
+                        {t.status === 'open' && (
+                          <div className="pt-1">
+                            <Button variant="ghost" size="sm" onClick={() => setSheet({ kind: 'progress', id: t.id })}>
+                              <MessageSquarePlus className="size-3.5" /> 报进度
+                            </Button>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
+                    </article>
+                  );
+                })}
+              </div>
             </div>
           ))}
         </div>
@@ -450,26 +450,26 @@ export default function TodosTab({ project, members, externalMembers, myPermissi
         open={!!sheet}
         onOpenChange={(o) => !o && setSheet(null)}
         title={sheet?.kind === 'progress' ? '提交进度' : '完成待办'}
-        noteLabel={sheet?.kind === 'progress' ? '进度内容' : '完成备注（可选）'}
+        noteLabel={sheet?.kind === 'progress' ? '进度说明' : '完成说明（可选）'}
         requireContent={sheet?.kind === 'progress'}
         submitLabel={sheet?.kind === 'progress' ? '提交进度' : '确认完成'}
         onSubmit={submitSheet}
       />
 
-      <FormOverlay open={importOpen} onOpenChange={setImportOpen} title="导入模板" description="按模板批量生成待办">
+      <FormOverlay open={importOpen} onOpenChange={setImportOpen} title="从模板导入待办" description="根据锚定日期自动换算整套排期的截止与提醒时间">
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label>锚定方式</Label>
+            <Label>时间基准</Label>
             <Select value={importAnchor} onValueChange={(v) => setImportAnchor(v as 'start' | 'end')}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="start">锚定开始时间</SelectItem>
-                <SelectItem value="end">锚定结束时间</SelectItem>
+                <SelectItem value="start">按活动开始时间正排/倒排</SelectItem>
+                <SelectItem value="end">按活动结束时间换算</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="import-date">锚定日期</Label>
+            <Label htmlFor="import-date">基准日期</Label>
             <Input id="import-date" type="date" value={importDate} onChange={(e) => setImportDate(e.target.value)} />
           </div>
           <div className="space-y-1.5">
@@ -481,15 +481,15 @@ export default function TodosTab({ project, members, externalMembers, myPermissi
               ref={importFile}
             />
           </div>
-          <Button className="w-full" onClick={importTemplate}>导入模板生成待办</Button>
+          <Button className="w-full" onClick={importTemplate}>导入并生成待办</Button>
         </div>
       </FormOverlay>
 
       <AlertDialog open={!!deletingId} onOpenChange={(o) => !o && setDeletingId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>删除待办？</AlertDialogTitle>
-            <AlertDialogDescription>该操作不可撤销。</AlertDialogDescription>
+            <AlertDialogTitle>删除这项待办？</AlertDialogTitle>
+            <AlertDialogDescription>删除后不可恢复。</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>

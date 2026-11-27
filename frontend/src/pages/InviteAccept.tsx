@@ -44,24 +44,24 @@ export default function InviteAccept() {
   };
 
   return (
-    <AuthShell title="项目邀请" description="接受邀请以加入项目">
+    <AuthShell title="活动邀请" description="确认以下信息后即可加入协作">
       {err ? (
         <div className="space-y-3 text-center">
           <p className="text-sm text-destructive">{err}</p>
           <Button variant="outline" className="w-full" onClick={() => nav('/projects')}>
-            返回项目列表
+            返回我的活动
           </Button>
         </div>
       ) : info ? (
-        <div className="space-y-3">
-          <p className="text-lg font-semibold">{info.projectName}</p>
-          <div className="flex gap-2">
+        <div className="space-y-3 border-y py-4">
+          <p className="editorial-heading">{info.projectName}</p>
+          <div className="flex flex-wrap gap-2">
             <Badge variant="secondary">{info.roleName}</Badge>
             {info.targeted && <Badge variant="outline">定向邀请</Badge>}
           </div>
-          <p className="text-sm text-muted-foreground">有效期至 {fmtDate(info.expiresAt)}</p>
+          <p className="text-sm text-muted-foreground">邀请有效期至 {fmtDate(info.expiresAt)}</p>
           <Button className="w-full" disabled={busy} onClick={accept}>
-            {busy ? '加入中…' : '接受邀请'}
+            {busy ? '正在加入…' : '加入活动'}
           </Button>
         </div>
       ) : (

@@ -133,7 +133,7 @@ export const physicalRoutes: Route[] = [
     if (!db.physicalCategories.some((c) => c.id === categoryId && c.projectId === params.pid)) return badRequest('分类不存在');
     const responsibleId = b.responsibleId ? String(b.responsibleId) : null;
     if (responsibleId && !db.memberships.some((m) => m.projectId === params.pid && m.userId === responsibleId)) {
-      return badRequest('负责人必须是项目成员');
+      return badRequest('负责人必须是活动成员');
     }
     const it: DbPhysicalItem = {
       id: uid(),
@@ -182,7 +182,7 @@ export const physicalRoutes: Route[] = [
       if (b.responsibleId === null || b.responsibleId === '') it.responsibleId = null;
       else {
         const rid = String(b.responsibleId);
-        if (!db.memberships.some((m) => m.projectId === params.pid && m.userId === rid)) return badRequest('负责人必须是项目成员');
+        if (!db.memberships.some((m) => m.projectId === params.pid && m.userId === rid)) return badRequest('负责人必须是活动成员');
         it.responsibleId = rid;
       }
     }

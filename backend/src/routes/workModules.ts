@@ -63,7 +63,7 @@ async function parseBody(projectId: Types.ObjectId, body: BodyShape, keptExterna
     const ids = [...new Set(body.assigneeIds.map(String))];
     if (ids.some((x) => !isValidObjectId(x))) throw new AppError(400, 'bad_request', 'assigneeIds 含非法 ID');
     const cnt = await Membership.countDocuments({ projectId, userId: { $in: ids } });
-    if (cnt !== ids.length) throw new AppError(400, 'bad_request', 'assigneeIds 含非项目成员');
+    if (cnt !== ids.length) throw new AppError(400, 'bad_request', '排班成员含非活动成员');
     out.assigneeIds = ids.map((x) => new Types.ObjectId(x));
   }
   if (body.externalAssigneeIds !== undefined) {
@@ -79,7 +79,7 @@ function workAssignBody(m: {
   location?: string | null;
   startAt?: Date | null;
 }): string {
-  const parts = [`现场任务「${m.name}」`];
+  const parts = [`现场岗位「${m.name}」`];
   if (m.location) parts.push(`地点 ${m.location}`);
   if (m.startAt) parts.push(`开始 ${m.startAt.toISOString()}`);
   return parts.join('，');
@@ -91,7 +91,7 @@ function workLink(projectId: unknown): string {
 
 async function findInProject(req: Request) {
   const m = await WorkModule.findOne({ _id: req.params.mid, projectId: req.project!._id });
-  if (!m) throw new AppError(404, 'not_found', '任务模块不存在');
+  if (!m) throw new AppError(404, 'not_found', '现场岗位不存在');
   return m;
 }
 
@@ -125,12 +125,12 @@ workModulesRouter.post(
       createdBy: new Types.ObjectId(req.userId!),
     });
     const names = await memberNameMap(req.project!._id);
-    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'work:create', message: `${req.user!.name}创建了现场任务「${m.name}」`, sourceType: 'work', sourceId: m._id });
+    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'work:create', message: `${req.user!.name}创建了现场岗位「${m.name}」`, sourceType: 'work', sourceId: m._id });
     if (p.assigneeIds?.length) {
       notify({
         projectId: req.project!._id,
         type: 'work:assigned',
-        title: `你被分配了现场任务：${m.name}`,
+        title: `你被安排了现场岗位：${m.name}`,
         body: workAssignBody(m),
         link: workLink(req.project!._id),
         metadata: { moduleId: m._id.toString() },
@@ -186,12 +186,12 @@ workModulesRouter.patch(
     people.normalizeWork(m);
     await m.save();
     const names = await memberNameMap(req.project!._id);
-    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'work:update', message: `${req.user!.name}调整了现场任务「${m.name}」`, sourceType: 'work', sourceId: m._id });
+    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'work:update', message: `${req.user!.name}调整了现场岗位「${m.name}」`, sourceType: 'work', sourceId: m._id });
     if (added.length) {
       notify({
         projectId: req.project!._id,
         type: 'work:assigned',
-        title: `你被分配了现场任务：${m.name}`,
+        title: `你被安排了现场岗位：${m.name}`,
         body: workAssignBody(m),
         link: workLink(req.project!._id),
         metadata: { moduleId: m._id.toString() },
@@ -210,7 +210,7 @@ workModulesRouter.delete(
     const m = await findInProject(req);
     const name = m.name;
     await m.deleteOne();
-    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'work:delete', message: `${req.user!.name}删除了现场任务「${name}」`, sourceType: 'work' });
+    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'work:delete', message: `${req.user!.name}删除了现场岗位「${name}」`, sourceType: 'work' });
     res.json({ ok: true });
   }),
 );
@@ -235,7 +235,7 @@ async function resolveConfirmTarget(req: Request, action = '确认') {
   const a = externalId && !linked
     ? m.externalAssignees.find((x) => String(x.externalMemberId) === target)
     : m.assignees.find((x) => String(x.userId) === target);
-  if (!a) throw new AppError(400, 'bad_request', '该成员未被分配到此模块');
+  if (!a) throw new AppError(400, 'bad_request', '该成员未被安排到此岗位');
   return { m, a, target };
 }
 
@@ -249,7 +249,7 @@ workModulesRouter.post(
       await m.save();
     }
     const names = await memberNameMap(req.project!._id);
-    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'work:confirm', message: `${req.user!.name}确认了现场任务「${m.name}」`, sourceType: 'work', sourceId: m._id });
+    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'work:confirm', message: `${req.user!.name}确认了现场岗位「${m.name}」`, sourceType: 'work', sourceId: m._id });
     res.json({ module: moduleJson(m, names) });
   }),
 );
@@ -275,7 +275,7 @@ workModulesRouter.post(
       await m.save();
     }
     const names = await memberNameMap(req.project!._id);
-    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'work:checkin', message: `${req.user!.name}签到现场任务「${m.name}」`, sourceType: 'work', sourceId: m._id });
+    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'work:checkin', message: `${req.user!.name}签到现场岗位「${m.name}」`, sourceType: 'work', sourceId: m._id });
     res.json({ module: moduleJson(m, names) });
   }),
 );
@@ -292,7 +292,7 @@ workModulesRouter.post(
       await m.save();
     }
     const names = await memberNameMap(req.project!._id);
-    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'work:finish', message: `${req.user!.name}完成了现场任务「${m.name}」`, sourceType: 'work', sourceId: m._id });
+    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'work:finish', message: `${req.user!.name}完成了现场岗位「${m.name}」`, sourceType: 'work', sourceId: m._id });
     res.json({ module: moduleJson(m, names) });
   }),
 );

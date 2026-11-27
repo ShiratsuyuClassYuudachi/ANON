@@ -11,7 +11,7 @@ function keyJson(db: Db, k: DbApiKey) {
     id: k.id,
     name: k.name,
     projectId: k.projectId,
-    projectName: project?.name ?? '已删除项目',
+    projectName: project?.name ?? '已删除活动',
     toolId: k.toolId ?? null,
     toolName: k.toolId ? (tool?.name ?? '已删除工具') : null,
     scopes: k.scopes,
@@ -34,12 +34,12 @@ export const openRoutes: Route[] = [
       : undefined;
     if (!tool) throw err(401, 'invalid_launch_token', '启动令牌无效或已过期');
     const project = ctx.db.projects.find((p) => p.id === tool.projectId);
-    if (!project) throw notFound('项目不存在');
+    if (!project) throw notFound('活动不存在');
     const user = currentUser(ctx.db);
     const membership = ctx.db.memberships.find(
       (m) => m.projectId === project.id && m.userId === user.id,
     );
-    if (!membership) throw err(403, 'forbidden', '不是项目成员');
+    if (!membership) throw err(403, 'forbidden', '不是活动成员');
     const perms = myPermissions(ctx.db, project, membership);
     const scopes = tool.scopes.filter((s) => perms.has(s));
     // 顶替语义：同 (user, tool) 重复兑换使旧 key 失效
@@ -65,7 +65,7 @@ export const openRoutes: Route[] = [
     if (!key) throw err(401, 'unauthorized', 'API 密钥无效或已过期');
     key.lastUsedAt = nowIso();
     const project = ctx.db.projects.find((p) => p.id === key.projectId);
-    if (!project) throw notFound('项目不存在');
+    if (!project) throw notFound('活动不存在');
     const user = ctx.db.users.find((u) => u.id === key.userId) ?? currentUser(ctx.db);
     return json({
       user: { id: user.id, name: user.name },
@@ -80,12 +80,12 @@ export const openRoutes: Route[] = [
     const name = String(b.name ?? '').trim();
     if (!name) throw badRequest('名称不能为空');
     const project = ctx.db.projects.find((p) => p.id === String(b.projectId ?? ''));
-    if (!project) throw notFound('项目不存在');
+    if (!project) throw notFound('活动不存在');
     const user = currentUser(ctx.db);
     const membership = ctx.db.memberships.find(
       (m) => m.projectId === project.id && m.userId === user.id,
     );
-    if (!membership) throw err(403, 'forbidden', '不是项目成员');
+    if (!membership) throw err(403, 'forbidden', '不是活动成员');
     const perms = myPermissions(ctx.db, project, membership);
     const scopes = (Array.isArray(b.scopes) ? b.scopes : []).map((s) => String(s)).filter((s) => perms.has(s));
     const key = newKey({

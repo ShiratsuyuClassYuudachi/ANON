@@ -84,7 +84,7 @@ export function TodoActionSheet({ open, onOpenChange, title, noteLabel, requireC
           </div>
         )}
         {requireContent && empty && (
-          <p className="text-xs text-muted-foreground">填写进度内容或选择附件</p>
+          <p className="text-xs text-muted-foreground">请填写进度说明或上传附件</p>
         )}
         <Button type="submit" className="w-full" disabled={disabled}>
           {submitLabel}

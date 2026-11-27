@@ -61,7 +61,7 @@ function parseSplitAmong(v: string): string[] {
 function assertMembers(ctx: Ctx, label: string, userIds: string[]) {
   const { db, params } = ctx;
   const members = db.memberships.filter((m) => m.projectId === params.pid);
-  if (userIds.some((id) => !members.some((m) => m.userId === id))) throw badRequest(`${label}必须是项目成员`);
+  if (userIds.some((id) => !members.some((m) => m.userId === id))) throw badRequest(`${label}必须是活动成员`);
 }
 
 export const financeRoutes: Route[] = [
@@ -136,7 +136,7 @@ export const financeRoutes: Route[] = [
     const members = memberInfos(db, params.pid);
     const target = query.get('userId') ?? db.currentUserId;
     const me = members.find((m) => m.userId === target);
-    if (!me) return badRequest('userId 必须是项目成员');
+    if (!me) return badRequest('userId 必须是活动成员');
     const all = db.transactions
       .filter((t) => t.projectId === params.pid)
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime() || a.id.localeCompare(b.id));

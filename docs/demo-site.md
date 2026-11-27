@@ -1,6 +1,6 @@
 # 纯前端演示站（Cloudflare Pages）
 
-不依赖任何后端、可公开访问的功能预览站：运行真实前端，浏览器内 mock 全部 `/api` 请求，预置一套中文示例数据。用于向访客展示项目全部功能（10 个 Tab、看板聚合、物料预览、账号解密、现场模式、打印任务单等）。
+不依赖任何后端、可公开访问的功能预览站：运行真实前端，浏览器内 mock 全部 `/api` 请求，预置一套中文示例数据。用于向访客展示活动全部功能（10 个板块、看板聚合、物料预览、账号解密、现场模式、打印排班单等，支持切换「简洁 / 明快 / anon tokyo」三套日夜主题）。
 
 - **构建**：`cd frontend && npm run build:demo`（= `tsc --noEmit && vite build --mode demo`），产物 `frontend/dist/`。
 - **与生产构建的关系**：demo 是 vite `--mode demo` 的同仓库构建变体；生产构建（`npm run build` + Docker 部署）完全不受影响——demo 代码经动态 import + `import.meta.env.VITE_DEMO` 静态替换被 tree-shake（生产产物中零 demo 字符串/chunk，已验证），且 demo 模式摘除 VitePWA（不生成 sw.js，避免 Service Worker 缓存 mock 响应）。
@@ -44,7 +44,7 @@ SPA 深链回退由 `frontend/public/_redirects`（`/* /index.html 200`）提供
 
 **文件策略**：种子附件大部分指向 `frontend/public/demo/` 下的静态示例文件（`poster-v1/v2.svg`、`floorplan.svg`、`guide.pdf`，透传 `origFetch`），CSV/Markdown 等小文件直接以内联 base64 data URL 入种子；会话内上传支持单文件最大 1GB 与 8MB 分片会话模拟，大文件二进制存入 **IndexedDB** 持久化，并通过 Web Locks 保护活跃标签页引用，删除资源、还原示例数据或下次打开会话时自动清扫孤立 Blob。预览/下载统一经 `GET /api/files/:id` 与 materials versions 端点返回 blob。
 
-**覆盖范围与只读面**：`handlers/` 下共 16 个业务域模块，完整复刻项目/阶段、未注册成员、待办、财务（含账目金额修改）、两层物料与分片上传、实物清单、账号、看板/公告管理、现场/任务单、舞台编排与执行模式/大屏、舞台报名审核、失物招领及公开页、自定义工具与 OpenAPI 密钥兑换；`/api/push/config` 与 QQ 机器人配置返回未启用态（推送提示条与 QQ 绑定入口自然隐藏）；`POST /api/auth/register` 固定返回 403 `demo_readonly`。
+**覆盖范围与只读面**：`handlers/` 下共 16 个业务域模块，完整复刻活动/阶段、未注册成员、待办、财务（含账目金额修改）、两层物料与分片上传、实物清单、账号、看板/公告管理、现场岗位/排班单、舞台编排与执行模式/大屏、舞台报名审核、失物招领及公开页、自定义工具与 OpenAPI 密钥兑换；`/api/push/config` 与 QQ 机器人配置返回未启用态（推送提示条与 QQ 绑定入口自然隐藏）；`POST /api/auth/register` 固定返回 403 `demo_readonly`。
 
 ## 会话保留语义
 
@@ -55,8 +55,8 @@ SPA 深链回退由 `frontend/public/_redirects`（`/* /index.html 200`）提供
 
 ## 界面标识
 
-- `DemoBadge`：右下角 fixed 角标「演示环境」，全页面常显（含登录页/现场模式），`print:hidden` 不影响任务单打印。
-- `DemoBanner`：Layout 顶部横幅「演示环境 · 数据为示例，修改保留于本会话」+ 还原按钮。
+- `DemoBadge`：右下角 fixed 角标「演示」，全页面常显（含登录页/现场模式；顶部若已有演示横幅则自动隐藏避免重复），`print:hidden` 不影响排班单打印。
+- `DemoBanner`：Layout 顶部横幅「演示 · 当前为示例数据，所做修改仅保留在本标签页内」+ 还原按钮。
 - 两者均以 `import.meta.env.VITE_DEMO === 'true'` 为条件，生产构建中静态消除。
 
 ## 维护
@@ -74,5 +74,5 @@ SPA 深链回退由 `frontend/public/_redirects`（`/* /index.html 200`）提供
 4. 账号：微博条目「查看密码」→ 口令 `demo` → 解密显示 `Weibo@Demo2026`。
 5. 会话保留：完成一条待办 → 看板指标/待我处理即时更新 → F5 仍在 → 「还原示例数据」恢复种子。
 6. 财务：导出 CSV（BOM 头，Excel 中文不乱码）；结算建议与按人净额随记账变化。
-7. 现场模式（`/p/p-demo/onsite`）：紧急公告、我的模块、异常、联系人；任务单打印页（`/p/p-demo/work-sheet/print`）渲染且无角标。
+7. 现场模式（`/p/p-demo/onsite`）：紧急公告、我的排班岗位、异常、联系人；排班单打印页（`/p/p-demo/work-sheet/print`）渲染且无角标。
 8. 注册提交 → 403 演示只读提示；退出登录 → 登录页「进入演示」一键回站。

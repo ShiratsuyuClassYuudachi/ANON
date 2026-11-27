@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { api } from '../api/client';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface QqState {
   enabled: boolean;
@@ -59,27 +58,27 @@ export default function QqBindCard() {
   };
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">QQ 通知</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2">
+    <section className="editorial-section">
+      <header className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="editorial-subheading">QQ 机器人绑定</h2>
+      </header>
+      <div className="space-y-2">
         {state === null ? (
           <p className="text-sm text-muted-foreground">检测中…</p>
         ) : !state.enabled ? (
-          <p className="text-sm text-muted-foreground">部署未启用 QQ 通知（未配置机器人凭证），其他提醒渠道不受影响</p>
+          <p className="text-sm text-muted-foreground">当前站点未启用 QQ 机器人通知，其他提醒渠道不受影响。</p>
         ) : (
           <>
             {state.bound && (
-              <p className="text-sm text-muted-foreground">已绑定 QQ：指派、待办到期、里程碑等提醒会发到你的 QQ 私聊</p>
+              <p className="text-sm text-muted-foreground">已绑定个人 QQ：待办指派、临期提醒与里程碑动态会私聊发给你。</p>
             )}
             <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline" size="sm" disabled={busy} onClick={generate}>
-                {bindCode ? '重新生成' : state.bound ? '生成群绑定码' : '生成绑定码'}
+                {bindCode ? '重新生成' : state.bound ? '生成群身份码' : '生成绑定码'}
               </Button>
               {state.bound && (
                 <Button variant="outline" size="sm" disabled={busy} onClick={unbind}>
-                  解绑
+                  解绑 QQ
                 </Button>
               )}
               {bindCode && (
@@ -89,18 +88,11 @@ export default function QqBindCard() {
               )}
             </div>
             <p className="text-sm text-muted-foreground">
-              {state.bound
-                ? bindCode
-                  ? `10 分钟内，在目标 QQ 群 @ANON 机器人发送：绑定 ${bindCode.code}`
-                  : '生成群绑定码后，在目标 QQ 群 @ANON 机器人发送「绑定 XXXXXX」，关联你的群内身份'
-                : bindCode
-                  ? `10 分钟内，在 QQ 私聊 ANON 机器人发送：绑定 ${bindCode.code}；也可在目标群 @机器人发送此指令`
-                  : '生成绑定码后，在 QQ 私聊 ANON 机器人发送「绑定 XXXXXX」；群内绑定请在目标群 @机器人发送同样的指令'}
+              请在 10 分钟内向 ANON 机器人私聊发送「绑定 {bindCode?.code ?? '{验证码}'}」，或在已关联的活动群内 @机器人 发送该指令补充群内身份。每个绑定码仅限单次使用，群内操作权限跟随你在对应活动中的角色。
             </p>
-            <p className="text-sm text-muted-foreground">绑定码仅可使用一次，多个群需分别生成。群内录入按你的项目角色权限执行。</p>
           </>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

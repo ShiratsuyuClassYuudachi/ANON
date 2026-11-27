@@ -41,30 +41,30 @@ export default function Register() {
 
   return (
     <AuthShell
-      title="注册"
-      description="凭邀请码注册新账号"
+      title="注册账号"
+      description="输入管理员发放的邀请码完成注册"
       footer={<>已有账号？<Link to="/login" className="text-primary hover:underline">直接登录</Link></>}
     >
       <form onSubmit={submit} className="space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="inviteCode">邀请码</Label>
-          <Input id="inviteCode" placeholder="向管理员索取" required value={form.inviteCode} onChange={set('inviteCode')} />
+          <Input id="inviteCode" placeholder="向团队管理员索取" required value={form.inviteCode} onChange={set('inviteCode')} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="email">邮箱</Label>
-          <Input id="email" type="email" required value={form.email} onChange={set('email')} />
+          <Input id="email" type="email" autoComplete="email" required value={form.email} onChange={set('email')} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="name">昵称</Label>
-          <Input id="name" required value={form.name} onChange={set('name')} />
+          <Input id="name" autoComplete="nickname" placeholder="团队内展示的称呼" required value={form.name} onChange={set('name')} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="password">密码</Label>
-          <Input id="password" type="password" placeholder="至少 8 位" required minLength={8} value={form.password} onChange={set('password')} />
+          <Input id="password" type="password" autoComplete="new-password" placeholder="至少 8 位字符" required minLength={8} value={form.password} onChange={set('password')} />
         </div>
         {err && <p role="alert" className="rounded-md bg-destructive-soft px-3 py-2 text-sm text-destructive-soft-foreground">{err}</p>}
         <Button type="submit" className="w-full" disabled={busy}>
-          {busy ? '注册中…' : '注册'}
+          {busy ? '注册中…' : '完成注册'}
         </Button>
       </form>
     </AuthShell>

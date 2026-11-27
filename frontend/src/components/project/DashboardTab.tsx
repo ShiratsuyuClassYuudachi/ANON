@@ -6,7 +6,6 @@ import {
   ChevronDown,
   ChevronUp,
   ClipboardList,
-  Clock,
   Eye,
   EyeOff,
   Flag,
@@ -15,7 +14,6 @@ import {
   ListTodo,
   Loader2,
   MapPin,
-  Megaphone,
   Pin,
   RotateCcw,
   Settings2,
@@ -43,9 +41,7 @@ import { MilestoneSection } from './MilestoneSection';
 import { StageStepper } from './StageStepper';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { ListRow } from '@/components/ui/list-row';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -54,6 +50,7 @@ import { Textarea } from '@/components/ui/textarea';
 interface Props {
   project: ProjectDetail;
   members: Member[];
+  myRole: string;
   myPermissions: string[];
   onNavigate: (tab: string) => void;
 }
@@ -70,9 +67,9 @@ const STATUS_MAP: Record<string, { label: string; variant: 'default' | 'secondar
 
 const HEALTH_MAP: Record<HealthStatus, { label: string; cls: string }> = {
   normal: { label: '正常', cls: 'bg-success-soft text-success-soft-foreground' },
-  attention: { label: '需关注', cls: 'bg-warning-soft text-warning-soft-foreground' },
-  at_risk: { label: '存在风险', cls: 'bg-warning-soft text-warning-soft-foreground' },
-  critical: { label: '严重异常', cls: 'bg-destructive-soft text-destructive-soft-foreground' },
+  attention: { label: '留意', cls: 'bg-warning-soft text-warning-soft-foreground' },
+  at_risk: { label: '预警', cls: 'bg-warning-soft text-warning-soft-foreground' },
+  critical: { label: '紧急', cls: 'bg-destructive text-destructive-foreground' },
 };
 
 const LEVEL_MAP: Record<string, { icon: typeof Info; cls: string; border: string }> = {
@@ -87,7 +84,7 @@ const CARD_DEFS: Record<string, { title: string }> = {
   announcements: { title: '公告' },
   schedule: { title: '近期日程' },
   milestones: { title: '里程碑' },
-  modules: { title: '模块摘要' },
+  modules: { title: '各板块概览' },
   activities: { title: '最近动态' },
 };
 
@@ -99,7 +96,7 @@ function mergeCardOrder(saved: string[]): string[] {
   return [...known, ...DEFAULT_CARD_ORDER.filter((id) => !known.includes(id))];
 }
 
-export default function DashboardTab({ project, members, myPermissions, onNavigate }: Props) {
+export default function DashboardTab({ project, members, myRole, myPermissions, onNavigate }: Props) {
   const [data, setData] = useState<DashboardData | null>(null);
   const nav = useNavigate();
   const [err, setErr] = useState('');
@@ -299,7 +296,7 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
 
   // --- Render ---
 
-  if (err) return <Card className="p-4 text-sm text-destructive">{err}</Card>;
+  if (err) return <p role="alert" className="py-4 text-sm text-destructive">{err}</p>;
   if (!data)
     return (
       <div className="space-y-4">
@@ -322,19 +319,21 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
   return (
     <div className="flex flex-col gap-4">
       {/* 项目头部 */}
-      <Card className="py-0" style={{ order: -3 }}>
-        <CardContent className="space-y-4 p-4">
+      <header className="space-y-4 border-b pb-5" style={{ order: -3 }}>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={status.variant}>{status.label}</Badge>
             {project.currentStage && <Badge variant="outline">{project.currentStage}</Badge>}
             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${health.cls}`}>{health.label}</span>
+            {myRole && <Badge variant="secondary">{myRole}</Badge>}
           </div>
+          <h1 className="editorial-title">{project.name}</h1>
+          {project.description && <p className="max-w-[65ch] text-sm leading-relaxed text-muted-foreground">{project.description}</p>}
           {/* 开展倒计时 */}
           {cd.phase === 'unset' ? (
             <p className="text-sm text-muted-foreground">{cd.text}</p>
           ) : (
             <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
-              <div className="flex items-baseline gap-1.5">
+              <div className="flex flex-wrap items-baseline gap-1.5">
                 <span className={`text-3xl font-bold leading-none tabular-nums ${cd.cls}`}>{cd.count}</span>
                 <span className={`text-sm font-medium ${cd.cls}`}>{cd.unit}</span>
               </div>
@@ -353,46 +352,45 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
               <StageStepper stages={project.stages} />
             </div>
           )}
-        </CardContent>
-      </Card>
+      </header>
 
       {/* 视图切换 + 自定义入口 */}
       <div data-tour="tab-dashboard" className="flex flex-wrap items-center gap-2" style={{ order: -2 }}>
-        <div className="flex min-w-[12rem] flex-1 gap-1 rounded-lg bg-muted p-1">
+        <div className="mr-auto flex max-w-full gap-1 rounded-lg bg-muted p-1">
           <button
             onClick={() => switchView('personal')}
             aria-pressed={view === 'personal'}
-            className={`min-h-11 flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-9 ${view === 'personal' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+            className={`min-h-11 flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-9 ${view === 'personal' ? 'bg-background text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
           >
-            个人视图
+            个人视角
           </button>
           <button
             onClick={() => switchView('project')}
             aria-pressed={view === 'project'}
-            className={`min-h-11 flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-9 ${view === 'project' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+            className={`min-h-11 flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-9 ${view === 'project' ? 'bg-background text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
           >
-            项目视图
+            活动全貌
           </button>
         </div>
         <Button variant="outline" size="icon" onClick={() => setCustomizeOpen(true)} aria-label="自定义看板" title="自定义看板">
           <Settings2 className="size-4" />
         </Button>
-        <Button variant="outline" onClick={() => nav(`/p/${project.id}/onsite`)}>
+        <Button variant="outline" className="md:hidden" onClick={() => nav(`/p/${project.id}/onsite`)}>
           <Smartphone className="size-4" /> 现场模式
         </Button>
       </div>
 
-      {/* 项目概况指标（项目视图） */}
+      {/* 项目概况指标（活动全貌） */}
       {!isPersonal && (
-        <div className="grid grid-cols-2 gap-2 min-[360px]:grid-cols-3 sm:gap-3 xl:grid-cols-6" style={{ order: -1 }}>
+        <div className="editorial-band gap-px bg-border grid-cols-2 min-[25rem]:grid-cols-3 xl:grid-cols-6" style={{ order: -1 }}>
           <MetricCard label="待办完成率" value={`${summary.metrics.todoCompletionRate}%`} onClick={() => onNavigate('todos')} />
           <MetricCard label="逾期待办" value={String(summary.metrics.overdueCount)} alert={summary.metrics.overdueCount > 0} onClick={() => onNavigate('todos')} />
           {summary.metrics.budgetUsageRate !== null && (
             <MetricCard label="预算使用率" value={`${summary.metrics.budgetUsageRate}%`} alert={summary.metrics.budgetUsageRate > 90} onClick={() => onNavigate('finance')} />
           )}
-          <MetricCard label="现场确认率" value={`${summary.metrics.workConfirmationRate}%`} onClick={() => onNavigate('work')} />
-          <MetricCard label="成员" value={String(summary.metrics.memberCount)} onClick={() => onNavigate('members')} />
-          <MetricCard label="活跃风险" value={String(summary.metrics.activeRiskCount)} alert={summary.metrics.activeRiskCount > 0} />
+          <MetricCard label="排班确认率" value={`${summary.metrics.workConfirmationRate}%`} onClick={() => onNavigate('work')} />
+          <MetricCard label="参与成员" value={String(summary.metrics.memberCount)} onClick={() => onNavigate('members')} />
+          <MetricCard label="待处理风险" value={String(summary.metrics.activeRiskCount)} alert={summary.metrics.activeRiskCount > 0} />
         </div>
       )}
 
@@ -400,30 +398,29 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
       {!hidden.has('myActions') && (
       <CollapsibleCard
         title="待我处理"
-        icon={ListTodo}
         count={myActions.items.length}
         collapsed={isCollapsed('myActions')}
         onToggle={() => toggleCollapse('myActions')}
         style={{ order: orderOf('myActions') }}
       >
-        <div className="space-y-2">
+        <div className="editorial-list">
           {myActions.items.length === 0 ? (
             <p className="py-4 text-center text-sm text-muted-foreground">当前没有需要你处理的事项</p>
           ) : (
             myActions.items.map((item) => (
-              <ListRow
+              <div
                 key={item.id}
-                className="flex items-center gap-2 transition-colors hover:bg-accent/50"
+                className="editorial-row flex flex-wrap items-center gap-2"
               >
                 <button
                   onClick={() => onNavigate(item.sourceType === 'todo' ? 'todos' : 'work')}
-                  className="flex min-w-0 flex-1 items-start gap-2 text-left"
+                  className="flex min-h-11 min-w-0 flex-1 flex-wrap items-center gap-2 text-left"
                 >
                   {item.sourceType === 'todo'
                     ? <ListTodo className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                     : <ClipboardList className="mt-0.5 size-4 shrink-0 text-muted-foreground" />}
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{item.title}</p>
+                    <p className="text-sm font-medium">{item.title}</p>
                     <p className="text-xs text-muted-foreground">{item.detail}</p>
                   </div>
                   <div className="shrink-0 text-right">
@@ -449,10 +446,10 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
                     onClick={() => void confirmWork(item.id)}
                   >
                     {confirmingId === item.id ? <Loader2 className="size-4 animate-spin" /> : null}
-                    确认
+                    确认到岗
                   </Button>
                 )}
-              </ListRow>
+              </div>
             ))
           )}
         </div>
@@ -463,7 +460,6 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
       {!hidden.has('risks') && (
       <CollapsibleCard
         title="风险与异常"
-        icon={AlertTriangle}
         count={risks.risks.length > 0 ? risks.risks.length : undefined}
         countVariant="destructive"
         collapsed={isCollapsed('risks')}
@@ -490,21 +486,22 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
           {canManageRisk && ignoredRisks.length > 0 && (
             <div className="mt-3 border-t pt-3">
               <button
+                aria-expanded={ignoredOpen}
                 onClick={() => setIgnoredOpen(!ignoredOpen)}
-                className="flex w-full items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+                className="flex min-h-11 w-full items-center gap-2 text-sm text-muted-foreground md:min-h-8 hover:text-foreground"
               >
                 <EyeOff className="size-4" />
                 <span>已忽略 {ignoredRisks.length} 项</span>
                 <ChevronDown className={`ml-auto size-4 transition-transform ${ignoredOpen ? 'rotate-180' : ''}`} />
               </button>
               {ignoredOpen && (
-                <div className="mt-2 space-y-2">
+                <div className="editorial-list mt-2">
                   {ignoredRisks.map((risk) => {
                     const level = LEVEL_MAP[risk.level] ?? LEVEL_MAP.info;
                     const Icon = level.icon;
                     const ignorerName = members.find((m) => m.userId === risk.ignoredBy)?.name ?? '成员';
                     return (
-                      <ListRow key={risk.id} className="flex items-start gap-2 opacity-75">
+                      <div key={risk.id} className="editorial-row flex items-start gap-2 opacity-75">
                         <Icon className={`mt-0.5 size-4 shrink-0 ${level.cls}`} />
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium">{risk.title}</p>
@@ -520,11 +517,12 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
                           variant="outline"
                           className="h-11 shrink-0 px-3"
                           disabled={restoringId === risk.id}
+                          aria-label={`恢复风险：${risk.title}`}
                           onClick={() => void restoreRisk(risk.id)}
                         >
                           {restoringId === risk.id ? <Loader2 className="size-4 animate-spin" /> : <RotateCcw className="size-4" />}
                         </Button>
-                      </ListRow>
+                      </div>
                     );
                   })}
                 </div>
@@ -536,10 +534,9 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
       )}
 
       {/* 公告 */}
-      {(announcements.items.length > 0 || canManageAnnouncement) && !hidden.has('announcements') && (
+      {!hidden.has('announcements') && (
         <CollapsibleCard
           title="公告"
-          icon={Megaphone}
           collapsed={isCollapsed('announcements')}
           onToggle={() => toggleCollapse('announcements')}
           style={{ order: orderOf('announcements') }}
@@ -554,14 +551,14 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
           {announcements.items.length === 0 ? (
             <p className="py-4 text-center text-sm text-muted-foreground">暂无公告</p>
           ) : (
-          <div className="space-y-3">
+          <div className="editorial-list">
             {announcements.items.map((a) => (
-              <ListRow key={a.id} className={a.type === 'emergency' ? 'border-destructive/40 bg-destructive-soft text-destructive-soft-foreground' : a.type === 'important' ? 'border-warning/40 bg-warning-soft text-warning-soft-foreground' : ''}>
+              <div key={a.id} className={`editorial-row px-2 ${a.type === 'emergency' ? 'bg-destructive-soft text-destructive-soft-foreground' : a.type === 'important' ? 'bg-warning-soft text-warning-soft-foreground' : ''}`}>
                 <div className="flex items-start gap-2">
                   {a.isPinned && <Pin className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />}
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium">{a.title}</p>
-                    {a.content && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{a.content}</p>}
+                    {a.content && <p className="mt-0.5 text-xs">{a.content}</p>}
                     <p className="mt-1 text-xs text-muted-foreground">{a.publishedBy.name} · {fmtLocal(a.publishedAt)}</p>
                   </div>
                   {a.requireConfirmation && !a.confirmedByMe && (
@@ -579,7 +576,7 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
                     <Badge variant="secondary" className="shrink-0 text-xs">已确认</Badge>
                   )}
                 </div>
-              </ListRow>
+              </div>
             ))}
           </div>
           )}
@@ -590,7 +587,6 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
       {!hidden.has('schedule') && (
       <CollapsibleCard
         title="近期日程"
-        icon={CalendarDays}
         collapsed={isCollapsed('schedule')}
         onToggle={() => toggleCollapse('schedule')}
         style={{ order: orderOf('schedule') }}
@@ -600,7 +596,8 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
               <button
                 key={d}
                 onClick={() => switchRange(d)}
-                className={`rounded px-2 py-0.5 transition-colors ${range === d ? 'bg-background font-medium text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                aria-pressed={range === d}
+                className={`min-h-11 min-w-11 rounded px-2 py-0.5 transition-colors md:min-h-8 ${range === d ? 'bg-background font-medium text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
               >
                 {d} 天
               </button>
@@ -615,15 +612,15 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
             {schedule.groups.map((group) => (
               <div key={group.date}>
                 <p className="mb-1 text-xs font-medium text-muted-foreground">{group.label}</p>
-                <div className="space-y-1">
+                <div className="editorial-list">
                   {group.items.map((item) => (
-                    <div key={`${item.sourceType}-${item.id}`} className="flex items-center gap-2 text-sm">
+                    <div key={`${item.sourceType}-${item.id}`} className="editorial-row flex items-center gap-2 text-sm">
                       <span className="w-12 shrink-0 text-xs text-muted-foreground">{fmtLocal(item.time).slice(6)}</span>
                       {item.sourceType === 'todo' && <ListTodo className="size-3.5 shrink-0 text-muted-foreground" />}
                       {item.sourceType === 'work' && <ClipboardList className="size-3.5 shrink-0 text-muted-foreground" />}
                       {item.sourceType === 'project' && <CalendarDays className="size-3.5 shrink-0 text-primary" />}
                       {item.sourceType === 'milestone' && <Flag className="size-3.5 shrink-0 text-primary" />}
-                      <span className="truncate">{item.title}</span>
+                      <span className="min-w-0 wrap-anywhere">{item.title}</span>
                     </div>
                   ))}
                 </div>
@@ -646,55 +643,56 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
       />
       )}
 
-      {/* 模块摘要（项目视图） */}
+      {/* 各板块概览（活动全貌） */}
       {!isPersonal && !hidden.has('modules') && (
-      <div className="grid gap-3 md:grid-cols-2" style={{ order: orderOf('modules') }}>
+      <CollapsibleCard title="各板块概览" collapsed={isCollapsed('modules')} onToggle={() => toggleCollapse('modules')} style={{ order: orderOf('modules') }}>
+        <div className="editorial-band grid-cols-2 gap-px bg-border">
         <ModuleCard title="待办" icon={ListTodo} onClick={() => onNavigate('todos')}>
           <Stat label="总数" value={summary.modules.todos.total} />
           <Stat label="已完成" value={summary.modules.todos.done} />
-          <Stat label="逾期" value={summary.modules.todos.overdue} alert={summary.modules.todos.overdue > 0} />
-          <Stat label="本周到期" value={summary.modules.todos.dueThisWeek} />
+          <Stat label="已逾期" value={summary.modules.todos.overdue} alert={summary.modules.todos.overdue > 0} />
+          <Stat label="本周截止" value={summary.modules.todos.dueThisWeek} />
         </ModuleCard>
 
         {summary.modules.finance && (
           <ModuleCard title="财务" icon={Wallet} onClick={() => onNavigate('finance')}>
-            <Stat label="收入" value={`¥${((summary.modules.finance.ticketIncomeCents + summary.modules.finance.incomeCents) / 100).toFixed(0)}`} />
-            <Stat label="支出" value={`¥${(summary.modules.finance.expenseCents / 100).toFixed(0)}`} />
-            <Stat label="结余" value={`¥${(summary.modules.finance.profitCents / 100).toFixed(0)}`} alert={summary.modules.finance.profitCents < 0} />
+            <Stat label="总收入" value={`¥${((summary.modules.finance.ticketIncomeCents + summary.modules.finance.incomeCents) / 100).toFixed(2)}`} />
+            <Stat label="总支出" value={`¥${(summary.modules.finance.expenseCents / 100).toFixed(2)}`} />
+            <Stat label="当前结余" value={`¥${(summary.modules.finance.profitCents / 100).toFixed(2)}`} alert={summary.modules.finance.profitCents < 0} />
           </ModuleCard>
         )}
 
         {summary.modules.materials && (
           <ModuleCard title="物料" icon={FolderOpen} onClick={() => onNavigate('materials')}>
-            <Stat label="资源总数" value={summary.modules.materials.totalResources} />
-            <Stat label="无版本" value={summary.modules.materials.noVersionCount} alert={summary.modules.materials.noVersionCount > 0} />
+            <Stat label="资料总数" value={summary.modules.materials.totalResources} />
+            <Stat label="待传文件" value={summary.modules.materials.noVersionCount} alert={summary.modules.materials.noVersionCount > 0} />
             <Stat label="近 7 天更新" value={summary.modules.materials.recentCount} />
           </ModuleCard>
         )}
 
         {summary.modules.work && (
           <ModuleCard title="现场" icon={ClipboardList} onClick={() => onNavigate('work')}>
-            <Stat label="任务模块" value={summary.modules.work.totalModules} />
-            <Stat label="已分配/所需" value={`${summary.modules.work.totalAssigned}/${summary.modules.work.totalRequired}`} />
+            <Stat label="岗位总数" value={summary.modules.work.totalModules} />
+            <Stat label="已排 / 需排" value={`${summary.modules.work.totalAssigned}/${summary.modules.work.totalRequired}`} />
             <Stat label="已确认" value={summary.modules.work.confirmedCount} />
-            <Stat label="人员缺口" value={summary.modules.work.shortageCount} alert={summary.modules.work.shortageCount > 0} />
+            <Stat label="人数缺口" value={summary.modules.work.shortageCount} alert={summary.modules.work.shortageCount > 0} />
           </ModuleCard>
         )}
-      </div>
+        </div>
+      </CollapsibleCard>
       )}
 
       {/* 最近动态 */}
       {activities.items.length > 0 && !hidden.has('activities') && (
         <CollapsibleCard
           title="最近动态"
-          icon={Clock}
           collapsed={isCollapsed('activities')}
           onToggle={() => toggleCollapse('activities')}
           style={{ order: orderOf('activities') }}
         >
-          <div className="space-y-2">
+          <div className="editorial-list border-l pl-3">
             {activities.items.map((act) => (
-              <div key={act.id} className="flex items-start gap-2 text-sm">
+              <div key={act.id} className="editorial-row flex items-start gap-2 text-sm">
                 <span className="w-12 shrink-0 text-xs text-muted-foreground">{fmtLocal(act.createdAt).slice(6)}</span>
                 <span className="text-muted-foreground">{act.message}</span>
               </div>
@@ -708,13 +706,13 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
         open={customizeOpen}
         onOpenChange={setCustomizeOpen}
         title="自定义看板"
-        description="调整卡片显示顺序，或隐藏不需要的卡片（设置跨设备保存）"
+        description="调整各章节上下顺序，或隐藏暂不需要的章节（偏好跨设备同步）"
       >
         <div className="space-y-2">
           {cardOrder.map((id, idx) => (
             <div
               key={id}
-              className={`flex items-center gap-1 rounded-lg border p-2 pl-3 ${hidden.has(id) ? 'opacity-50' : ''}`}
+              className={`editorial-row flex items-center gap-1 border-b ${hidden.has(id) ? 'opacity-50' : ''}`}
             >
               <span className="min-w-0 flex-1 truncate text-sm">{CARD_DEFS[id].title}</span>
               <Button
@@ -759,11 +757,11 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
           className="space-y-4"
         >
           <div className="space-y-2">
-            <Label>完成备注（可选）</Label>
+            <Label>完成说明（可选）</Label>
             <Textarea
               value={completionNote}
               onChange={(e) => setCompletionNote(e.target.value)}
-              placeholder="补充说明或备注"
+              placeholder="补充交付结果或备注说明"
               rows={3}
             />
           </div>
@@ -783,7 +781,7 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
       <FormOverlay
         open={!!ignoringRisk}
         onOpenChange={(o) => { if (!o) setIgnoringRisk(null); }}
-        title="忽略风险"
+        title="暂时忽略风险"
         description={ignoringRisk?.title}
       >
         <form
@@ -795,7 +793,7 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
             <Textarea
               value={ignoreReason}
               onChange={(e) => setIgnoreReason(e.target.value)}
-              placeholder="说明为什么忽略此风险"
+              placeholder="简要说明已知情或暂缓处理的原因"
               rows={3}
               required
             />
@@ -837,9 +835,8 @@ export default function DashboardTab({ project, members, myPermissions, onNaviga
   );
 }
 
-function CollapsibleCard({ title, icon: Icon, count, countVariant = 'secondary', collapsed, onToggle, headerExtra, style, children }: {
+function CollapsibleCard({ title, count, countVariant = 'secondary', collapsed, onToggle, headerExtra, style, children }: {
   title: string;
-  icon: typeof ListTodo;
   count?: number;
   countVariant?: 'secondary' | 'destructive';
   collapsed: boolean;
@@ -849,20 +846,19 @@ function CollapsibleCard({ title, icon: Icon, count, countVariant = 'secondary',
   children: React.ReactNode;
 }) {
   return (
-    <Card style={style}>
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center justify-between gap-2 text-base">
-          <button onClick={onToggle} aria-expanded={!collapsed} className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-9">
-            <Icon className="size-4 shrink-0 text-muted-foreground" />
-            <span className="truncate">{title}</span>
+    <section className="editorial-section" style={style}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="editorial-subheading min-w-0">
+          <button onClick={onToggle} aria-expanded={!collapsed} className="flex min-h-11 items-center gap-2 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-8">
+            <ChevronDown aria-hidden="true" className={`size-4 shrink-0 text-muted-foreground motion-safe:transition-transform ${collapsed ? '-rotate-90' : ''}`} />
+            <span>{title}</span>
             {count !== undefined && count > 0 && <Badge variant={countVariant}>{count}</Badge>}
-            <ChevronDown className={`size-4 shrink-0 text-muted-foreground motion-safe:transition-transform ${collapsed ? '-rotate-90' : ''}`} />
           </button>
-          {headerExtra}
-        </CardTitle>
-      </CardHeader>
-      {!collapsed && <CardContent>{children}</CardContent>}
-    </Card>
+        </h2>
+        {headerExtra}
+      </div>
+      {!collapsed && children}
+    </section>
   );
 }
 
@@ -870,7 +866,7 @@ function RiskCard({ risk, onIgnore }: { risk: RiskItem; onIgnore?: () => void })
   const level = LEVEL_MAP[risk.level] ?? LEVEL_MAP.info;
   const Icon = level.icon;
   return (
-    <div className={`flex items-start gap-2 rounded-lg border border-l-2 p-3 ${level.border}`}>
+    <div className={`flex items-start gap-2 border-l-[3px] bg-muted/45 p-3 ${level.border}`}>
       <Icon className={`mt-0.5 size-4 shrink-0 ${level.cls}`} />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium">{risk.title}</p>
@@ -896,7 +892,7 @@ function MetricCard({ label, value, alert, onClick }: { label: string; value: st
   return (
     <Comp
       onClick={onClick}
-      className={`min-w-0 rounded-lg border bg-card p-3 text-left ${onClick ? 'transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring' : ''}`}
+      className={`min-w-0 bg-background p-3 text-left ${onClick ? 'transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring' : ''}`}
     >
       <p className={`text-xl font-semibold tabular-nums ${alert ? 'text-destructive' : ''}`}>{value}</p>
       <p className="text-xs leading-[18px] text-muted-foreground">{label}</p>
@@ -906,17 +902,13 @@ function MetricCard({ label, value, alert, onClick }: { label: string; value: st
 
 function ModuleCard({ title, icon: Icon, onClick, children }: { title: string; icon: typeof ListTodo; onClick: () => void; children: React.ReactNode }) {
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center justify-between text-base">
-          <span className="flex items-center gap-2"><Icon className="size-4" /> {title}</span>
-          <Button variant="ghost" size="sm" onClick={onClick}>查看</Button>
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 gap-2">{children}</div>
-      </CardContent>
-    </Card>
+    <div className="min-w-0 bg-background p-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="editorial-subheading flex items-center gap-2"><Icon aria-hidden="true" className="size-4" /> {title}</h3>
+        <Button variant="ghost" size="sm" onClick={onClick}>查看 →</Button>
+      </div>
+      <div className="grid grid-cols-2 gap-2">{children}</div>
+    </div>
   );
 }
 

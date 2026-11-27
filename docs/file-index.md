@@ -177,10 +177,11 @@
 - `src/App.tsx` — 路由表：公开 /login /register /lf/:token（失物招领公开页）、/screen/:token（现场大屏公开页）；RequireAuth：/projects、/p/:id（ProjectHome）、/p/:id/onsite、/me、/help、/admin、/invite/:token、/p/:id/work-sheet/print、/dl/:id（导出文件下载页）
 - `src/api/client.ts` — api/authorizedFetch/downloadFile：Bearer 注入、401 单飞刷新重放；401 跳登录白名单 /invite/ 与 /lf/（公开页）
 - `src/auth.tsx` — AuthProvider/useAuth：login/logout/refresh、trialExpiresAt
-- `src/theme.tsx` — ThemeProvider/ModeToggle：日夜 × 简洁/明快
+- `src/theme.tsx` — ThemeProvider/ModeToggle/StylePicker/StyleSwatch：日夜 × 简洁/明快/anon tokyo（千早爱音樱粉+冲浪绿双色预览点）三档六态主题切换
 - `src/crypto.ts` — PBKDF2(60万次)+AES-GCM 浏览器端加密（平台账号 user 模式）
 - `src/types.ts` — 全部 API 共享类型
-- `src/index.css` — Tailwind v4 四主题语义色、对比度令牌、圆角与减少动态效果全局规则
+- `src/index.css` — Tailwind v4 三风格日夜六主题语义色、对比度令牌、`anon-tokyo`（千早爱音 `#ff8899` / `#73d9be`）专属视觉细节与画册排版基础类（`.editorial-*`、高对比度与自适应触控尺寸）
+- `public/theme-init.js` — 首屏防闪烁内联脚本：同步应用日夜模式、`data-style` 与对应主题色 `<meta name="theme-color">`
 - `src/vite-env.d.ts` — Vite / vite-plugin-pwa 客户端类型引用
 - `src/lib/datetime.ts` — 本地时间格式化 + 活动倒计时 + 开展倒排换算（daysBeforeLocal）
 - `src/lib/offlineQueue.ts` — 离线 POST 队列（现场模式用）
@@ -192,10 +193,10 @@
 
 ### 页面 `src/pages/`
 - `Login.tsx` / `Register.tsx` — 登录 / 邀请码注册（演示模式一键进入、表单错误提示；与 InviteAccept 共用 AuthShell）
-- `Projects.tsx` — 项目工作台：总览统计、名称/说明/阶段搜索、文字健康状态与进度卡片、新建防重复提交
-- `ProjectHome.tsx` — 项目主页：按权限过滤的导航、选中语义与可滚动移动端更多 Sheet；PWA 指引由本页持有
-- `OnsitePage.tsx` — 现场模式：签到/完成/异常上报（离线入队）、舞台执行卡（Rundown 开始/推进/顺延，按 tools:manage 显隐）、失物登记入口（复用 LostFoundItemDialog，按 myPermissions 显隐）、30s 轮询
-- `WorkSheetPrint.tsx` — 任务单打印页（按人/全员）
+- `Projects.tsx` — 我的活动列表：总览内联统计、名称/说明/阶段搜索、标准四档文字健康状态（正常/留意/预警/紧急）与进度卡片、新建防重复提交
+- `ProjectHome.tsx` — 活动工作区壳层：桌面企划册四组书脊目录栏（底部含现场模式与主题/账号控制）、移动端 5 格固定底栏（看板/待办/财务/物料/更多，无财务权限自动收为 4 格）及含风格日夜切换的「更多板块」抽屉；PWA 指引由本页持有
+- `OnsitePage.tsx` — 现场模式：顶栏含主题切换、签到/完成/异常上报（离线入队）、舞台执行卡（Rundown 开始/推进/顺延，按 tools:manage 显隐）、失物登记入口（复用 LostFoundItemDialog，按 myPermissions 显隐）、30s 轮询
+- `WorkSheetPrint.tsx` — 现场排班单打印页（按人/全员 A4 分页，现场岗位表格）
 - `DownloadFile.tsx` — 导出文件下载页（QQ 聊天记录导出链接落点）：进入即带登录态触发下载，失败可重试
 - `Me.tsx` — 个人资料及响应式联系方式表单、推送设置/QQ 通知绑定/API 密钥/界面偏好
 - `Admin.tsx` — 超管邀请码管理
@@ -205,7 +206,7 @@
 - `DocsPage.tsx` — 帮助中心：四分组侧边导航/移动端吸顶下拉、URL `?chapter=` 同步、本章小节锚点与高频话题直达、全字段全文检索（支持 `/` 聚焦与高亮跳转）、轻量内联富文本/步骤/表格/提示框渲染、上下章翻页与截图放大预览
 
 ### 通用组件 `src/components/`
-- `Layout.tsx` — 主布局：响应式顶栏（项目切换/主题/用户菜单）、跳到主要内容、跨页导览入口及横幅
+- `Layout.tsx` — 主布局：非活动页面简洁顶栏（桌面+手机均可直接切换风格/日夜）、活动页移动端轻顶栏（含调色盘直选与展开三档风格的头像菜单）、跳到主要内容、跨页导览入口及横幅
 - `FormOverlay.tsx` — **弹层规范核心**：所有含输入框的弹层一律经此渲染浮动居中 Dialog（禁底部 Sheet 表单）
 - `AuthImg.tsx` — 鉴权图片（useAuthorizedObjectUrl → objectURL）
 - `AuthMedia.tsx` — 鉴权 PDF/音视频/Markdown 预览（iframe/video/audio/react-markdown + useAuthorizedObjectUrl；previewKindOf 按 mime+扩展名归类）
@@ -216,27 +217,27 @@
 - `PwaInstallGuide.tsx` — PWA 手动安装指引弹层（iOS 分享路径 / 浏览器菜单路径两版；由 ProjectHome 挂在「更多」Sheet 外）
 - `ApiKeysCard.tsx` — Me 页 API 密钥卡：自助生成（项目+实有权限点+30 天/永久）、一次性原文展示复制、列表与撤销
 - `Toaster.tsx` — sonner 封装；`Logo.tsx` — 品牌标识（应用图标 /icons/icon-192.png + ANON 字样，size/wordmarkClassName props，顶栏/AuthShell/公开页共用）
-  `AuthShell.tsx` — 认证/邀请页共用壳：桌面柔和品牌区与居中表单、移动端左对齐品牌头
+  `AuthShell.tsx` — 认证/邀请页共用壳：桌面不对称画册扉页（`anon-tokyo` 含樱粉→冲浪绿双色渐变短线）与无框居中表单、全端调色盘与日夜切换、移动端左对齐品牌头
 - `help/content.ts` — HELP_CHAPTERS 结构化帮助教程（4 分组 11 章，含步骤/要点/对比表/提示框/截图元数据，覆盖全流程实战与全模块说明）
-- `onboarding/OnboardingDialog.tsx` — 首登三页幻灯；`onboarding/tour.ts` — driver.js 自动跳页的全模块高亮（14/13步，按权限过滤；无项目使用精简版）
+- `onboarding/OnboardingDialog.tsx` — 首登三页幻灯；`onboarding/tour.ts` — driver.js 自动跳页的全模块高亮（14/13 步，有财务权限步并按权限过滤；无活动使用精简版）
 - `ui/*.tsx`（21 个）— shadcn/radix 基础组件封装；输入弹层经 FormOverlay，sheet 仅供无输入操作；共享响应式触控尺寸、语义色、卡片间距和弹层关闭控件；badge 含状态变体，list-row 为列表行共享容器
 
-### 项目 Tab `src/components/project/`（挂在 ProjectHome，直调对应后端域）
-- `DashboardTab.tsx` — 仪表盘聚合、持久化卡片顺序/折叠/隐藏、响应式指标与风险计数语义（内嵌公告/里程碑/阶段卡）
-- `TodosTab.tsx` + `TodoFormDialog.tsx` + `TodoActionSheet.tsx` — 待办列表响应式筛选、错误/加载/空态、任务操作及表单（日期支持开展倒排）
-- `FinanceTab.tsx` — 响应式财务汇总、结算与账目列表，记账/门票/CSV 导出；账目菜单修改金额，FormOverlay 预填金额、提交禁用与失败重试，成功刷新汇总和结算
-- `MaterialsTab.tsx` — 两层类别联动筛选（序列与筛选双重保护加载状态）、搜索排序、类别管理、资源编辑上传与预览；数字资源两列卡、版本切换与可见范围弹窗；实物入口及帮助截图 public/help/materials-*.png
+### 活动板块 `src/components/project/`（挂在 ProjectHome，直调对应后端域）
+- `DashboardTab.tsx` — 活动看板聚合、个人视角/活动全貌切换、指标带与待处理风险分栏、持久化顺序/折叠/隐藏（内嵌公告/里程碑/阶段步进）
+- `TodosTab.tsx` + `TodoFormDialog.tsx` + `TodoActionSheet.tsx` — 待办列表无框筛选与细横线分组、错误/加载/空态、报进度与表单（日期支持开展倒排）
+- `FinanceTab.tsx` — 细线统计带、结算与事由前置/去红标收支明细、记账/修改金额/门票/CSV 导出
+- `MaterialsTab.tsx` — 两层分类联动筛选（「本分类及子分类 / 仅本分类」）、搜索排序、分类管理、资料编辑上传与预览；文件资料卡片、版本切换与可见范围弹窗；实物入口及帮助截图 public/help/materials-*.png
 - `PhysicalTab.tsx` — 实物分类/台账/状态/日志
-- `AccountsTab.tsx` — 平台账号增删/密码揭示
-- `MembersTab.tsx` / `RolesTab.tsx` — 成员邀请/角色权限；`ExternalMembersPanel.tsx` 未注册成员建档·编辑·归档恢复·关联账号；`TaskAssigneePicker.tsx` 待办与现场共用的账号+档案混合指派选择器
-- `SettingsTab.tsx` — 项目信息 + 阶段管理（StageManager）+ QQ 群通知卡（QqGroupCard：多群列表、逐群 7 类订阅与全员舞台报名授权即时保存、绑定码生成）
-- `WorkTab.tsx` — 现场工作模块/确认/打印
+- `AccountsTab.tsx` — 平台账号细线分栏增删/密码揭示
+- `MembersTab.tsx` / `RolesTab.tsx` — 成员邀请/角色权限；`ExternalMembersPanel.tsx` 未注册协作者建档·编辑·归档恢复·关联账号；`TaskAssigneePicker.tsx` 待办与现场共用的账号+档案混合指派选择器
+- `SettingsTab.tsx` — 活动基本信息 + 阶段管理（StageManager）+ QQ 群通知卡（QqGroupCard：多群列表、逐群 7 类订阅与全员舞台报名授权即时保存、绑定码生成）
+- `WorkTab.tsx` — 现场岗位管理/我的排班确认/打印排班单
 - `AnnouncementManager.tsx` — 公告发布/置顶/确认名单
-- `MilestoneSection.tsx` / `StageStepper.tsx` / `StageManager.tsx` — 里程碑卡 / 阶段进度条 / 阶段增删排序
+- `MilestoneSection.tsx` / `StageStepper.tsx` / `StageManager.tsx` — 里程碑 / 阶段进度条 / 阶段增删排序
 - `VisibilityPicker.tsx` — 可见范围选择器（成员+角色勾选，多 Tab 复用）
-- `ToolsTab.tsx` — 实用工具容器（内置：舞台编排/报名审核/失物招领卡片；自定义工具卡片网格 + ⋯ 管理菜单 + 虚框添加卡，点击 embed→页内 iframe / link→新标签页；passToken 工具先取启动令牌经 lib/toolLaunch.ts 投递：手势内同步 window.open 防移动端拦弹窗，opener 丢失（standalone PWA）走 fragment 兜底，iOS 先弹底部选择层「内置预览/独立窗口」，URL 干净无令牌）
-- `tools/CustomToolEmbed.tsx` / `tools/CustomToolDialog.tsx` — 自定义工具页内 iframe 视图（sandbox 不放行 top-navigation + 新窗口打开；passToken 令牌经 iframe contentWindow 握手投递）/ 新建编辑弹层（FormOverlay，携带身份开关 + scopes 勾选）
-- `tools/StageRundownTool.tsx` + `ProgramFormDialog.tsx` + `ExecutionPanel.tsx` + `ScreenShareDialog.tsx` — 流程单编排/节目表单/导出/执行控制台（开始/推进/跳节目/顺延/结束重置）/大屏分享管理
+- `ToolsTab.tsx` — 工具箱容器（内置：舞台时间编排/舞台报名审核/失物招领卡片；自定义工具卡片网格 + ⋯ 管理菜单 + 添加自定义工具卡）
+- `tools/CustomToolEmbed.tsx` / `tools/CustomToolDialog.tsx` — 自定义工具页内 iframe 视图（开放页眉+返回全部工具；sandbox + postMessage 握手）/ 新建编辑弹层
+- `tools/StageRundownTool.tsx` + `ProgramFormDialog.tsx` + `ExecutionPanel.tsx` + `ScreenShareDialog.tsx` — 流程单编排（细线分栏与开放页眉）/节目表单/导出/执行控台/大屏分享管理
 - `tools/StageSignupTool.tsx` + `SignupItemDialog.tsx` + `SignupReviewDialog.tsx` — 报名审核/投票/拍板/导入
 - `tools/SwipeRow.tsx` — 触屏侧滑操作行；`tools/rundownExport.ts` — 时间推算/文本/PNG 导出（纯前端）；`tools/rundownExecution.ts` — 执行态推算纯函数（延误/超时/预计时间/实时级联推算开始与结束）
 - `tools/LostFoundTool.tsx` + `LostFoundItemDialog.tsx` + `LostFoundClaimDialog.tsx` — 失物列表/登记表单(multipart 单照片)/认领备注弹层 + 公开分享开关卡

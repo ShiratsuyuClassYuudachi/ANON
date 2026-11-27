@@ -72,15 +72,14 @@ export default function CustomToolDialog({ open, onOpenChange, projectId, tool, 
       open={open}
       onOpenChange={onOpenChange}
       title={tool ? '编辑自定义工具' : '添加自定义工具'}
-      description="接入自研组件：页内 iframe 嵌入或新标签页打开"
     >
       <form onSubmit={submit} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="ct-name">名称</Label>
+          <Label htmlFor="ct-name">工具名称</Label>
           <Input id="ct-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={50} required />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="ct-url">链接</Label>
+          <Label htmlFor="ct-url">访问链接</Label>
           <Input
             id="ct-url"
             type="url"
@@ -91,7 +90,7 @@ export default function CustomToolDialog({ open, onOpenChange, projectId, tool, 
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="ct-desc">描述（选填）</Label>
+          <Label htmlFor="ct-desc">工具说明（可选）</Label>
           <Textarea id="ct-desc" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={200} rows={2} />
         </div>
         <div className="space-y-2">
@@ -99,27 +98,26 @@ export default function CustomToolDialog({ open, onOpenChange, projectId, tool, 
           <RadioGroup value={mode} onValueChange={(v) => setMode(v as CustomToolMode)} className="gap-2">
             <div className="flex items-center gap-2">
               <RadioGroupItem value="embed" id="ct-mode-embed" />
-              <Label htmlFor="ct-mode-embed" className="font-normal">嵌入页面内打开</Label>
+              <Label htmlFor="ct-mode-embed" className="font-normal">嵌入当前页面内打开</Label>
             </div>
             <div className="flex items-center gap-2">
               <RadioGroupItem value="link" id="ct-mode-link" />
-              <Label htmlFor="ct-mode-link" className="font-normal">新标签页打开</Label>
+              <Label htmlFor="ct-mode-link" className="font-normal">在新标签页中打开</Label>
             </div>
           </RadioGroup>
         </div>
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Switch id="ct-pass-token" checked={passToken} onCheckedChange={setPassToken} />
-            <Label htmlFor="ct-pass-token">携带用户身份</Label>
+            <Label htmlFor="ct-pass-token">向组件安全传递成员身份</Label>
           </div>
           <p className="text-xs text-muted-foreground">
-            打开时经 postMessage 握手向组件投递短期启动令牌（5 分钟有效；独立窗口 App 等无握手通道的环境改为随链接
-            fragment 一次性携带），组件可凭其调用 POST /api/open/exchange 换取 30 天 API 密钥
+            开启后将在打开工具时投递 5 分钟一次性启动令牌，供组件换取受限访问凭证。
           </p>
         </div>
         {passToken && (
           <div className="space-y-2">
-            <Label>允许插件使用的权限点</Label>
+            <Label>允许组件使用的权限范围</Label>
             <div className="grid grid-cols-2 gap-2">
               {PERMISSIONS.map((p) => (
                 <label key={p.key} className="flex cursor-pointer items-center gap-2 text-sm">
@@ -134,12 +132,12 @@ export default function CustomToolDialog({ open, onOpenChange, projectId, tool, 
               ))}
             </div>
             <p className="text-xs text-muted-foreground">
-              未勾选权限点时，插件仅能验证用户身份与读取成员可见数据
+              不勾选任何权限时，组件仅能核验成员身份并读取基础公开数据。
             </p>
           </div>
         )}
         <Button type="submit" className="w-full" disabled={busy}>
-          {busy ? '提交中…' : tool ? '保存' : '添加'}
+          {busy ? '提交中…' : tool ? '保存修改' : '添加工具'}
         </Button>
       </form>
     </FormOverlay>

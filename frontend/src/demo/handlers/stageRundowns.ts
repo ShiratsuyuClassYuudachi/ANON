@@ -48,7 +48,7 @@ function summaryJson(r: DbStageRundown) {
 
 function findRundown(ctx: Ctx): DbStageRundown {
   const r = ctx.db.stageRundowns.find((x) => x.id === ctx.params.rid && x.projectId === ctx.params.pid);
-  if (!r) throw notFound('Rundown 不存在');
+  if (!r) throw notFound('流程单不存在');
   return r;
 }
 

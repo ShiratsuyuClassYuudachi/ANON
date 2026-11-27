@@ -31,7 +31,7 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
     }
   }
   if (err instanceof MongooseError.CastError) {
-    res.status(400).json({ error: { code: 'bad_request', message: '无效的资源 ID' } });
+    res.status(400).json({ error: { code: 'bad_request', message: '无效的 ID' } });
     return;
   }
   if (err instanceof MongooseError.ValidationError) {

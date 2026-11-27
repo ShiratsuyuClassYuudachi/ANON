@@ -55,7 +55,7 @@ export const externalMemberRoutes: Route[] = [
     requirePeoplePermission(ctx, 'member:manage');
     const m = find(ctx);
     const userId = bodyObj(ctx).userId;
-    if (typeof userId !== 'string' || !ctx.db.memberships.some((x) => x.projectId === ctx.params.pid && x.userId === userId)) return badRequest('只能关联本项目已入项的账号');
+    if (typeof userId !== 'string' || !ctx.db.memberships.some((x) => x.projectId === ctx.params.pid && x.userId === userId)) return badRequest('只能关联本活动已加入的账号');
     if (m.linkedUserId && m.linkedUserId !== userId) return err(409, 'member_already_linked', '成员已关联其他账号');
     if (!m.linkedUserId) { m.linkedUserId = userId; m.linkedAt = nowIso(); }
     return json({ externalMember: publicProfile(m) });

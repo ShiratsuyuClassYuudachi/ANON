@@ -6,7 +6,6 @@ import type { ExternalMember, Member } from '../../types';
 import { FormOverlay } from '@/components/FormOverlay';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -59,16 +58,16 @@ export default function ExternalMembersPanel({ projectId, members, externalMembe
   };
   const list = externalMembers.filter((m) => showHistory || (!m.archivedAt && !m.linkedUserId));
   return <>
-    <Card>
-      <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0 pb-2">
-        <CardTitle className="text-base">未注册成员</CardTitle>
-        {canManage && <Button size="sm" onClick={() => open('new')}><Plus className="size-4" />录入成员</Button>}
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <p className="text-sm text-muted-foreground">无需账号即可录入岗位、联系方式并分配任务，由管理人员代更新进度。</p>
-        <Button variant="ghost" size="sm" onClick={() => setShowHistory(!showHistory)}>{showHistory ? '隐藏已归档和已关联档案' : '查看已归档和已关联档案'}</Button>
-        {list.length === 0 && <p className="text-sm text-muted-foreground">暂无未注册成员</p>}
-        {list.map((m) => <div key={m.id} className="flex flex-wrap items-start justify-between gap-2 rounded-lg border p-3">
+    <section className="editorial-section">
+      <header className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="editorial-subheading">未注册协作者</h2>
+        {canManage && <Button size="sm" onClick={() => open('new')}><Plus className="size-4" /> 录入协作者</Button>}
+      </header>
+      <div className="space-y-3">
+        <p className="text-sm text-muted-foreground">无需注册账号即可为临时支援人员登记岗位与联系方式，直接参与待办指派与现场排班。</p>
+        <Button variant="ghost" size="sm" onClick={() => setShowHistory(!showHistory)}>{showHistory ? '隐藏已归档与已关联档案' : '查看已归档与已关联档案'}</Button>
+        {list.length === 0 && <p className="text-sm text-muted-foreground">暂无未注册协作者档案</p>}
+        {list.map((m) => <div key={m.id} className="editorial-row flex flex-wrap items-start justify-between gap-2 border-t">
           <div className="min-w-0 flex-1 break-words">
             <p className="font-medium">{m.name} <Badge variant="outline">{m.linkedUserId ? '已关联账号' : '未注册'}</Badge>{m.archivedAt && <Badge variant="secondary" className="ml-1">已归档</Badge>}</p>
             {m.duty && <p className="mt-1 text-sm">岗位：{m.duty}</p>}
@@ -80,12 +79,12 @@ export default function ExternalMembersPanel({ projectId, members, externalMembe
             <Button variant="ghost" size="icon" disabled={saving} aria-label={`${m.archivedAt ? '恢复' : '归档'}${m.name}`} onClick={() => archive(m)}>{m.archivedAt ? <RotateCcw className="size-4" /> : <Archive className="size-4" />}</Button>
           </div>}
         </div>)}
-      </CardContent>
-    </Card>
-    <FormOverlay open={!!editing} onOpenChange={(o) => !saving && !o && setEditing(null)} title={editing === 'new' ? '录入未注册成员' : '编辑成员档案'}>
+      </div>
+    </section>
+    <FormOverlay open={!!editing} onOpenChange={(o) => !saving && !o && setEditing(null)} title={editing === 'new' ? '录入未注册协作者' : '编辑协作者档案'}>
       <form onSubmit={save} className="space-y-3">
         <div className="space-y-1.5"><Label htmlFor="external-name">姓名</Label><Input id="external-name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-        <div className="space-y-1.5"><Label htmlFor="external-duty">岗位 / 分工</Label><Textarea id="external-duty" placeholder="如：检票、舞台协助（可后补）" value={form.duty} onChange={(e) => setForm({ ...form, duty: e.target.value })} /></div>
+        <div className="space-y-1.5"><Label htmlFor="external-duty">岗位与分工</Label><Textarea id="external-duty" placeholder="如：检票支援、舞台搬运（可后补）" value={form.duty} onChange={(e) => setForm({ ...form, duty: e.target.value })} /></div>
         <div className="space-y-2">
           <Label>联系方式（可后补）</Label>
           {form.contacts.map((c, i) => <div key={i} className="flex gap-2">
@@ -96,13 +95,13 @@ export default function ExternalMembersPanel({ projectId, members, externalMembe
           <datalist id="external-contact-platforms">{['QQ', '微信', '电话', '邮箱'].map((x) => <option key={x} value={x} />)}</datalist>
           <Button type="button" variant="outline" size="sm" onClick={() => setForm({ ...form, contacts: [...form.contacts, { platform: 'QQ', value: '' }] })}><Plus className="size-4" />添加联系方式</Button>
         </div>
-        <Button disabled={saving || !form.name.trim()} type="submit" className="w-full">{saving ? '保存中…' : '保存'}</Button>
+        <Button disabled={saving || !form.name.trim()} type="submit" className="w-full">{saving ? '保存中…' : '保存档案'}</Button>
       </form>
     </FormOverlay>
-    <FormOverlay open={!!linking} onOpenChange={(o) => !saving && !o && setLinking(null)} title={`关联「${linking?.name ?? ''}」的账号`}>
+    <FormOverlay open={!!linking} onOpenChange={(o) => !saving && !o && setLinking(null)} title="关联已加入的活动成员账号">
       <form onSubmit={link} className="space-y-3">
-        <p className="text-sm text-muted-foreground">选择对方已加入本项目的账号。原任务和现场状态会由该账号接续，岗位与联系方式保留在项目中。关联后不能改绑其他账号。</p>
-        <Select value={targetUserId} onValueChange={setTargetUserId}><SelectTrigger><SelectValue placeholder="选择本项目账号" /></SelectTrigger><SelectContent>{members.map((m) => <SelectItem key={m.userId} value={m.userId}>{m.name}（{m.email}）</SelectItem>)}</SelectContent></Select>
+        <p className="text-sm text-muted-foreground">关联后，该档案名下的历史待办与现场排班将自动归并至所选成员账号。</p>
+        <Select value={targetUserId} onValueChange={setTargetUserId}><SelectTrigger><SelectValue placeholder="选择本活动成员账号" /></SelectTrigger><SelectContent>{members.map((m) => <SelectItem key={m.userId} value={m.userId}>{m.name}（{m.email}）</SelectItem>)}</SelectContent></Select>
         <Button type="submit" className="w-full" disabled={saving || !targetUserId}>{saving ? '关联中…' : '确认关联'}</Button>
       </form>
     </FormOverlay>

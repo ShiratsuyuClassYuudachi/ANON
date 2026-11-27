@@ -61,7 +61,7 @@ export const projectRoutes: Route[] = [
   def('POST', '/api/projects', async (ctx) => {
     const { db } = ctx;
     const b = bodyObj(ctx);
-    if (!b.name || !String(b.name).trim()) return badRequest('项目名称必填');
+    if (!b.name || !String(b.name).trim()) return badRequest('活动名称必填');
     const parseOptDate = (v: unknown) => {
       if (v === undefined || v === null || v === '') return null;
       const d = new Date(String(v));

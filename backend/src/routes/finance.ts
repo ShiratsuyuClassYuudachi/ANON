@@ -63,7 +63,7 @@ async function txJson(t: TransactionDoc) {
 async function assertMembers(projectId: unknown, label: string, userIds: string[]) {
   const count = await Membership.countDocuments({ projectId, userId: { $in: userIds } });
   if (count !== new Set(userIds).size) {
-    throw new AppError(400, 'bad_request', `${label}必须是项目成员`);
+    throw new AppError(400, 'bad_request', `${label}必须是活动成员`);
   }
 }
 
@@ -199,7 +199,7 @@ financeRouter.get(
     const target = String(req.query.userId ?? req.userId);
     const members = await projectMembers(req.project!._id);
     const me = members.find((m) => m.userId === target);
-    if (!me) throw new AppError(400, 'bad_request', 'userId 必须是项目成员');
+    if (!me) throw new AppError(400, 'bad_request', 'userId 必须是活动成员');
     const all = await Transaction.find({ projectId: req.project!._id }).sort({ createdAt: 1, _id: 1 });
     // 导出该成员的“相关账目”（付款人/平摊人/全员平摊）
     const related = all.filter(

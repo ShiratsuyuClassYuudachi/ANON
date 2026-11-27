@@ -83,7 +83,7 @@ cronRouter.post(
         projectId: ms.projectId,
         type: 'milestone:approaching',
         title: `里程碑临近：${ms.title}`,
-        body: `项目「${project.name}」的里程碑「${ms.title}」将于 ${ms.date.toISOString().slice(0, 10)} 到期。`,
+        body: `活动「${project.name}」的里程碑「${ms.title}」将于 ${ms.date.toISOString().slice(0, 10)} 到期。`,
         link: `/p/${String(ms.projectId)}?tab=dashboard`,
         metadata: { milestoneId: ms._id.toString() },
         recipients: managerIds,
@@ -137,7 +137,7 @@ cronRouter.post(
         type: 'weekly:report',
         title: `周报：${project.name}`,
         body: [
-          `项目「${project.name}」周报 (${weekStart.toISOString().slice(0, 10)} ~ ${now.toISOString().slice(0, 10)})`,
+          `活动「${project.name}」周报 (${weekStart.toISOString().slice(0, 10)} ~ ${now.toISOString().slice(0, 10)})`,
           '',
           `本周完成待办：${completedTodos} 项`,
           `新增风险：${newRisks} 项`,
