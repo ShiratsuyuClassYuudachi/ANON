@@ -272,7 +272,7 @@ export const stageSignupRoutes: Route[] = [
     const rundown = ctx.db.stageRundowns.find(
       (x) => x.id === String(bodyObj(ctx).rundownId ?? '') && x.projectId === ctx.params.pid,
     );
-    if (!rundown) throw notFound('Rundown 不存在');
+    if (!rundown) throw notFound('流程单不存在');
     const approved = s.items.filter((it) => it.status === 'approved');
     if (approved.length === 0) throw badRequest('没有已通过的节目可导入');
     for (const it of approved) {

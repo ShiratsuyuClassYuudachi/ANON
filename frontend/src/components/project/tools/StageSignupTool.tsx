@@ -24,7 +24,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   DropdownMenu,
@@ -170,7 +169,7 @@ function SignupItemRow({
 }) {
   const contacts = item.participants.filter((p) => p.contact);
   const content = (
-    <CardContent className="flex items-start gap-2 p-3">
+    <div className="flex min-w-0 flex-1 items-start gap-2.5">
       <Checkbox
         className="mt-1 shrink-0"
         checked={checked}
@@ -179,14 +178,14 @@ function SignupItemRow({
       />
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium">{item.name}</span>
+          <span className="text-balance font-medium">{item.name}</span>
           {dup && (
             <Badge variant="warning-soft">
               撞名
             </Badge>
           )}
           <Badge variant={STATUS_VARIANT[item.status]}>{STATUS_LABEL[item.status]}</Badge>
-          <span className="text-sm text-muted-foreground">{item.durationMin} 分钟</span>
+          <span className="text-sm text-muted-foreground tabular-nums">{item.durationMin} 分钟</span>
         </div>
         {item.participants.length > 0 && (
           <p className="text-sm text-muted-foreground">
@@ -194,7 +193,7 @@ function SignupItemRow({
             {contacts.length > 0 && `（${contacts.map((p) => `${p.cn} ${p.contact}`).join('；')}）`}
           </p>
         )}
-        {item.note && <p className="text-sm text-muted-foreground">{item.note}</p>}
+        {item.note && <p className="text-pretty text-sm text-muted-foreground">{item.note}</p>}
         {item.reviews.length > 0 && (
           <div className="space-y-1">
             {item.reviews.map((r) => (
@@ -210,17 +209,17 @@ function SignupItemRow({
                   {r.decision === 'approve' ? '赞成' : '反对'}
                 </Badge>
                 <span>{r.userName}</span>
-                {r.comment && <span>· {r.comment}</span>}
-                <span>· {fmtLocal(r.updatedAt)}</span>
+                {r.comment && <span className="text-pretty">· {r.comment}</span>}
+                <span className="tabular-nums">· {fmtLocal(r.updatedAt)}</span>
               </p>
             ))}
           </div>
         )}
       </div>
-    </CardContent>
+    </div>
   );
 
-  if (!canManage) return <Card>{content}</Card>;
+  if (!canManage) return <div className="py-3.5">{content}</div>;
 
   const swipeActions: SwipeAction[] = [
     {
@@ -252,43 +251,41 @@ function SignupItemRow({
   return (
     <SwipeRow actions={swipeActions}>
       {(ctl) => (
-        <Card>
-          <div className="flex items-start">
-            <div className="min-w-0 flex-1">{content}</div>
-            <div className="flex shrink-0 flex-col items-end gap-1 p-3 pl-0 sm:flex-row sm:items-center">
-              <Button variant="outline" size="sm" onClick={onReview}>
-                <Vote className="size-4" /> {voted ? '改投' : '投票'}
+        <div className="flex items-start gap-2 bg-background py-3.5">
+          {content}
+          <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
+            <Button variant="outline" size="sm" onClick={onReview}>
+              <Vote className="size-4" /> {voted ? '改投' : '投票'}
+            </Button>
+            <div className="flex items-center">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={`展开操作 ${item.name}`}
+                aria-expanded={ctl.open}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  ctl.toggle();
+                }}
+              >
+                <ChevronLeft className={`size-4 transition-transform ${ctl.open ? 'rotate-180' : ''}`} />
               </Button>
-              <div className="flex items-center">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`展开操作 ${item.name}`}
-                  aria-expanded={ctl.open}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    ctl.toggle();
-                  }}
-                >
-                  <ChevronLeft className={`size-4 transition-transform ${ctl.open ? 'rotate-180' : ''}`} />
-                </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" aria-label={`节目操作 ${item.name}`}>
-                      <MoreHorizontal className="size-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={onEdit}>编辑</DropdownMenuItem>
-                    {item.status !== 'pending' && (
-                      <DropdownMenuItem onClick={() => onStatus('pending')}>重置待审</DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label={`节目操作 ${item.name}`}>
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={onEdit}>编辑</DropdownMenuItem>
+                  {item.status !== 'pending' && (
+                    <DropdownMenuItem onClick={() => onStatus('pending')}>重置待审</DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
-        </Card>
+        </div>
       )}
     </SwipeRow>
   );
@@ -432,151 +429,145 @@ export default function StageSignupTool({ project, myPermissions }: Props) {
 
     return (
       <div className="space-y-3">
-        <Button variant="ghost" size="sm" onClick={() => setSelected(null)}>
-          <ArrowLeft className="size-4" /> 批次列表
+        <Button variant="ghost" size="sm" className="-ml-2" onClick={() => setSelected(null)}>
+          <ArrowLeft className="size-4" /> 返回批次列表
         </Button>
 
-        <Card>
-          <CardContent className="space-y-2 p-4">
-            <div className="flex items-start justify-between gap-2">
-              <div className="space-y-1">
-                <p className="text-lg font-semibold">{detail.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {fmtLocal(detail.startAt, true)} – {endLabel(detail.startAt, detail.endAt)} ｜ 可用 {availableMin} 分钟
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {detail.items.length} 个节目 · 通过 {approvedCount} 个 · 合计 {total} 分钟
-                </p>
-                {detail.note && <p className="text-sm text-muted-foreground">{detail.note}</p>}
-              </div>
-              {canManage && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" aria-label="批次操作">
-                      <MoreHorizontal className="size-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setEditingSignup({
-                          id: detail.id,
-                          name: detail.name,
-                          startAt: detail.startAt,
-                          endAt: detail.endAt,
-                          note: detail.note,
-                          itemCount: detail.items.length,
-                          approvedCount,
-                          totalDurationMin: total,
-                          availableMin,
-                          createdAt: detail.createdAt,
-                          updatedAt: detail.updatedAt,
-                        });
-                        setFormOpen(true);
-                      }}
-                    >
-                      编辑信息
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="text-destructive"
-                      onClick={() =>
-                        setDeleteSignup({
-                          id: detail.id,
-                          name: detail.name,
-                          startAt: detail.startAt,
-                          endAt: detail.endAt,
-                          note: detail.note,
-                          itemCount: detail.items.length,
-                          approvedCount,
-                          totalDurationMin: total,
-                          availableMin,
-                          createdAt: detail.createdAt,
-                          updatedAt: detail.updatedAt,
-                        })
-                      }
-                    >
-                      删除
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
+        <div className="space-y-3 border-b pb-4">
+          <div className="flex items-start justify-between gap-2">
+            <div className="space-y-1">
+              <h3 className="text-balance text-xl font-semibold tracking-tight">{detail.name}</h3>
+              <p className="text-sm text-muted-foreground tabular-nums">
+                {fmtLocal(detail.startAt, true)} – {endLabel(detail.startAt, detail.endAt)} ｜ 可用 {availableMin} 分钟
+              </p>
+              <p className="text-sm text-muted-foreground tabular-nums">
+                {detail.items.length} 个节目 · 通过 {approvedCount} 个 · 合计 {total} 分钟
+              </p>
+              {detail.note && <p className="text-pretty text-sm text-muted-foreground">{detail.note}</p>}
             </div>
             {canManage && (
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setEditingItem(null);
-                    setItemFormOpen(true);
-                  }}
-                >
-                  <Plus className="size-4" /> 添加节目
-                </Button>
-                <DropdownMenu
-                  onOpenChange={(o) => {
-                    if (o) void loadRundownOptions();
-                  }}
-                >
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      <Import className="size-4" /> 导入 Rundown
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {approvedCount === 0 ? (
-                      <DropdownMenuItem disabled>没有已通过的节目可导入</DropdownMenuItem>
-                    ) : rundownOptions === null ? (
-                      <DropdownMenuItem disabled>加载中…</DropdownMenuItem>
-                    ) : rundownOptions.length === 0 ? (
-                      <DropdownMenuItem disabled>暂无 Rundown</DropdownMenuItem>
-                    ) : (
-                      rundownOptions.map((r) => (
-                        <DropdownMenuItem key={r.id} onClick={() => setImportTarget(r)}>
-                          {r.name}（{r.itemCount} 个节目）
-                        </DropdownMenuItem>
-                      ))
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label="批次操作">
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setEditingSignup({
+                        id: detail.id,
+                        name: detail.name,
+                        startAt: detail.startAt,
+                        endAt: detail.endAt,
+                        note: detail.note,
+                        itemCount: detail.items.length,
+                        approvedCount,
+                        totalDurationMin: total,
+                        availableMin,
+                        createdAt: detail.createdAt,
+                        updatedAt: detail.updatedAt,
+                      });
+                      setFormOpen(true);
+                    }}
+                  >
+                    编辑信息
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-destructive"
+                    onClick={() =>
+                      setDeleteSignup({
+                        id: detail.id,
+                        name: detail.name,
+                        startAt: detail.startAt,
+                        endAt: detail.endAt,
+                        note: detail.note,
+                        itemCount: detail.items.length,
+                        approvedCount,
+                        totalDurationMin: total,
+                        availableMin,
+                        createdAt: detail.createdAt,
+                        updatedAt: detail.updatedAt,
+                      })
+                    }
+                  >
+                    删除
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
-          </CardContent>
-        </Card>
+          </div>
+          {canManage && (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                onClick={() => {
+                  setEditingItem(null);
+                  setItemFormOpen(true);
+                }}
+              >
+                <Plus className="size-4" /> 添加节目
+              </Button>
+              <DropdownMenu
+                onOpenChange={(o) => {
+                  if (o) void loadRundownOptions();
+                }}
+              >
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Import className="size-4" /> 导入流程单
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {approvedCount === 0 ? (
+                    <DropdownMenuItem disabled>没有已通过的节目可导入</DropdownMenuItem>
+                  ) : rundownOptions === null ? (
+                    <DropdownMenuItem disabled>加载中…</DropdownMenuItem>
+                  ) : rundownOptions.length === 0 ? (
+                    <DropdownMenuItem disabled>暂无流程单</DropdownMenuItem>
+                  ) : (
+                    rundownOptions.map((r) => (
+                      <DropdownMenuItem key={r.id} onClick={() => setImportTarget(r)}>
+                        {r.name}（{r.itemCount} 个节目）
+                      </DropdownMenuItem>
+                    ))
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
+        </div>
 
         {checkedItems.length > 0 && (
-          <Card>
-            <CardContent className="space-y-2 p-4">
-              <p className="text-sm">
-                选中 {checkedItems.length} 个 · 合计 {selectedTotal} / 可用 {availableMin} 分钟
-                {remaining >= 0 ? (
-                  <span className="ml-2 text-success">剩余 {remaining} 分钟</span>
-                ) : (
-                  <span className="ml-2 text-destructive">超支 {-remaining} 分钟</span>
-                )}
-              </p>
-              <div className="space-y-1">
-                {computeSchedule(detail.startAt, checkedItems).map((it) => (
-                  <p key={it.id} className="flex flex-wrap items-center gap-2 text-sm">
-                    <Badge variant="secondary" className="font-mono">
-                      {hhmm(it.start)}–{hhmm(it.end)}
-                    </Badge>
-                    <span>{it.name}</span>
-                    <span className="text-muted-foreground">{it.durationMin} 分钟</span>
-                  </p>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          <div className="space-y-2 border-y bg-muted/30 px-4 py-3">
+            <p className="text-sm tabular-nums">
+              选中 {checkedItems.length} 个 · 合计 {selectedTotal} / 可用 {availableMin} 分钟
+              {remaining >= 0 ? (
+                <span className="ml-2 text-success">剩余 {remaining} 分钟</span>
+              ) : (
+                <span className="ml-2 text-destructive">超支 {-remaining} 分钟</span>
+              )}
+            </p>
+            <div className="space-y-1">
+              {computeSchedule(detail.startAt, checkedItems).map((it) => (
+                <p key={it.id} className="flex flex-wrap items-center gap-2 text-sm tabular-nums">
+                  <Badge variant="secondary" className="font-mono">
+                    {hhmm(it.start)}–{hhmm(it.end)}
+                  </Badge>
+                  <span>{it.name}</span>
+                  <span className="text-muted-foreground">{it.durationMin} 分钟</span>
+                </p>
+              ))}
+            </div>
+          </div>
         )}
 
         {detail.items.length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center text-sm text-muted-foreground">
-              暂无报名节目{canManage ? '，点击「添加节目」开始录入' : ''}
-            </CardContent>
-          </Card>
+          <div className="border-y py-10 text-center text-sm text-muted-foreground">
+            暂无报名节目{canManage ? '，点击「添加节目」开始录入' : ''}
+          </div>
         ) : (
-          <div className="space-y-2">
+          <div className="divide-y border-y">
             {displayItems.map((it) => (
               <SignupItemRow
                 key={it.id}
@@ -660,7 +651,7 @@ export default function StageSignupTool({ project, myPermissions }: Props) {
         <AlertDialog open={!!importTarget} onOpenChange={(o) => { if (!o) setImportTarget(null); }}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>导入 Rundown</AlertDialogTitle>
+              <AlertDialogTitle>导入流程单</AlertDialogTitle>
               <AlertDialogDescription>
                 将把 {approvedCount} 个已通过节目追加到「{importTarget?.name}」。重复导入会重复追加，请确认。
               </AlertDialogDescription>
@@ -681,8 +672,8 @@ export default function StageSignupTool({ project, myPermissions }: Props) {
   if (selected) {
     return (
       <div className="space-y-3">
-        <Button variant="ghost" size="sm" onClick={() => setSelected(null)}>
-          <ArrowLeft className="size-4" /> 批次列表
+        <Button variant="ghost" size="sm" className="-ml-2" onClick={() => setSelected(null)}>
+          <ArrowLeft className="size-4" /> 返回批次列表
         </Button>
         <Skeleton className="h-24 w-full" />
         <Skeleton className="h-16 w-full" />
@@ -692,9 +683,9 @@ export default function StageSignupTool({ project, myPermissions }: Props) {
 
   // ---------- 列表视图 ----------
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">舞台报名审核</h3>
+        <h3 className="text-balance text-xl font-semibold tracking-tight">舞台报名审核</h3>
         {canManage && (
           <Button
             size="sm"
@@ -714,70 +705,66 @@ export default function StageSignupTool({ project, myPermissions }: Props) {
           <Skeleton className="h-20 w-full" />
         </div>
       ) : signups.length === 0 ? (
-        <Card>
-          <CardContent className="py-8 text-center text-sm text-muted-foreground">
-            暂无报名批次{canManage ? '，点击「新建批次」开始收集报名' : ''}
-          </CardContent>
-        </Card>
+        <div className="border-y py-10 text-center text-sm text-muted-foreground">
+          暂无报名批次{canManage ? '，点击「新建批次」开始收集报名' : ''}
+        </div>
       ) : (
-        <div className="space-y-2">
+        <div className="divide-y border-y">
           {signups.map((s) => (
-            <Card
+            <div
               key={s.id}
               role="button"
               tabIndex={0}
-              className="cursor-pointer transition-colors hover:border-primary/50"
+              className="flex cursor-pointer items-center justify-between gap-3 rounded-md -mx-2 px-2 py-3.5 transition-colors hover:bg-muted/40"
               onClick={() => setSelected(s.id)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') setSelected(s.id);
               }}
             >
-              <CardContent className="flex items-center justify-between gap-2 p-4">
-                <div className="min-w-0 space-y-1">
-                  <p className="font-medium">{s.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {fmtLocal(s.startAt, true)} – {endLabel(s.startAt, s.endAt)} ｜ 可用 {s.availableMin} 分钟
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {s.itemCount} 个节目 · 通过 {s.approvedCount} 个
-                  </p>
-                </div>
-                {canManage && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`批次操作 ${s.name}`}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <MoreHorizontal className="size-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingSignup(s);
-                          setFormOpen(true);
-                        }}
-                      >
-                        编辑信息
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-destructive"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeleteSignup(s);
-                        }}
-                      >
-                        删除
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-              </CardContent>
-            </Card>
+              <div className="min-w-0 space-y-1">
+                <p className="text-balance font-medium">{s.name}</p>
+                <p className="text-sm text-muted-foreground tabular-nums">
+                  {fmtLocal(s.startAt, true)} – {endLabel(s.startAt, s.endAt)} ｜ 可用 {s.availableMin} 分钟
+                </p>
+                <p className="text-sm text-muted-foreground tabular-nums">
+                  {s.itemCount} 个节目 · 通过 {s.approvedCount} 个
+                </p>
+              </div>
+              {canManage && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`批次操作 ${s.name}`}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <MoreHorizontal className="size-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingSignup(s);
+                        setFormOpen(true);
+                      }}
+                    >
+                      编辑信息
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteSignup(s);
+                      }}
+                    >
+                      删除
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
           ))}
         </div>
       )}

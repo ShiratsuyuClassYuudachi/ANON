@@ -19,7 +19,7 @@ export async function loadMembership(req: Request, _res: Response, next: NextFun
   try {
     const projectId = req.params.id ?? req.params.projectId;
     const project = await Project.findById(projectId);
-    if (!project) throw new AppError(404, 'not_found', '项目不存在');
+    if (!project) throw new AppError(404, 'not_found', '活动不存在');
     req.project = project;
 
     if (req.user?.isSuperAdmin) {
@@ -27,16 +27,16 @@ export async function loadMembership(req: Request, _res: Response, next: NextFun
       req.myPermissions = new Set(ALL_PERMISSIONS);
     } else {
       const membership = await Membership.findOne({ projectId: project._id, userId: req.userId });
-      if (!membership) throw new AppError(403, 'forbidden', '不是项目成员');
+      if (!membership) throw new AppError(403, 'forbidden', '不是活动成员');
       req.membership = membership;
       const role = project.roles.find((r) => r.name === membership.roleName);
       req.myPermissions = new Set(role?.permissions ?? []);
     }
 
-    // API 密钥：绑定项目 + 按 key 登记 scopes 收窄权限（用户自身权限为上界）
+    // API 密钥：绑定活动 + 按 key 登记 scopes 收窄权限（用户自身权限为上界）
     if (req.apiKey) {
       if (req.apiKey.projectId !== project._id.toString()) {
-        throw new AppError(403, 'api_key_wrong_project', 'API 密钥不属于本项目');
+        throw new AppError(403, 'api_key_wrong_project', 'API 密钥不属于本活动');
       }
       req.myPermissions = new Set([...req.myPermissions].filter((p) => req.apiKey!.scopes.includes(p)));
     }

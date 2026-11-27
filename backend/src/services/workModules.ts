@@ -27,7 +27,7 @@ export function moduleJson(m: WorkModuleDoc, names: Map<string, string>) {
 export async function buildSheet(project: ProjectDoc, targetId: string, external = false) {
   const people = await loadProjectPeople(project._id);
   const profile = external ? people.externals.get(targetId) : undefined;
-  if (external ? !profile : !people.has(targetId)) throw new AppError(404, 'not_found', '该成员不在项目中');
+  if (external ? !profile : !people.has(targetId)) throw new AppError(404, 'not_found', '该成员不在活动中');
   const linked = external ? people.links.get(targetId) : undefined;
   const filter = external && !linked
     ? { 'externalAssignees.externalMemberId': targetId }

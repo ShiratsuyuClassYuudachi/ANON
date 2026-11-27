@@ -142,7 +142,7 @@ describe('QQ 节目报名录入', () => {
     await Project.updateOne({ _id: project._id }, { qqGroups: [] });
     await Project.updateOne({ _id: other._id }, { qqGroups: groups });
     await handleQQEvent('GROUP_MESSAGE_CREATE', groupEvent('确认', { author }));
-    expect(groupText()).toContain('绑定项目已变化');
+    expect(groupText()).toContain('绑定活动已变化');
     expect((await StageSignup.findById(signup._id))!.items).toHaveLength(0);
     expect((await StageSignup.findOne({ projectId: other._id }))!.items).toHaveLength(0);
   });
@@ -353,7 +353,7 @@ describe('QQ 节目报名录入', () => {
   it('普通成员无权限，project:manage 可录入；超管群内沿用权限豁免', async () => {
     await Project.updateOne({ _id: project._id }, { roles: [{ name: '录入员', permissions: [] }] });
     await groupMsg('报名追光，5分钟');
-    expect(groupText()).toContain('没有本项目的工具管理权限');
+    expect(groupText()).toContain('没有本活动的工具管理权限');
     await c2cMsg('报名追光，5分钟');
     expect(c2cText()).toContain('没有具有工具管理权限');
     await Project.updateOne({ _id: project._id }, { roles: [{ name: '录入员', permissions: ['project:manage'] }] });

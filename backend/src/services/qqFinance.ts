@@ -98,7 +98,7 @@ async function preview(original: QqMessage, current: QqMessage, user: UserDoc, p
     // 「我」是录入者；即使群里另有人昵称叫「我」，也不能覆盖这个语义。
     if (name === null || ['我', '本人', '自己'].includes(name)) {
       const self = users.find((u) => String(u._id) === String(user._id));
-      if (!self) throw new AppError(400, 'bad_request', '本人已不是项目成员，请重新发送完整记账内容。');
+      if (!self) throw new AppError(400, 'bad_request', '本人已不是活动成员，请重新发送完整记账内容。');
       return self;
     }
     const reference = references.find((r) => r.ref === name);
@@ -107,7 +107,7 @@ async function preview(original: QqMessage, current: QqMessage, user: UserDoc, p
     if (mentioned.length) {
       const matched = mentioned[0].user;
       if (!matched || mentioned.some((r) => !r.user || String(r.user._id) !== String(matched._id))) {
-        throw new AppError(400, 'bad_request', `未识别成员：@${mentioned[0].identity.username || '该群成员'}，请先绑定个人账号或使用项目内唯一姓名重发。`);
+        throw new AppError(400, 'bad_request', `未识别成员：@${mentioned[0].identity.username || '该群成员'}，请先绑定个人账号或使用活动内唯一姓名重发。`);
       }
       for (const r of mentioned) mentionBindings.push({ identity: r.identity, userId: String(matched._id) });
       return matched;
@@ -140,7 +140,7 @@ async function preview(original: QqMessage, current: QqMessage, user: UserDoc, p
   });
   const entry: Entry = { type: parsed.type, amountCents, note, payerUserId: String(payer._id), splitAmong: [...new Set(split.map((u) => String(u._id)))] };
   save(qqSessionKey(current)!, { step: 'confirm', original, userId: String(user._id), projectId: String(project._id), entry, mentionBindings, expiresAt: Date.now() + TTL });
-  await reply(current, `请确认记账：\n活动：${project.name}\n类型：${entry.type === 'income' ? '收入' : '支出'}\n金额：${(amountCents / 100).toFixed(2)} 元\n${entry.type === 'income' ? '收款人' : '付款人'}：${memberLabel(payer)}${parsed.payerName === null ? '（默认本人）' : ''}\n平摊：${split.length ? split.map(memberLabel).join('、') : splitUnclear ? '全员（平摊对象不明确，已默认全员；随项目成员变动）' : '全员（默认平摊范围；随项目成员变动）'}\n事由：${entry.note || '未提供'}\n回复「确认」保存，回复「取消」或 0 放弃；修改请完整重发。${current.group_openid ? '\n群内回复请继续 @我。' : ''}`);
+  await reply(current, `请确认记账：\n活动：${project.name}\n类型：${entry.type === 'income' ? '收入' : '支出'}\n金额：${(amountCents / 100).toFixed(2)} 元\n${entry.type === 'income' ? '收款人' : '付款人'}：${memberLabel(payer)}${parsed.payerName === null ? '（默认本人）' : ''}\n平摊：${split.length ? split.map(memberLabel).join('、') : splitUnclear ? '全员（平摊对象不明确，已默认全员；随活动成员变动）' : '全员（默认平摊范围；随活动成员变动）'}\n事由：${entry.note || '未提供'}\n回复「确认」保存，回复「取消」或 0 放弃；修改请完整重发。${current.group_openid ? '\n群内回复请继续 @我。' : ''}`);
 }
 
 export async function beginQqFinance(original: QqMessage, current = original): Promise<void> {
@@ -152,7 +152,7 @@ export async function beginQqFinance(original: QqMessage, current = original): P
   try {
     const user = await resolveQqUser(current);
     if (!user) {
-      await reply(current, '请先在 ANON「我的」页生成个人绑定码并发送「绑定 XXXXXX」关联账号，再使用记账功能。');
+      await reply(current, '请先在 ANON「个人资料」页生成个人绑定码并发送「绑定 XXXXXX」关联账号，再使用记账功能。');
       return;
     }
     const projects = await qqProjects(current, user, 'finance');
@@ -210,7 +210,7 @@ export async function handleQqFinance(d: QqMessage): Promise<boolean> {
       for (const binding of state.mentionBindings) {
         const matched = resolveQqMember(users, state.original.group_openid, binding.identity);
         if (!matched || String(matched._id) !== binding.userId) {
-          throw new AppError(400, 'bad_request', '被 @ 的成员绑定或项目归属已变化，请重新发送完整记账内容。');
+          throw new AppError(400, 'bad_request', '被 @ 的成员绑定或活动归属已变化，请重新发送完整记账内容。');
         }
       }
     }

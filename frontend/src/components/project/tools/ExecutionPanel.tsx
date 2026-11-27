@@ -15,8 +15,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ListRow } from '@/components/ui/list-row';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { computeExecution, delayMin, overrunMin } from './rundownExecution';
 import { hhmm } from './rundownExport';
@@ -36,7 +34,7 @@ const CONFIRM_TEXT: Record<ConfirmKind, { title: string; desc: string; action: s
   restart: { title: '重新执行', desc: '将清空本次执行的实际记录，从头开始执行。', action: '重新执行' },
 };
 
-/** Rundown 执行控制台：开始/推进/跳节目/顺延/结束与重置（canManage=false 时只读） */
+/** 流程单执行控台：开始/推进/跳节目/顺延/结束与重置（canManage=false 时只读） */
 export default function ExecutionPanel({ projectId, rundown, canManage, onChanged }: Props) {
   const e = rundown.execution;
   const base = `/api/projects/${projectId}/stage-rundowns/${rundown.id}/execution`;
@@ -93,20 +91,18 @@ export default function ExecutionPanel({ projectId, rundown, canManage, onChange
   const overrun = current ? overrunMin(current, now) : 0;
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between gap-2">
-          <CardTitle className="text-lg">执行控制</CardTitle>
-          {e.status === 'running' ? (
-            <Badge variant="success">进行中</Badge>
-          ) : e.status === 'finished' ? (
-            <Badge variant="secondary">已结束</Badge>
-          ) : (
-            <Badge variant="outline">未开始</Badge>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <section className="space-y-4 border-y py-4">
+      <div className="flex items-center justify-between gap-2">
+        <h4 className="text-balance text-base font-semibold tracking-tight">执行控台</h4>
+        {e.status === 'running' ? (
+          <Badge variant="success">执行中</Badge>
+        ) : e.status === 'finished' ? (
+          <Badge variant="secondary">已结束</Badge>
+        ) : (
+          <Badge variant="outline">未开始</Badge>
+        )}
+      </div>
+      <div className="space-y-3">
         {e.status === 'idle' && (
           <>
             <p className="text-sm text-muted-foreground">未开始执行</p>
@@ -121,36 +117,36 @@ export default function ExecutionPanel({ projectId, rundown, canManage, onChange
         {e.status === 'running' && (
           <>
             {current ? (
-              <ListRow className="space-y-2">
+              <div className="space-y-2 rounded-lg bg-muted/40 p-4">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-xl font-bold">{current.item.name}</p>
-                  <span className="text-sm text-muted-foreground">
+                  <p className="text-balance text-xl font-bold">{current.item.name}</p>
+                  <span className="text-sm text-muted-foreground tabular-nums">
                     第 {currentIndex + 1}/{execList.length} 个节目
                   </span>
-                  {delay !== null && delay > 0 && <Badge variant="destructive">延误 +{delay} 分钟</Badge>}
+                  {delay !== null && delay > 0 && <Badge variant="destructive" className="tabular-nums">延误 +{delay} 分钟</Badge>}
                   {delay !== null && delay < 0 && (
-                    <Badge variant="success">提前 {-delay} 分钟</Badge>
+                    <Badge variant="success" className="tabular-nums">提前 {-delay} 分钟</Badge>
                   )}
                 </div>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground tabular-nums">
                   计划 {hhmm(current.plannedStart)}–{hhmm(current.plannedEnd)}
                   {current.actualStart && ` ｜ 实际开始 ${hhmm(current.actualStart)}`}
                 </p>
-                <p className="text-sm">
+                <p className="text-sm tabular-nums">
                   已进行 {elapsed} 分钟 / 计划 {current.item.durationMin} 分钟
                   {overrun > 0 && <span className="ml-2 font-medium text-destructive">已超时 +{overrun} 分钟</span>}
                 </p>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground tabular-nums">
                   预计全场结束 {hhmm(execList[execList.length - 1].projectedEnd)}（随进度实时推算）
                 </p>
-              </ListRow>
+              </div>
             ) : (
               <p className="text-sm text-muted-foreground">推进中…</p>
             )}
 
             <div className="flex flex-wrap items-center gap-2">
               {e.shiftMin !== 0 && (
-                <span className="text-sm font-medium text-warning">
+                <span className="text-sm font-medium text-warning tabular-nums">
                   {e.shiftMin > 0 ? `顺延 +${e.shiftMin} 分钟` : `提前 ${-e.shiftMin} 分钟`}
                 </span>
               )}
@@ -202,7 +198,7 @@ export default function ExecutionPanel({ projectId, rundown, canManage, onChange
 
         {e.status === 'finished' && (
           <>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground tabular-nums">
               实际开始 {e.startedAt ? hhmm(new Date(e.startedAt)) : '—'} ｜ 实际结束{' '}
               {e.finishedAt ? hhmm(new Date(e.finishedAt)) : '—'}
               {e.shiftMin !== 0 && ` ｜ ${e.shiftMin > 0 ? `顺延 +${e.shiftMin} 分钟` : `提前 ${-e.shiftMin} 分钟`}`}
@@ -219,7 +215,7 @@ export default function ExecutionPanel({ projectId, rundown, canManage, onChange
             )}
           </>
         )}
-      </CardContent>
+      </div>
 
       <AlertDialog open={confirm !== null} onOpenChange={(o) => { if (!o) setConfirm(null); }}>
         <AlertDialogContent>
@@ -235,6 +231,6 @@ export default function ExecutionPanel({ projectId, rundown, canManage, onChange
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
+    </section>
   );
 }

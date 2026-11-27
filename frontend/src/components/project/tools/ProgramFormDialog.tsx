@@ -116,6 +116,7 @@ export default function ProgramFormDialog({ open, onOpenChange, base, item, onSa
                 type="button"
                 variant="ghost"
                 size="icon"
+                aria-label="移除参与者"
                 onClick={() => setParticipants((prev) => prev.filter((_, j) => j !== i))}
               >
                 <X className="size-4" />
@@ -141,6 +142,7 @@ export default function ProgramFormDialog({ open, onOpenChange, base, item, onSa
                   {a.filename}
                   <button
                     type="button"
+                    aria-label={`移除 ${a.filename}`}
                     className="text-muted-foreground hover:text-foreground"
                     onClick={() => setRemoveIds((prev) => [...prev, a.id])}
                   >
@@ -168,6 +170,7 @@ export default function ProgramFormDialog({ open, onOpenChange, base, item, onSa
                   {f.name}
                   <button
                     type="button"
+                    aria-label={`移除 ${f.name}`}
                     className="text-muted-foreground hover:text-foreground"
                     onClick={() => setFiles(files.filter((_, j) => j !== i))}
                   >

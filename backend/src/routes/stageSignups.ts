@@ -76,7 +76,7 @@ function summaryJson(doc: StageSignupDoc) {
 /** 导入后返回的 rundown 序列化（与 stageRundowns 路由同形；附件经 File 批量解析，缺失跳过） */
 async function rundownJson(rid: Types.ObjectId) {
   const doc = await StageRundown.findById(rid);
-  if (!doc) throw new AppError(404, 'not_found', 'Rundown 不存在');
+  if (!doc) throw new AppError(404, 'not_found', '流程单不存在');
   const attachmentIds = [...new Set(doc.items.flatMap((it) => it.attachmentIds.map((id) => id.toString())))];
   const files = attachmentIds.length ? await File.find({ _id: { $in: attachmentIds } }).lean() : [];
   const fileMap = new Map<string, FileMeta>(
@@ -326,7 +326,7 @@ stageSignupsRouter.post(
   ah(async (req, res) => {
     const doc = await loadSignup(req.params.sid, req.project!._id);
     const rundown = await StageRundown.findOne({ _id: String(req.body?.rundownId ?? ''), projectId: req.project!._id });
-    if (!rundown) throw new AppError(404, 'not_found', 'Rundown 不存在');
+    if (!rundown) throw new AppError(404, 'not_found', '流程单不存在');
     const approved = doc.items.filter((it) => it.status === 'approved');
     if (approved.length === 0) throw new AppError(400, 'bad_request', '没有已通过的节目可导入');
     for (const it of approved) {

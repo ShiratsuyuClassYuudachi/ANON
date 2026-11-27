@@ -132,7 +132,7 @@ describe('待办通知', () => {
     await waitForMails(1);
     const [call] = mailCalls();
     expect(call.to).toEqual(['s@example.com']);
-    expect(call.subject).toContain('你被指派了待办');
+    expect(call.subject).toContain('你被设为待办负责人');
     expect(call.subject).toContain('布置场地');
   });
 
@@ -186,7 +186,7 @@ describe('现场任务通知', () => {
     await waitForMails(1);
     const [call] = mailCalls();
     expect(call.to).toEqual(['s@example.com']);
-    expect(call.subject).toContain('被分配了现场任务');
+    expect(call.subject).toContain('被安排了现场岗位');
     expect(call.subject).toContain('入场检票');
   });
 

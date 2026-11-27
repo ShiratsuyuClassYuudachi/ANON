@@ -189,7 +189,7 @@ physicalRouter.post(
     const responsibleId = b.responsibleId ? String(b.responsibleId) : undefined;
     if (responsibleId) {
       const m = await Membership.countDocuments({ projectId: req.project!._id, userId: responsibleId });
-      if (!m) throw new AppError(400, 'bad_request', '负责人必须是项目成员');
+      if (!m) throw new AppError(400, 'bad_request', '负责人必须是活动成员');
     }
 
     const doc = await PhysicalItem.create({
@@ -256,7 +256,7 @@ physicalRouter.patch(
       } else {
         const rid = String(b.responsibleId);
         const m = await Membership.countDocuments({ projectId: req.project!._id, userId: rid });
-        if (!m) throw new AppError(400, 'bad_request', '负责人必须是项目成员');
+        if (!m) throw new AppError(400, 'bad_request', '负责人必须是活动成员');
         it.responsibleId = new Types.ObjectId(rid);
       }
     }

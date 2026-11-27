@@ -421,9 +421,9 @@ export async function buildSeed(): Promise<Db> {
     { id: 'act-05', projectId: 'p-demo', actorId: 'u-01', type: 'todo:progress', message: '陈阿桔提交了待办「周边打样确认」的进度', sourceType: 'todo', sourceId: 't-10', permissionGate: null, createdAt: rel(-3, 6) },
     { id: 'act-06', projectId: 'p-demo', actorId: 'u-demo', type: 'announcement:publish', message: '林小满发布了公告「布展时间变更」', sourceType: 'announcement', sourceId: 'an-02', permissionGate: null, createdAt: rel(-2) },
     { id: 'act-07', projectId: 'p-demo', actorId: 'u-04', type: 'todo:complete', message: '老白完成了待办「桌布/收款码采购」', sourceType: 'todo', sourceId: 't-05', permissionGate: null, createdAt: rel(-2, 2) },
-    { id: 'act-08', projectId: 'p-demo', actorId: 'u-demo', type: 'work:create', message: '林小满创建了现场任务「看摊轮班」', sourceType: 'work', sourceId: 'wm-03', permissionGate: null, createdAt: rel(0, -20) },
+    { id: 'act-08', projectId: 'p-demo', actorId: 'u-demo', type: 'work:create', message: '林小满创建了现场岗位「看摊轮班」', sourceType: 'work', sourceId: 'wm-03', permissionGate: null, createdAt: rel(0, -20) },
     { id: 'act-09', projectId: 'p-demo', actorId: 'u-02', type: 'todo:create', message: '沈墨创建了待办「预算中期核对」', sourceType: 'todo', sourceId: 't-14', permissionGate: null, createdAt: rel(0, -6) },
-    { id: 'act-10', projectId: 'p-demo', actorId: 'u-01', type: 'work:confirm', message: '陈阿桔确认了现场任务「看摊轮班」', sourceType: 'work', sourceId: 'wm-03', permissionGate: null, createdAt: rel(0, -1) },
+    { id: 'act-10', projectId: 'p-demo', actorId: 'u-01', type: 'work:confirm', message: '陈阿桔确认了现场岗位「看摊轮班」', sourceType: 'work', sourceId: 'wm-03', permissionGate: null, createdAt: rel(0, -1) },
   ];
 
   const milestones: Db['milestones'] = [

@@ -106,7 +106,7 @@ export async function seedDemoData(opts: DemoSeedOptions): Promise<DemoSeedResul
     name,
     order: i,
     completedAt: i < 3 ? new Date(now.getTime() - (30 - i * 7) * 86400000) : undefined,
-    note: i === 0 ? '项目已立项，场地已初步确认' : i === 2 ? '宣发渠道已确定' : undefined,
+    note: i === 0 ? '活动已立项，场地已初步确认' : i === 2 ? '宣发渠道已确定' : undefined,
   }));
 
   await db.collection('projects').insertOne({
@@ -290,10 +290,10 @@ export async function seedDemoData(opts: DemoSeedOptions): Promise<DemoSeedResul
     { type: 'todo:complete', message: '完成了待办「主视觉海报设计（初稿）」', sourceType: 'todo', actorId: artId, permissionGate: null },
     { type: 'finance:create', message: '添加了支出「场地定金」¥20,000.00', sourceType: 'finance', actorId: adminId, permissionGate: 'finance:manage' },
     { type: 'finance:create', message: '添加了收入「赞助商 A 赞助款」¥5,000.00', sourceType: 'finance', actorId: adminId, permissionGate: 'finance:manage' },
-    { type: 'material:create', message: '创建了资源「主视觉海报」', sourceType: 'material', actorId: artId, permissionGate: null },
+    { type: 'material:create', message: '创建了资料「主视觉海报」', sourceType: 'material', actorId: artId, permissionGate: null },
     { type: 'material:upload_version', message: '上传了「主视觉海报」v2', sourceType: 'material', actorId: artId, permissionGate: null },
-    { type: 'work:create', message: '创建了现场任务「入口检票」', sourceType: 'work', actorId: adminId, permissionGate: null },
-    { type: 'work:confirm', message: '确认了现场任务「舞台区管理」的分配', sourceType: 'work', actorId: prId, permissionGate: null },
+    { type: 'work:create', message: '创建了现场岗位「入口检票」', sourceType: 'work', actorId: adminId, permissionGate: null },
+    { type: 'work:confirm', message: '确认了现场岗位「舞台区管理」的排班', sourceType: 'work', actorId: prId, permissionGate: null },
     { type: 'announcement:publish', message: '发布了公告「【重要】预售票定价调整」', sourceType: 'announcement', actorId: adminId, permissionGate: null },
     { type: 'stage:update', message: '标记阶段「宣发与招募」为已完成', sourceType: 'stage', actorId: adminId, permissionGate: null },
   ];
@@ -318,9 +318,9 @@ export async function seedDemoData(opts: DemoSeedOptions): Promise<DemoSeedResul
   // --- Risk Instances（ruleCode/fingerprint 对齐 services/risk.ts 探测器现行格式） ---
   await db.collection('riskinstances').insertMany([
     { _id: oid(), projectId, ruleCode: 'todo:overdue', level: 'warning', fingerprint: `todo:${todos[8]._id}:overdue`, title: '待办已逾期', description: '「赞助商确认（已逾期）」已超过截止时间', status: 'active', sourceType: 'todo', sourceId: todos[8]._id, firstDetectedAt: new Date(now.getTime() - 5 * 86400000), lastDetectedAt: now, createdAt: now, updatedAt: now },
-    { _id: oid(), projectId, ruleCode: 'todo:no_assignee', level: 'info', fingerprint: `todo:${todos[9]._id}:no_assignee`, title: '待办无负责人', description: '「安保方案制定」尚未指派负责人', status: 'active', sourceType: 'todo', sourceId: todos[9]._id, firstDetectedAt: new Date(now.getTime() - 2 * 86400000), lastDetectedAt: now, createdAt: now, updatedAt: now },
+    { _id: oid(), projectId, ruleCode: 'todo:no_assignee', level: 'info', fingerprint: `todo:${todos[9]._id}:no_assignee`, title: '待办无负责人', description: '「安保方案制定」尚未设置负责人', status: 'active', sourceType: 'todo', sourceId: todos[9]._id, firstDetectedAt: new Date(now.getTime() - 2 * 86400000), lastDetectedAt: now, createdAt: now, updatedAt: now },
     { _id: oid(), projectId, ruleCode: 'work:staff_shortage', level: 'critical', fingerprint: `work:${wm4}:staff_shortage`, title: '现场人员不足', description: '「撤场与清洁」需要 6 人，目前仅分配 0 人', status: 'active', sourceType: 'work', sourceId: wm4, firstDetectedAt: new Date(now.getTime() - 1 * 86400000), lastDetectedAt: now, createdAt: now, updatedAt: now },
-    { _id: oid(), projectId, ruleCode: 'work:no_assignees', level: 'warning', fingerprint: `work:${wm4}:no_assignees`, title: '现场任务无人分配', description: '「撤场与清洁」尚未分配任何成员', status: 'ignored', ignoreReason: '活动前一周统一分配', ignoredBy: adminId, ignoredAt: now, ignoredUntil: new Date('2026-10-10'), sourceType: 'work', sourceId: wm4, firstDetectedAt: new Date(now.getTime() - 1 * 86400000), lastDetectedAt: now, createdAt: now, updatedAt: now },
+    { _id: oid(), projectId, ruleCode: 'work:no_assignees', level: 'warning', fingerprint: `work:${wm4}:no_assignees`, title: '现场岗位无人排班', description: '「撤场与清洁」尚未安排任何成员', status: 'ignored', ignoreReason: '活动前一周统一排班', ignoredBy: adminId, ignoredAt: now, ignoredUntil: new Date('2026-10-10'), sourceType: 'work', sourceId: wm4, firstDetectedAt: new Date(now.getTime() - 1 * 86400000), lastDetectedAt: now, createdAt: now, updatedAt: now },
   ]);
 
   // --- Physical Inventory ---

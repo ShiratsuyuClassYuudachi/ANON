@@ -240,8 +240,8 @@ export async function buildMyActions(projectId: Types.ObjectId, userId: string):
       actions.push({
         id: String(wm._id),
         sourceType: 'work',
-        title: `确认任务分配：${wm.name}`,
-        detail: wm.location || '现场任务',
+        title: `确认岗位排班：${wm.name}`,
+        detail: wm.location || '现场岗位',
         dueAt: wm.startAt ? wm.startAt.toISOString() : null,
         isOverdue,
         action: 'confirm',

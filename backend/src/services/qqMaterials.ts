@@ -79,7 +79,7 @@ function materialTypeLabel(
   if (!type.parentId) return type.name;
   const parent = categories.find((category) => String(category._id) === String(type.parentId));
   const visibleParent = parent && visibleCategories.some((category) => String(category._id) === String(parent._id));
-  return `${visibleParent ? parent.name : '受限类别'} / ${type.name}`;
+  return `${visibleParent ? parent.name : '受限分类'} / ${type.name}`;
 }
 
 async function beginCollect(d: QqMessage, user: UserDoc, project: ProjectDoc, typeId: string | null): Promise<void> {
@@ -89,7 +89,7 @@ async function beginCollect(d: QqMessage, user: UserDoc, project: ProjectDoc, ty
 async function chooseType(d: QqMessage, user: UserDoc, project: ProjectDoc): Promise<void> {
   const types = await visibleTypes(user, project);
   if (!types.length && await ResourceType.exists({ projectId: project._id })) {
-    throw new AppError(403, 'forbidden', '本项目暂无对你可见的物料分类，请先在网页创建或调整可见范围。');
+    throw new AppError(403, 'forbidden', '本活动暂无对你可见的物料分类，请先在网页创建或调整可见范围。');
   }
   if (types.length <= 1) { await beginCollect(d, user, project, types[0] ? String(types[0]._id) : null); return; }
   const categories = await ResourceType.find({ projectId: project._id }).sort({ createdAt: 1, _id: 1 });
@@ -116,7 +116,7 @@ async function persistMaterial(file: Staged, description: string, user: UserDoc,
     throw err;
   }
   logActivity({ projectId: project._id, actorId: user._id, type: 'material:create',
-    message: `${user.name}创建了资源「${file.filename}」`, sourceType: 'material', sourceId: resource!._id });
+    message: `${user.name}创建了资料「${file.filename}」`, sourceType: 'material', sourceId: resource!._id });
 }
 
 async function process(d: QqMessage): Promise<boolean> {

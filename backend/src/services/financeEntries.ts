@@ -32,7 +32,7 @@ export async function createFinanceEntry(input: {
   }
   const ids = [...new Set([input.payerUserId, ...input.splitAmong])];
   if (await Membership.countDocuments({ projectId: input.projectId, userId: { $in: ids } }) !== ids.length) {
-    throw new AppError(400, 'bad_request', '付款人及平摊人必须是项目成员，请重新发送完整记账内容');
+    throw new AppError(400, 'bad_request', '付款人及平摊人必须是活动成员，请重新发送完整记账内容');
   }
   const tx = await Transaction.create({
     projectId: input.projectId, type: input.type, amountCents: input.amountCents, note: input.note,

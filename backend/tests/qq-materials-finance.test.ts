@@ -173,14 +173,14 @@ describe('QQ 记账 @成员', () => {
     await g('记账：<@rebound>付120元', { mentions: [{ member_openid: 'rebound', username: '群昵称' }] });
     await User.updateOne({ _id: old._id }, { qqMemberIds: [] });
     await User.updateOne({ _id: other._id }, { qqMemberIds: [{ groupOpenId: group, memberOpenId: 'rebound' }] });
-    await g('确认'); expect(last()).toContain('成员绑定或项目归属已变化'); expect(await Transaction.countDocuments()).toBe(0);
+    await g('确认'); expect(last()).toContain('成员绑定或活动归属已变化'); expect(await Transaction.countDocuments()).toBe(0);
   });
   it('预览后平摊成员退出项目，确认时拒绝保存', async () => {
     const member = await mentionedMember('小明', { qqMemberIds: [{ groupOpenId: group, memberOpenId: 'ming' }] });
     parse.mockResolvedValue({ ...parsed, splitNames: ['@成员1'] });
     await g('记账：我付120元，和@小明平摊', { mentions: [{ member_openid: 'ming', username: '小明' }] });
     await Membership.deleteOne({ projectId: project._id, userId: member._id });
-    await g('确认'); expect(last()).toContain('项目归属已变化'); expect(await Transaction.countDocuments()).toBe(0);
+    await g('确认'); expect(last()).toContain('活动归属已变化'); expect(await Transaction.countDocuments()).toBe(0);
   });
   it('选择录入类型时沿用原消息提及，忽略确认消息新提及', async () => {
     const member = await mentionedMember('小明', { qqMemberIds: [{ groupOpenId: group, memberOpenId: 'ming' }] });
@@ -438,7 +438,7 @@ describe('QQ 物料上传会话', () => {
     await ResourceType.create({ projectId: project._id, name: '可见子类', parentId: type._id, visibility: { userIds: [], roleNames: ['录入'] } });
     await ResourceType.create({ projectId: project._id, name: '公共资料' });
     await c('开始上传物料');
-    expect(lastC()).toContain('受限类别 / 可见子类');
+    expect(lastC()).toContain('受限分类 / 可见子类');
     expect(lastC()).not.toContain('设计资料 / 可见子类');
   });
   it('无分类时在结束时创建 QQ上传 分类', async () => {

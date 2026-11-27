@@ -208,8 +208,8 @@ export function buildMyActions(db: Db, p: DbProject): DashboardActionItem[] {
       actions.push({
         id: m.id,
         sourceType: 'work',
-        title: `确认任务分配：${m.name}`,
-        detail: m.location || '现场任务',
+        title: `确认岗位排班：${m.name}`,
+        detail: m.location || '现场岗位',
         dueAt: m.startAt,
         isOverdue,
         action: 'confirm',

@@ -89,7 +89,7 @@ export const todoRoutes: Route[] = [
     if (!b.title || !String(b.title).trim()) return badRequest('标题必填');
     const assigneeIds = Array.isArray(b.assigneeIds) ? [...new Set(b.assigneeIds.map(String))] : [];
     const members = db.memberships.filter((m) => m.projectId === params.pid);
-    if (assigneeIds.some((id) => !members.some((m) => m.userId === id))) return badRequest('指派人必须是项目成员');
+    if (assigneeIds.some((id) => !members.some((m) => m.userId === id))) return badRequest('负责人必须是活动成员');
     const todo: DbTodo = {
       id: uid(),
       projectId: params.pid,
@@ -196,7 +196,7 @@ export const todoRoutes: Route[] = [
       if (!Array.isArray(b.assigneeIds)) return badRequest('assigneeIds 必须是数组');
       const assigneeIds = [...new Set(b.assigneeIds.map(String))];
       const members = db.memberships.filter((m) => m.projectId === todo.projectId);
-      if (assigneeIds.some((id) => !members.some((m) => m.userId === id))) return badRequest('指派人必须是项目成员');
+      if (assigneeIds.some((id) => !members.some((m) => m.userId === id))) return badRequest('负责人必须是活动成员');
       todo.assigneeIds = assigneeIds;
     }
     if (b.externalAssigneeIds !== undefined) todo.externalAssigneeIds = externalIds(ctx, b.externalAssigneeIds, keptExternal);

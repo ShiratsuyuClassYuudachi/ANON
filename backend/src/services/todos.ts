@@ -9,13 +9,13 @@ import { assertExternalAssignees } from './projectPeople';
 /** 待办创建共用逻辑：HTTP 路由（routes/todos.ts）与 QQ 群 AI 录单（services/qqTodo.ts）共用 */
 
 export async function assertAssigneesAreMembers(projectId: unknown, assigneeIds: string[]) {
-  if (assigneeIds.some((id) => !isValidObjectId(id))) throw new AppError(400, 'bad_request', '指派人 ID 非法');
+  if (assigneeIds.some((id) => !isValidObjectId(id))) throw new AppError(400, 'bad_request', '负责人 ID 非法');
   const count = await Membership.countDocuments({
     projectId,
     userId: { $in: assigneeIds },
   });
   if (count !== new Set(assigneeIds).size) {
-    throw new AppError(400, 'bad_request', '指派人必须是项目成员');
+    throw new AppError(400, 'bad_request', '负责人必须是活动成员');
   }
 }
 
@@ -75,7 +75,7 @@ export async function createTodo(input: {
     notify({
       projectId: input.projectId,
       type: 'todo:assigned',
-      title: `你被指派了待办：${todo.title}`,
+      title: `你被设为待办负责人：${todo.title}`,
       body: todoAssignBody(todo),
       link: todoLink(input.projectId),
       metadata: { todoId: todo._id.toString() },

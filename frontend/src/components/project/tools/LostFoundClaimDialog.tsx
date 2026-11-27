@@ -49,7 +49,7 @@ export default function LostFoundClaimDialog({ open, onOpenChange, base, item, o
           <Textarea
             id="lf-claim-note"
             rows={2}
-            placeholder="认领人、联系方式等（仅项目内可见，公开页不展示）"
+            placeholder="认领人、联系方式等（仅活动内可见，公开页不展示）"
             value={claimNote}
             onChange={(e) => setClaimNote(e.target.value)}
           />

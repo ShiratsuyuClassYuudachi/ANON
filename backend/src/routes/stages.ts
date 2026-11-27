@@ -57,7 +57,7 @@ stagesRouter.patch(
       projectId: project._id,
       actorId: req.userId!,
       type: 'stage:reorder',
-      message: `${req.user!.name}调整了项目阶段顺序`,
+      message: `${req.user!.name}调整了活动阶段顺序`,
       sourceType: 'project',
       sourceId: project._id,
     });
