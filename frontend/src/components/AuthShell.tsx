@@ -18,7 +18,7 @@ export default function AuthShell({ title, description, children, footer }: Prop
         <Logo size="lg" />
         <div className="flex flex-col justify-center">
           <p className="editorial-title max-w-sm">把一场活动，从立项筹备排到现场收官</p>
-          <hr className="mt-4 mb-4 w-10" />
+          <hr className="auth-cover-rule mt-4 mb-4 w-10" />
           <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">{BRAND_DESCRIPTION}</p>
         </div>
       </aside>

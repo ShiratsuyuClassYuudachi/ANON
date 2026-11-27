@@ -3,7 +3,7 @@ import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../api/client';
 import { useAuth } from '../auth';
-import { ModeToggle, THEME_STYLES, useTheme } from '@/theme';
+import { ModeToggle, StyleSwatch, THEME_STYLES, useTheme } from '@/theme';
 import ApiKeysCard from '../components/ApiKeysCard';
 import PushSettingsCard from '../components/PushSettingsCard';
 import QqBindCard from '../components/QqBindCard';
@@ -101,8 +101,9 @@ export default function Me() {
       <section className="editorial-section">
         <h2 className="editorial-subheading">界面偏好</h2>
           <div className="flex flex-wrap items-center gap-2">
-            {THEME_STYLES.map(({ key, label }) => (
+            {THEME_STYLES.map(({ key, label, swatches }) => (
               <Button key={key} variant={style === key ? 'default' : 'outline'} aria-pressed={style === key} onClick={() => setStyle(key)}>
+                <StyleSwatch swatches={swatches} />
                 {label}
               </Button>
             ))}

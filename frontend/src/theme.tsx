@@ -21,15 +21,15 @@ interface ThemeCtxValue {
 const ThemeCtx = createContext<ThemeCtxValue>(null as never);
 
 export const THEME_STYLES = [
-  { key: 'minimal', label: '简洁' },
-  { key: 'playful', label: '明快' },
-  { key: 'anon-tokyo', label: 'anon tokyo' },
+  { key: 'minimal', label: '简洁', swatches: ['#2563eb'] },
+  { key: 'playful', label: '明快', swatches: ['#7c3aed'] },
+  { key: 'anon-tokyo', label: 'anon tokyo', swatches: ['#ff8899', '#73d9be'] },
 ] as const;
 
 const MODE_META: Record<ThemeStyle, Record<ThemeMode, string>> = {
   minimal: { light: '#f6f7f9', dark: '#111418' },
   playful: { light: '#faf7ff', dark: '#16121f' },
-  'anon-tokyo': { light: '#faf7f2', dark: '#161316' },
+  'anon-tokyo': { light: '#fdfbfa', dark: '#141216' },
 };
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
@@ -75,6 +75,20 @@ export function ModeToggle() {
   );
 }
 
+export function StyleSwatch({ swatches }: { swatches: readonly string[] }) {
+  return (
+    <span aria-hidden="true" className="inline-flex shrink-0 items-center gap-1">
+      {swatches.map((color) => (
+        <span
+          key={color}
+          className="style-swatch size-2.5 rounded-full border border-white/80 shadow-[0_0_0_1px_rgba(0,0,0,0.14)]"
+          style={{ backgroundColor: color }}
+        />
+      ))}
+    </span>
+  );
+}
+
 export function StylePicker() {
   const { style, setStyle } = useTheme();
   return (
@@ -87,6 +101,7 @@ export function StylePicker() {
       <DropdownMenuContent align="end">
         {THEME_STYLES.map((s) => (
           <DropdownMenuItem key={s.key} onClick={() => setStyle(s.key)}>
+            <StyleSwatch swatches={s.swatches} />
             <span className="flex-1">{s.label}</span>
             {style === s.key && <Check className="size-4" />}
           </DropdownMenuItem>
