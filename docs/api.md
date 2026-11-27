@@ -790,13 +790,13 @@ interface ResourceVersionItem {
 
 完成后把 `uploadId` 交给 `POST /materials` 或 `POST /materials/:resourceId/versions` 消费。
 
-前端说明：「物料」Tab（`MaterialsTab.tsx`）提供类型筛选与默认折叠的等高资源卡片，缩略区固定为 80×80；展开详情后可查看描述、文件名、版本下拉与下载。上传新版本、可见范围与删除在卡片管理菜单中，可见范围使用居中表单弹层。预览图与原图均需鉴权，前端使用 `AuthImg` 组件（fetch + Blob → objectURL）；点击小图打开按视口宽高等比缩放的原图，关闭按钮保持在屏幕内。非图片内联预览走 `AuthMedia`：PDF 用 iframe、音/视频用 `<video>`/`<audio>` 标签、Markdown 用 react-markdown 渲染（原始 HTML 按文本转义）；不可预览格式显示同尺寸占位，展开后查看文件名并下载。折叠、尺寸与预览弹窗均为前端展示行为，HTTP 契约不变。
+前端说明：「物料」Tab（`MaterialsTab.tsx`）提供文件资料两级分类筛选与默认折叠的等高资料卡片，缩略区固定为 80×80；展开详情后可查看描述、文件名、版本下拉与下载。上传新版本、可见范围与删除在卡片管理菜单中，可见范围使用居中表单弹层。预览图与原图均需鉴权，前端使用 `AuthImg` 组件（fetch + Blob → objectURL）；点击小图打开按视口宽高等比缩放的原图，关闭按钮保持在屏幕内。非图片内联预览走 `AuthMedia`：PDF 用 iframe、音/视频用 `<video>`/`<audio>` 标签、Markdown 用 react-markdown 渲染（原始 HTML 按文本转义）；不可预览格式显示同尺寸占位，展开后查看文件名并下载。折叠、尺寸与预览弹窗均为前端展示行为，HTTP 契约不变。
 
 ---
 
 ## 实物清单
 
-挂载于 `/api/projects/:id/physical`，需登录且为项目成员。查看类操作成员即可；增删改分类与物资条目、数量变动日志均需 `materials:manage`（`project:manage` 等价放行，超管不受限）。实物清单与数字资源相互独立，在「物料」Tab 内通过视图切换访问。
+挂载于 `/api/projects/:id/physical`，需登录且为项目成员。查看类操作成员即可；增删改分类与物资条目、数量变动日志均需 `materials:manage`（`project:manage` 等价放行，超管不受限）。实物清单与文件资料相互独立，在「物料」Tab 内通过视图切换访问。
 
 ### 数据类型
 
@@ -991,7 +991,7 @@ interface WorkSheetData {
 查看指定成员的任务单。响应 200：`WorkSheetData`
 错误：403 `forbidden`；404 `not_found`（该用户不是项目成员）
 
-前端说明：项目工作台新增「现场」Tab（`WorkTab.tsx`）：模块列表/新建/编辑/删除、成员确认与代确认、打印入口。打印版式页 `/p/:id/work-sheet/print?user=me|<userId>|all`（`WorkSheetPrint.tsx`）：A4 表格（模块/时间/地点/工作内容/确认状态）+ 签字日期栏，`user=all` 时每人一页分页连排，浏览器打印或另存为 PDF。
+前端说明：活动工作区「现场」Tab（`WorkTab.tsx`）：现场岗位列表/新建/编辑/删除、成员确认与代确认、打印排班单入口。打印版式页 `/p/:id/work-sheet/print?user=me|<userId>|all`（`WorkSheetPrint.tsx`）：A4 排班表格（现场岗位/时间/地点/工作内容/确认状态）+ 签字日期栏，`user=all` 时每人一页分页连排，浏览器打印或另存为 PDF。
 
 ### GET /api/projects/:id/onsite（成员）
 
