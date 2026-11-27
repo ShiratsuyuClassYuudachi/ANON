@@ -1,4 +1,4 @@
-import { FlaskConical, RotateCcw } from 'lucide-react';
+import { RotateCcw } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -9,16 +9,15 @@ export default function DemoBanner() {
   const [resetting, setResetting] = useState(false);
   if (import.meta.env.VITE_DEMO !== 'true') return null;
   return (
-    <div className="mb-3 grid grid-cols-[auto_1fr] items-center gap-2 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2 sm:flex">
-      <FlaskConical className="size-4 shrink-0 text-warning-soft-foreground" />
-      <div className="flex min-w-0 flex-wrap items-center gap-2 sm:flex-1">
+    <div data-demo-banner className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2">
+      <div className="flex min-w-0 flex-1 items-start gap-2">
         <Badge variant="secondary" className="bg-warning/20 text-warning-soft-foreground">演示</Badge>
-        <p className="text-sm text-foreground">演示环境 · 数据为示例，修改保留于本会话</p>
+        <p className="text-xs leading-relaxed text-warning-soft-foreground">当前为示例数据，所做修改仅保留在本标签页内</p>
       </div>
       <Button
         size="sm"
         variant="outline"
-        className="col-span-2 justify-self-end"
+        className="ml-auto"
         disabled={resetting}
         onClick={async () => {
           if (import.meta.env.VITE_DEMO !== 'true' || resetting) return;
@@ -33,7 +32,7 @@ export default function DemoBanner() {
           }
         }}
       >
-        <RotateCcw className="size-3.5" /> {resetting ? '正在还原…' : '还原示例数据'}
+        <RotateCcw aria-hidden="true" className="size-3.5" /> {resetting ? '正在还原…' : '还原示例数据'}
       </Button>
     </div>
   );

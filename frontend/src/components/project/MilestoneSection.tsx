@@ -7,9 +7,7 @@ import type { MilestoneItem, StageItem } from '../../types';
 import { FormOverlay } from '@/components/FormOverlay';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { ListRow } from '@/components/ui/list-row';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -77,47 +75,48 @@ export function MilestoneSection({ projectId, stages, myPermissions, collapsed =
   const items = milestones ? [...milestones].sort((a, b) => a.date.localeCompare(b.date)) : null;
 
   return (
-    <Card style={style}>
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center justify-between text-base">
-          <button onClick={onToggleCollapse} className="flex min-w-0 flex-1 items-center gap-2 text-left">
-            <Flag className="size-4 shrink-0 text-muted-foreground" />
+    <section style={style} className="editorial-section">
+      <header>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="editorial-subheading">
+          <button onClick={onToggleCollapse} aria-expanded={!collapsed} className="flex min-h-11 min-w-0 items-center gap-2 text-left md:min-h-8">
             <span>里程碑</span>
             {items && items.length > 0 && <Badge variant="secondary">{items.length}</Badge>}
             <ChevronDown className={`size-4 shrink-0 text-muted-foreground transition-transform ${collapsed ? '-rotate-90' : ''}`} />
           </button>
+        </h2>
           {canManage && (
             <Button variant="ghost" size="sm" onClick={() => setCreateOpen(true)}>
               <Plus className="size-4" /> 新建
             </Button>
           )}
-        </CardTitle>
-      </CardHeader>
+        </div>
+      </header>
       {!collapsed && (
-      <CardContent>
+      <div>
         {items === null ? (
-          <div className="space-y-2">
+          <div className="editorial-list">
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-12 w-full" />
           </div>
         ) : items.length === 0 ? (
-          <p className="py-4 text-center text-sm text-muted-foreground">暂无里程碑</p>
+          <p className="py-4 text-center text-sm text-muted-foreground">暂无里程碑节点</p>
         ) : (
-          <div className="space-y-2">
+          <div className="editorial-list">
             {items.map((m) => (
-              <ListRow
+              <div
                 key={m.id}
-                className="flex items-start gap-2 transition-colors hover:bg-accent/50"
+                className="editorial-row flex items-start gap-2"
               >
                 <span className="mt-0.5 w-12 shrink-0 text-xs font-medium tabular-nums text-muted-foreground">
                   {fmtLocal(m.date).slice(0, 5)}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className={`truncate text-sm ${m.completedAt ? 'text-muted-foreground line-through' : 'font-medium'}`}>
+                  <p className={`wrap-anywhere text-sm ${m.completedAt ? 'text-muted-foreground line-through' : 'font-medium'}`}>
                     {m.title}
                   </p>
                   {m.description && (
-                    <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{m.description}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{m.description}</p>
                   )}
                 </div>
                 {m.stageName && <Badge variant="outline" className="shrink-0 text-xs">{m.stageName}</Badge>}
@@ -126,17 +125,17 @@ export function MilestoneSection({ projectId, stages, myPermissions, collapsed =
                 ) : (
                   <Flag className="mt-1 size-3.5 shrink-0 text-primary" />
                 )}
-              </ListRow>
+              </div>
             ))}
           </div>
         )}
-      </CardContent>
+      </div>
       )}
 
       <FormOverlay open={createOpen} onOpenChange={setCreateOpen} title="新建里程碑">
         <form onSubmit={(e) => void submit(e)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="ms-title">标题</Label>
+            <Label htmlFor="ms-title">里程碑名称</Label>
             <Input
               id="ms-title"
               required
@@ -146,7 +145,7 @@ export function MilestoneSection({ projectId, stages, myPermissions, collapsed =
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="ms-date">日期</Label>
+            <Label htmlFor="ms-date">目标日期</Label>
             <Input id="ms-date" type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
           {sortedStages.length > 0 && (
@@ -166,7 +165,7 @@ export function MilestoneSection({ projectId, stages, myPermissions, collapsed =
             </div>
           )}
           <div className="space-y-2">
-            <Label htmlFor="ms-desc">描述（可选）</Label>
+            <Label htmlFor="ms-desc">补充说明（可选）</Label>
             <Textarea
               id="ms-desc"
               rows={3}
@@ -177,10 +176,10 @@ export function MilestoneSection({ projectId, stages, myPermissions, collapsed =
           </div>
           <Button type="submit" className="w-full" disabled={submitting || !title.trim() || !date}>
             {submitting && <Loader2 className="size-4 animate-spin" />}
-            创建
+            创建里程碑
           </Button>
         </form>
       </FormOverlay>
-    </Card>
+    </section>
   );
 }

@@ -67,8 +67,8 @@ export function eventCountdown(startDate: string | null, endDate: string | null)
     return {
       phase: 'during',
       count: dayNum,
-      unit: '进行中（天）',
-      text: `进行中，第 ${dayNum} 天`,
+      unit: `开展第 ${dayNum} 天`,
+      text: `进行中 · 第 ${dayNum} 天`,
       cls: 'text-primary',
     };
   }

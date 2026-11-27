@@ -199,7 +199,7 @@ export function TodoFormDialog({ open, onOpenChange, projectId, startDate, membe
     <FormOverlay open={open} onOpenChange={onOpenChange} title={editTarget ? '编辑待办' : '新建待办'}>
       <form onSubmit={submit} className="space-y-3">
         <div className="space-y-1.5">
-          <Label htmlFor="todo-form-title">标题</Label>
+          <Label htmlFor="todo-form-title">事项标题</Label>
           <Input
             id="todo-form-title"
             required
@@ -208,12 +208,12 @@ export function TodoFormDialog({ open, onOpenChange, projectId, startDate, membe
           />
         </div>
         <div className="space-y-1.5">
-          <Label>指派人</Label>
+          <Label>负责人</Label>
           <TaskAssigneePicker members={members} externalMembers={externalMembers} assigneeIds={assigneeIds} externalAssigneeIds={externalAssigneeIds}
             keptExternalIds={editTarget?.externalAssignees?.map((a) => a.externalMemberId) ?? []}
             onUsersChange={setAssigneeIds} onExternalChange={setExternalAssigneeIds} />
         </div>
-        <TodoDateField id="todo-form-due" label="到期时间" value={dueAt} onChange={setDueAt} startDate={startDate} />
+        <TodoDateField id="todo-form-due" label="截止时间" value={dueAt} onChange={setDueAt} startDate={startDate} />
 
         <button
           type="button"
@@ -221,15 +221,15 @@ export function TodoFormDialog({ open, onOpenChange, projectId, startDate, membe
           onClick={() => setMoreOpen((v) => !v)}
         >
           <ChevronDown className={`size-4 transition-transform ${moreOpen ? '' : '-rotate-90'}`} />
-          更多字段
+          更多选项（分类 / 节点 / 提醒 / 备注）
         </button>
         {moreOpen && (
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <Label htmlFor="todo-form-category">类别</Label>
+              <Label htmlFor="todo-form-category">所属分类</Label>
               <Input
                 id="todo-form-category"
-                placeholder="如 美工/宣发"
+                placeholder="如：视觉设计、场务统筹"
                 list="todo-form-categories"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
@@ -241,7 +241,7 @@ export function TodoFormDialog({ open, onOpenChange, projectId, startDate, membe
             <TodoDateField id="todo-form-node" label="节点时间" value={nodeAt} onChange={setNodeAt} startDate={startDate} />
             <TodoDateField id="todo-form-remind" label="提醒时间" value={remindAt} onChange={setRemindAt} startDate={startDate} />
             <div className="space-y-1.5">
-              <Label htmlFor="todo-form-note">备注</Label>
+              <Label htmlFor="todo-form-note">备注说明</Label>
               <Textarea
                 id="todo-form-note"
                 value={note}
@@ -251,7 +251,7 @@ export function TodoFormDialog({ open, onOpenChange, projectId, startDate, membe
           </div>
         )}
         <Button type="submit" className="w-full" disabled={saving}>
-          {editTarget ? '保存' : '创建'}
+          {editTarget ? '保存修改' : '创建待办'}
         </Button>
       </form>
     </FormOverlay>

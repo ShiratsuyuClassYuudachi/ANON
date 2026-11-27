@@ -13,7 +13,6 @@ import {
   PackageSearch,
   Phone,
   SkipForward,
-  Smartphone,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../api/client';
@@ -25,7 +24,6 @@ import LostFoundItemDialog from '../components/project/tools/LostFoundItemDialog
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ListRow } from '@/components/ui/list-row';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
@@ -41,7 +39,7 @@ const CATEGORIES: { key: IncidentCategory; label: string }[] = [
 
 const CATEGORY_LABEL = Object.fromEntries(CATEGORIES.map((c) => [c.key, c.label])) as Record<IncidentCategory, string>;
 
-const OFFLINE_HINT = '已离线保存，联网后自动同步';
+const OFFLINE_HINT = '已离线保存，恢复网络后自动同步';
 
 function fmtRange(startAt: string | null, endAt: string | null): string {
   if (!startAt) return '时间未定';
@@ -161,10 +159,10 @@ export default function OnsitePage() {
 
   if (err)
     return (
-      <Card className="flex flex-col items-center gap-3 py-12 text-center">
+      <div className="flex flex-col items-center gap-3 py-12 text-center">
         <p className="text-base text-destructive">{err}</p>
-        <Button variant="outline" onClick={() => nav(`/p/${id}`)}>返回项目</Button>
-      </Card>
+        <Button variant="outline" onClick={() => nav(`/p/${id}`)}>返回活动</Button>
+      </div>
     );
   if (!data)
     return (
@@ -185,15 +183,15 @@ export default function OnsitePage() {
     <div className="mx-auto max-w-2xl space-y-4 pb-8">
       {/* 顶部：返回 + 标题 + 时间 */}
       <div className="flex items-center gap-2" data-tour="onsite-content">
-        <Button variant="ghost" size="icon" className="h-11 w-11" onClick={() => nav(`/p/${id}`)} aria-label="返回项目">
+        <Button variant="ghost" size="icon" className="h-11 w-11" onClick={() => nav(`/p/${id}`)} aria-label="返回活动">
           <ArrowLeft className="size-5" />
         </Button>
         <div className="min-w-0 flex-1">
-          <h1 className="flex items-center gap-2 text-xl font-bold">
-            <Smartphone className="size-5 shrink-0" /> 现场模式
+          <h1 className="editorial-heading">
+            现场模式
           </h1>
           <p className="text-sm text-muted-foreground">
-            {fmtLocal(data.now)} · 每 30 秒自动刷新
+            {fmtLocal(data.now)} · 每 30 秒自动同步（支持离线打卡）
           </p>
         </div>
       </div>
@@ -218,10 +216,10 @@ export default function OnsitePage() {
         </div>
       ))}
 
-      {/* 当前任务大卡 */}
-      <Card className="border-2 border-primary/40">
+      {/* 当前岗位大卡 */}
+      <Card className="border-primary">
         <CardHeader className="pb-2">
-          <CardTitle className="text-lg text-muted-foreground">当前任务</CardTitle>
+          <CardTitle className="text-lg text-muted-foreground">当前岗位</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {currentModule ? (
@@ -240,59 +238,59 @@ export default function OnsitePage() {
               </div>
               {my?.completedAt ? (
                 <Badge variant="success" className="h-11 gap-1.5 px-4 text-base">
-                  <CheckCircle2 className="size-5" /> 已完成
+                  <CheckCircle2 className="size-5" /> 本岗已完成
                 </Badge>
               ) : my?.checkedInAt ? (
                 <Button
-                  className="h-14 w-full text-lg font-bold"
+                  className="min-h-14 w-full text-lg font-bold"
                   disabled={acting}
                   onClick={() => finish(currentModule.id)}
                 >
-                  <ClipboardCheck className="size-5" /> 完成任务
+                  <ClipboardCheck className="size-5" /> 完成本岗
                 </Button>
               ) : (
                 <Button
-                  className="h-14 w-full text-lg font-bold"
+                  className="min-h-14 w-full text-lg font-bold"
                   disabled={acting}
                   onClick={() => checkin(currentModule.id)}
                 >
-                  <CheckCircle2 className="size-5" /> 签到
+                  <CheckCircle2 className="size-5" /> 签到上岗
                 </Button>
               )}
             </>
           ) : (
-            <p className="py-4 text-center text-base text-muted-foreground">当前没有进行中的任务</p>
+            <p className="py-4 text-center text-base text-muted-foreground">当前时段没有进行中的岗位</p>
           )}
         </CardContent>
       </Card>
 
-      {/* 下一项任务 */}
+      {/* 下一班岗 */}
       {nextModule && <NextModuleCard module={nextModule} />}
 
       {/* 舞台执行 */}
       {data.rundowns.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <ListVideo className="size-5 text-primary" /> 舞台执行
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        <section className="editorial-section">
+          <header>
+            <h2 className="flex items-center gap-2 text-lg">
+              <ListVideo className="size-5 text-primary" /> 舞台执行控台
+            </h2>
+          </header>
+          <div className="space-y-3">
             {data.rundowns.map((r) => (
               <RundownExecRow key={r.id} rundown={r} canManage={canManageTools} onAction={rundownAction} />
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       )}
 
       {/* 异常上报 */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <AlertTriangle className="size-5 text-warning" /> 异常上报
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      <section className="editorial-section">
+        <header>
+          <h2 className="flex items-center gap-2 text-lg">
+            <AlertTriangle className="size-5 text-warning" /> 现场异常上报
+          </h2>
+        </header>
+        <div className="space-y-3">
           <div className="flex flex-wrap gap-2">
             {CATEGORIES.map((c) => (
               <button
@@ -311,10 +309,10 @@ export default function OnsitePage() {
           </div>
           <Select value={moduleId || 'none'} onValueChange={(v) => setModuleId(v === 'none' ? '' : v)}>
             <SelectTrigger className="w-full text-base data-[size=default]:h-11">
-              <SelectValue placeholder="关联模块（可选）" />
+              <SelectValue placeholder="关联岗位（可选）" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">不关联模块</SelectItem>
+              <SelectItem value="none">不关联岗位</SelectItem>
               {data.myModules.map((m) => (
                 <SelectItem key={m.id} value={m.id}>
                   {m.name}
@@ -325,52 +323,52 @@ export default function OnsitePage() {
           <Textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="备注（必填，500 字以内）"
+            aria-label="异常情况与所需支援" placeholder="简要描述现场情况与所需支援（必填，500 字以内）"
             maxLength={500}
             className="min-h-24 text-base"
           />
-          <Button className="h-14 w-full text-lg font-bold" disabled={submitting} onClick={submitIncident}>
-            提交上报
+          <Button className="min-h-14 w-full text-lg font-bold" disabled={submitting} onClick={submitIncident}>
+            提交异常上报
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       {/* 失物登记 */}
       {canManageLF && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-lg">
+        <section className="editorial-section">
+          <header>
+            <h2 className="flex items-center gap-2 text-lg">
               <PackageSearch className="size-5 text-primary" /> 失物招领
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-base text-muted-foreground">捡到物品？拍照登记，可在「工具 → 失物招领」跟踪认领</p>
-            <Button className="h-14 w-full text-lg font-bold" onClick={() => setLfOpen(true)}>
-              <PackageSearch className="size-5" /> 登记捡到的物品
+            </h2>
+          </header>
+          <div className="space-y-3">
+            <p className="text-base text-muted-foreground">现场拾获遗失物品可立即拍照登记，后续在工具箱中跟进认领。</p>
+            <Button className="min-h-14 w-full text-lg font-bold" onClick={() => setLfOpen(true)}>
+              <PackageSearch className="size-5" /> 登记拾获物品
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       )}
 
       {/* 联系人 */}
       {data.contacts.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Phone className="size-5" /> 联系人
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
+        <section className="editorial-section">
+          <header>
+            <h2 className="flex items-center gap-2 text-lg">
+              <Phone className="size-5" /> 现场通讯录
+            </h2>
+          </header>
+          <div className="space-y-2">
             {data.contacts.map((c) => {
               const phones = c.contacts.filter((p) => ['phone', '电话', '手机'].includes(p.platform));
               return (
-                <div key={c.userId ?? `external:${c.externalMemberId}`} className="flex items-center justify-between gap-2">
+                <div key={c.userId ?? `external:${c.externalMemberId}`} className="editorial-row flex flex-wrap items-center justify-between gap-2 border-t">
                   <div className="min-w-0">
-                    <p className="truncate text-base font-medium">{c.name}{c.externalMemberId ? '（未注册）' : ''}{c.duty ? ` · ${c.duty}` : ''}</p>
+                    <p className="wrap-anywhere text-base font-medium">{c.name}{c.externalMemberId ? '（未注册）' : ''}{c.duty ? ` · ${c.duty}` : ''}</p>
                     {c.roleName && <p className="text-sm text-muted-foreground">{c.roleName}</p>}
                     {c.contacts.filter((p) => !['phone', '电话', '手机'].includes(p.platform)).map((p, i) => <p key={i} className="break-words text-sm text-muted-foreground">{p.platform}：{p.value}</p>)}
                   </div>
-                  <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                  <div className="flex min-w-0 flex-wrap justify-end gap-2">
                     {phones.map((p) => (
                       <Button key={p.value} variant="outline" className="h-11 gap-1.5 text-base" asChild>
                         <a href={`tel:${p.value}`}>
@@ -382,21 +380,21 @@ export default function OnsitePage() {
                 </div>
               );
             })}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       )}
 
       {/* 异常列表 */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg">异常记录</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      <section className="editorial-section">
+        <header>
+          <h2 className="text-lg">异常记录</h2>
+        </header>
+        <div className="space-y-3">
           {sortedIncidents.length === 0 && (
-            <p className="py-2 text-center text-base text-muted-foreground">暂无异常记录</p>
+            <p className="py-2 text-center text-base text-muted-foreground">暂无现场异常记录</p>
           )}
           {sortedIncidents.map((inc) => (
-            <ListRow key={inc.id} className="space-y-1">
+            <article key={inc.id} className="editorial-row space-y-1 border-t">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-base font-medium">{CATEGORY_LABEL[inc.category] ?? inc.category}</p>
                 <Badge
@@ -410,10 +408,10 @@ export default function OnsitePage() {
                 {inc.reporter.name}
                 {inc.moduleName ? ` · ${inc.moduleName}` : ''} · {fmtLocal(inc.createdAt)}
               </p>
-            </ListRow>
+            </article>
           ))}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       <LostFoundItemDialog
         open={lfOpen}
@@ -441,7 +439,7 @@ function RundownExecRow({
       ? Math.round((new Date(r.currentActualStart).getTime() - new Date(r.currentPlannedStart).getTime()) / 60_000)
       : null;
   return (
-    <ListRow className="space-y-2">
+    <article className="editorial-row space-y-2 border-t">
       <div className="flex items-center gap-2">
         <p className="font-medium">{r.name}</p>
         {running ? (
@@ -474,7 +472,7 @@ function RundownExecRow({
                 onClick={() => void onAction(r.id, 'advance', {}, '已推进')}
               >
                 <SkipForward className="size-5" />
-                {r.currentIndex === r.itemCount - 1 ? '完成并结束' : '完成当前 → 下一个'}
+                {r.currentIndex === r.itemCount - 1 ? '完成并结束' : '推进下一节目'}
               </Button>
               <Button
                 variant="outline"
@@ -510,17 +508,17 @@ function RundownExecRow({
           )}
         </>
       )}
-    </ListRow>
+    </article>
   );
 }
 
 function NextModuleCard({ module }: { module: OnsiteModule }) {
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-lg text-muted-foreground">下一项任务</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-1">
+    <section className="editorial-section">
+      <header>
+        <h2 className="text-lg text-muted-foreground">下一班岗</h2>
+      </header>
+      <div className="space-y-1">
         <p className="text-xl font-semibold leading-tight">{module.name}</p>
         <div className="space-y-1 text-base">
           {module.location && (
@@ -533,7 +531,7 @@ function NextModuleCard({ module }: { module: OnsiteModule }) {
             {fmtRange(module.startAt, module.endAt)}
           </p>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

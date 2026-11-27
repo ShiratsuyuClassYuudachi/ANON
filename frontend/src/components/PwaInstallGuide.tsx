@@ -1,4 +1,3 @@
-import { Share } from 'lucide-react';
 import { isIOS } from '../lib/pwaInstall';
 import {
   Dialog,
@@ -23,22 +22,20 @@ export default function PwaInstallGuide({ open, onOpenChange }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>安装 ANON 到主屏幕</DialogTitle>
-          <DialogDescription>安装后可从主屏幕一键打开，活动当天加载更快。</DialogDescription>
+          <DialogTitle>将 ANON 添加到主屏幕</DialogTitle>
+          <DialogDescription>添加后可像独立应用一样从桌面一键打开，活动现场弱网加载更稳。</DialogDescription>
         </DialogHeader>
         {isIOS() ? (
           <ol className="list-decimal space-y-1.5 pl-5 text-sm">
-            <li className="flex items-center gap-1">
-              点 Safari 底部「分享」<Share className="inline size-4" aria-label="分享图标" />
-            </li>
-            <li>选择「添加到主屏幕」</li>
-            <li>点右上角「添加」</li>
+            <li>点击浏览器底部的「分享」按钮</li>
+            <li>在菜单中选择「添加到主屏幕」</li>
+            <li>点击右上角「添加」完成</li>
           </ol>
         ) : (
           <ol className="list-decimal space-y-1.5 pl-5 text-sm">
-            <li>打开浏览器菜单（右上角 ⋮ 或 ⋯）</li>
+            <li>打开浏览器右上角菜单（⋮ 或 ⋯）</li>
             <li>选择「安装应用」或「添加到主屏幕」</li>
-            <li>按提示确认安装</li>
+            <li>按提示确认即可</li>
           </ol>
         )}
       </DialogContent>

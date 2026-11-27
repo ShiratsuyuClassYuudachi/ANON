@@ -5,7 +5,6 @@ import { api } from '../../api/client';
 import { PERMISSIONS } from '../../lib/permissions';
 import type { ProjectDetail } from '../../types';
 import { Button } from '@/components/ui/button';
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import {
@@ -27,9 +26,9 @@ interface Props {
 
 function PermissionChecks({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
   return (
-    <div className="grid grid-cols-2 gap-2">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
       {PERMISSIONS.map((p) => (
-        <label key={p.key} className="flex cursor-pointer items-center gap-2 text-sm">
+        <label key={p.key} className="flex min-h-11 cursor-pointer items-center gap-2 text-sm md:min-h-8">
           <Checkbox
             checked={value.includes(p.key)}
             onCheckedChange={(c) =>
@@ -55,11 +54,12 @@ export default function RolesTab({ project, myPermissions, onChanged }: Props) {
 
   return (
     <div className="space-y-3">
+      <h1 className="editorial-heading">角色</h1>
       {canManage && (
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-base">新建角色</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            <Input placeholder="角色名" value={newName} onChange={(e) => setNewName(e.target.value)} />
+        <section className="editorial-section">
+          <h2 className="editorial-subheading">新建自定义角色</h2>
+          <div className="space-y-3">
+            <Input aria-label="角色名称" placeholder="输入角色名称（如：宣传组长、摊位审核）" value={newName} onChange={(e) => setNewName(e.target.value)} />
             <PermissionChecks value={newPerms} onChange={setNewPerms} />
             <Button
               onClick={() =>
@@ -73,17 +73,17 @@ export default function RolesTab({ project, myPermissions, onChanged }: Props) {
                 })
               }
             >
-              创建
+              创建角色
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       )}
 
       {project.roles.map((r) => (
-        <Card key={r.name}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">{r.name}</CardTitle>
-            <CardAction className="flex items-center gap-1">
+        <section key={r.name} className="editorial-section">
+          <header className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="editorial-subheading min-w-0 wrap-anywhere">{r.name}</h2>
+            <div className="flex items-center gap-1">
               {canManage && (
                 <>
                   <Button
@@ -99,7 +99,7 @@ export default function RolesTab({ project, myPermissions, onChanged }: Props) {
                       })
                     }
                   >
-                    保存
+                    保存权限
                   </Button>
                   <Button
                     variant="ghost"
@@ -111,22 +111,22 @@ export default function RolesTab({ project, myPermissions, onChanged }: Props) {
                   </Button>
                 </>
               )}
-            </CardAction>
-          </CardHeader>
-          <CardContent>
+            </div>
+          </header>
+          <div>
             <PermissionChecks
               value={permsOf(r.name, r.permissions)}
               onChange={(v) => setEditPerms({ ...editPerms, [r.name]: v })}
             />
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       ))}
 
       <AlertDialog open={!!deletingName} onOpenChange={(o) => !o && setDeletingName(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>删除角色「{deletingName}」？</AlertDialogTitle>
-            <AlertDialogDescription>该操作不可撤销。</AlertDialogDescription>
+            <AlertDialogDescription>仍有成员使用该角色时将无法删除。</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>

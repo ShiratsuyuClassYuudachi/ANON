@@ -8,7 +8,6 @@ import type { ApiKeyInfo } from '../types';
 import { FormOverlay } from './FormOverlay';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -79,7 +78,7 @@ export default function ApiKeysCard() {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return toast.error('名称不能为空');
-    if (!projectId) return toast.error('请选择项目');
+    if (!projectId) return toast.error('请选择活动');
     setBusy(true);
     try {
       const r = await api<CreatedKey>('/api/open/keys', {
@@ -110,25 +109,25 @@ export default function ApiKeysCard() {
   const grantable = PERMISSIONS.filter((p) => myPermissions.includes(p.key));
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">API 密钥</CardTitle>
-        <CardAction>
+    <section className="editorial-section">
+      <header className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="editorial-subheading">API 密钥</h2>
+        <div>
           <Button variant="outline" size="sm" onClick={() => setCreateOpen(true)}>
             <Plus className="size-4" /> 生成密钥
           </Button>
-        </CardAction>
-      </CardHeader>
-      <CardContent className="space-y-3">
+        </div>
+      </header>
+      <div className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          供插件或自动化脚本以你的身份调用本系统接口；密钥仅在生成时展示一次，撤销后立即失效
+          供外部组件或自动化脚本以你的身份访问指定活动数据；密钥原文仅在生成时展示一次，撤销后立即失效。
         </p>
         {keys === null ? null : keys.length === 0 ? (
-          <p className="text-sm text-muted-foreground">暂无密钥</p>
+          <p className="text-sm text-muted-foreground">尚未生成任何 API 密钥</p>
         ) : (
-          <ul className="space-y-3">
+          <ul className="editorial-list">
             {keys.map((k) => (
-              <li key={k.id} className="flex items-start gap-3 rounded-md border p-3">
+              <li key={k.id} className="editorial-row flex flex-wrap items-start gap-3">
                 <div className="min-w-0 flex-1 space-y-1.5">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{k.name}</span>
@@ -139,7 +138,7 @@ export default function ApiKeysCard() {
                   </div>
                   <div className="flex flex-wrap gap-1">
                     {k.scopes.length === 0 ? (
-                      <span className="text-xs text-muted-foreground">仅成员可读数据</span>
+                      <span className="text-xs text-muted-foreground">仅读取成员可见数据</span>
                     ) : (
                       k.scopes.map((s) => (
                         <Badge key={s} variant="outline">
@@ -164,7 +163,7 @@ export default function ApiKeysCard() {
             ))}
           </ul>
         )}
-      </CardContent>
+      </div>
 
       <FormOverlay
         open={createOpen}
@@ -173,14 +172,14 @@ export default function ApiKeysCard() {
           if (!o) resetCreate();
         }}
         title="生成 API 密钥"
-        description="密钥仅以你的身份、按勾选权限点访问所选项目"
+        description="密钥仅在所选活动内、按你本人持有的角色权限与下方勾选范围取交集生效"
       >
         <form onSubmit={submit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="ak-name">名称</Label>
+            <Label htmlFor="ak-name">密钥名称</Label>
             <Input
               id="ak-name"
-              placeholder="签到脚本"
+              placeholder="如：场务签到脚本"
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={50}
@@ -188,10 +187,10 @@ export default function ApiKeysCard() {
             />
           </div>
           <div className="space-y-2">
-            <Label>项目</Label>
+            <Label>所属活动</Label>
             <Select value={projectId} onValueChange={setProjectId}>
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="选择项目" />
+                <SelectValue placeholder="选择活动" />
               </SelectTrigger>
               <SelectContent>
                 {(projects ?? []).map((p) => (
@@ -214,15 +213,15 @@ export default function ApiKeysCard() {
               </SelectContent>
             </Select>
             {lifetime === 'permanent' && (
-              <p className="text-xs text-destructive">永久密钥泄露后长期有效，请确认脚本使用场景可信</p>
+              <p className="text-xs text-destructive">永久密钥一旦泄露将长期有效，请仅在可信环境中使用。</p>
             )}
           </div>
           {projectId && (
             <div className="space-y-2">
-              <Label>权限点</Label>
+              <Label>授权范围</Label>
               {grantable.length === 0 ? (
                 <p className="text-xs text-muted-foreground">
-                  你在该项目没有可授予的权限点，密钥仅能读取成员可见数据
+                  你在该活动中无可额外授予的写权限，密钥仅可读取成员可见数据。
                 </p>
               ) : (
                 <div className="grid grid-cols-2 gap-2">
@@ -242,7 +241,7 @@ export default function ApiKeysCard() {
             </div>
           )}
           <Button type="submit" className="w-full" disabled={busy}>
-            {busy ? '生成中…' : '生成'}
+            {busy ? '生成中…' : '生成密钥'}
           </Button>
         </form>
       </FormOverlay>
@@ -252,7 +251,7 @@ export default function ApiKeysCard() {
         onOpenChange={(o) => {
           if (!o) setCreated(null); // 关闭即清空内存中的原文
         }}
-        title="密钥已生成"
+        title="请复制并妥善保存密钥"
       >
         {created && (
           <div className="space-y-4">
@@ -268,13 +267,13 @@ export default function ApiKeysCard() {
               </Button>
             </div>
             <p className="text-xs text-destructive">
-              请立即复制并妥善保管——关闭后无法再次查看，丢失只能撤销重建
+              关闭此窗口后将无法再次查看完整密钥；若不慎遗失，请直接撤销并重新生成。
             </p>
             <div className="space-y-1.5">
               <p className="text-sm text-muted-foreground">生效权限点</p>
               <div className="flex flex-wrap gap-1">
                 {created.key.scopes.length === 0 ? (
-                  <span className="text-xs text-muted-foreground">仅成员可读数据</span>
+                  <span className="text-xs text-muted-foreground">仅读取成员可见数据</span>
                 ) : (
                   created.key.scopes.map((s) => (
                     <Badge key={s} variant="outline">
@@ -288,11 +287,11 @@ export default function ApiKeysCard() {
               </p>
             </div>
             <Button className="w-full" onClick={() => setCreated(null)}>
-              完成
+              我已保存
             </Button>
           </div>
         )}
       </FormOverlay>
-    </Card>
+    </section>
   );
 }

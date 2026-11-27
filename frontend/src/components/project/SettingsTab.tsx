@@ -4,11 +4,9 @@ import { api } from '../../api/client';
 import type { ProjectDetail } from '../../types';
 import { StageManager } from './StageManager';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ListRow } from '@/components/ui/list-row';
 import { Textarea } from '@/components/ui/textarea';
 
 const QQ_GROUP_TYPE_OPTIONS = [
@@ -16,9 +14,9 @@ const QQ_GROUP_TYPE_OPTIONS = [
   { value: 'todo:remind', label: '待办节点提醒' },
   { value: 'todo:due', label: '待办到期提醒' },
   { value: 'announcement:published', label: '重要/紧急公告' },
-  { value: 'risk:new', label: '新风险' },
-  { value: 'incident:reported', label: '现场异常' },
-  { value: 'weekly:report', label: '每周周报' },
+  { value: 'risk:new', label: '新风险预警' },
+  { value: 'incident:reported', label: '现场异常上报' },
+  { value: 'weekly:report', label: '每周筹备周报' },
 ] as const;
 
 interface Props {
@@ -78,19 +76,19 @@ function QqGroupCard({ project, canManage, onChanged }: { project: ProjectDetail
   };
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">QQ 群通知与录入</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2">
+    <section className="editorial-section">
+      <header>
+        <h2 className="editorial-subheading">QQ 群通知与录入</h2>
+      </header>
+      <div className="space-y-2">
         {!project.qqEnabled ? (
-          <p className="text-sm text-muted-foreground">部署未启用 QQ 通知（未配置机器人凭证），其他提醒渠道不受影响</p>
+          <p className="text-sm text-muted-foreground">当前站点未启用 QQ 机器人通知，其他提醒渠道不受影响。</p>
         ) : (
           <>
             {project.qqGroups.length > 0 && (
               <div className="space-y-2">
                 {project.qqGroups.map((g) => (
-                  <ListRow key={g.groupOpenId} className="space-y-2">
+                  <article key={g.groupOpenId} className="editorial-row space-y-2 border-t">
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-mono text-sm">{g.groupOpenId.slice(0, 8)}…</span>
                       {canManage && (
@@ -118,18 +116,18 @@ function QqGroupCard({ project, canManage, onChanged }: { project: ProjectDetail
                           disabled={!canManage || busy}
                           onCheckedChange={(c) => updateGroup(g.groupOpenId, { allowStageSignup: c === true })}
                         />
-                        允许本群所有成员录入舞台节目
+                        允许本群全体成员直接录入舞台报名节目
                       </label>
-                      <p className="text-sm text-muted-foreground">开启后无需绑定个人账号，节目进入报名待审核。物料上传和记账仍按个人权限执行。</p>
+                      <p className="text-sm text-muted-foreground">开启后群成员无需绑定个人账号即可提交待审核节目；物料上传与文字记账仍严格校验个人权限。</p>
                     </div>
-                  </ListRow>
+                  </article>
                 ))}
               </div>
             )}
             {canManage && (
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" disabled={busy} onClick={generate}>
-                  {bindCode ? '重新生成' : '生成绑定码'}
+                  {bindCode ? '重新生成' : '生成群绑定码'}
                 </Button>
                 {bindCode && (
                   <span className="font-mono text-2xl font-semibold tracking-[0.3em]" aria-label="绑定码">
@@ -140,13 +138,13 @@ function QqGroupCard({ project, canManage, onChanged }: { project: ProjectDetail
             )}
             <p className="text-sm text-muted-foreground">
               {bindCode
-                ? `10 分钟内，把机器人拉进 QQ 群并 @机器人 发送：绑定 ${bindCode.code}`
-                : '每个群可勾选接收的消息类型；在群里 @机器人 创建的待办，其提醒只回到来源群。项目管理者生成绑定码后，把机器人拉进 QQ 群，@机器人 发送「绑定 XXXXXX」完成关联（可绑定多个群）'}
+                ? `活动管理者生成绑定码后，在 10 分钟内将机器人拉入目标 QQ 群并 @机器人 发送「绑定 ${bindCode.code}」即可完成关联（支持关联多个工作群）。`
+                : '活动管理者生成绑定码后，在 10 分钟内将机器人拉入目标 QQ 群并 @机器人 发送「绑定 {验证码}」即可完成关联（支持关联多个工作群）。'}
             </p>
           </>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }
 
@@ -179,12 +177,13 @@ export default function SettingsTab({ project, myPermissions, onChanged }: Props
   };
 
   return (
-    <div className="space-y-3">
-      <Card>
-        <CardContent>
+    <div className="space-y-4">
+      <h1 className="editorial-heading">设置</h1>
+      <section className="editorial-section">
+        <h2 className="editorial-subheading">基本信息</h2>
         <form onSubmit={submit} className="space-y-3">
           <div className="space-y-1.5">
-            <Label htmlFor="settings-name">项目名称</Label>
+            <Label htmlFor="settings-name">活动名称</Label>
             <Input
               id="settings-name"
               required
@@ -193,7 +192,7 @@ export default function SettingsTab({ project, myPermissions, onChanged }: Props
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="settings-desc">描述</Label>
+            <Label htmlFor="settings-desc">活动简介</Label>
             <Textarea
               id="settings-desc"
               value={form.description}
@@ -220,10 +219,9 @@ export default function SettingsTab({ project, myPermissions, onChanged }: Props
               />
             </div>
           </div>
-          {canManage && <Button type="submit">保存</Button>}
+          {canManage && <Button type="submit">保存设置</Button>}
         </form>
-      </CardContent>
-      </Card>
+      </section>
       <QqGroupCard project={project} canManage={canManage} onChanged={onChanged} />
       <StageManager project={project} myPermissions={myPermissions} onChanged={onChanged} />
     </div>

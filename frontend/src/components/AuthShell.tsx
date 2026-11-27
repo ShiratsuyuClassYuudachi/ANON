@@ -1,49 +1,43 @@
 import type { ReactNode } from 'react';
 import Logo from './Logo';
-import { ModeToggle } from '../theme';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ModeToggle, StylePicker } from '../theme';
+
+const BRAND_DESCRIPTION = '排期追踪、经费分摊、文件归档、账号保管与现场调度，集中在一册里协作。';
 
 interface Props {
   title: string;
-  description: string;
+  description?: string;
   children: ReactNode;
   footer?: ReactNode;
 }
 
-/** 认证/邀请页共用壳：桌面双列品牌区与表单卡，移动端单列。 */
 export default function AuthShell({ title, description, children, footer }: Props) {
   return (
-    <div className="grid min-h-dvh bg-background lg:grid-cols-[.95fr_1.05fr]">
-      <div className="fixed right-3 top-3 z-50">
-        <ModeToggle />
-      </div>
-      <aside className="hidden grid-rows-[auto_1fr] border-r bg-primary/5 p-12 text-foreground lg:grid xl:p-16">
+    <div className="editorial grid min-h-dvh bg-background md:grid-cols-[46%_54%]">
+      <aside className="hidden grid-rows-[auto_1fr] border-r p-8 md:grid lg:p-12 xl:p-16">
         <Logo size="lg" />
-        <div className="flex flex-col justify-center space-y-3">
-          <h1 className="max-w-md text-[32px] font-bold leading-[40px] tracking-tight xl:text-[36px] xl:leading-[44px]">
-            面向活动组织团队的全流程协作工具
-          </h1>
-          <p className="max-w-sm text-sm leading-6 text-muted-foreground">
-            待办排期、财务分摊、物料资料、平台账号与现场执行，一个项目页全部装下。
-          </p>
+        <div className="flex flex-col justify-center">
+          <p className="editorial-title max-w-sm">把一场活动，从立项筹备排到现场收官</p>
+          <hr className="mt-4 mb-4 w-10" />
+          <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">{BRAND_DESCRIPTION}</p>
         </div>
       </aside>
-      <main className="flex items-start justify-center px-4 pt-20 pb-10 lg:items-center lg:py-12">
-        <div className="w-full max-w-[420px]">
-          <div className="mb-6 flex flex-col items-start gap-2 lg:hidden">
-            <Logo size="lg" />
-            <p className="text-sm text-muted-foreground">面向活动组织团队的全流程协作工具</p>
+      <main className="grid min-w-0 grid-rows-[auto_1fr] px-4 pt-3 pb-10 sm:px-8">
+        <div className="flex flex-wrap items-center justify-between gap-2 md:justify-end">
+          <Logo size="lg" className="md:hidden" />
+          <div className="ml-auto flex items-center gap-1">
+            <span className="hidden md:inline-flex"><StylePicker /></span>
+            <ModeToggle />
           </div>
-          <Card className="w-full shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-2xl">{title}</CardTitle>
-              <CardDescription>{description}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {children}
-              {footer && <div className="mt-4 text-sm text-muted-foreground">{footer}</div>}
-            </CardContent>
-          </Card>
+        </div>
+        <div className="mx-auto w-full max-w-[23.75rem] pt-6 md:self-center md:py-10">
+          <p className="mb-8 text-sm leading-relaxed text-muted-foreground md:hidden">{BRAND_DESCRIPTION}</p>
+          <header className="mb-6 space-y-2">
+            <h1 className="editorial-title">{title}</h1>
+            {description && <p className="text-sm text-muted-foreground">{description}</p>}
+          </header>
+          {children}
+          {footer && <div className="mt-5 text-sm text-muted-foreground">{footer}</div>}
         </div>
       </main>
     </div>

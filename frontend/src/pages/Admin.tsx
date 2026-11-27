@@ -5,7 +5,6 @@ import { api } from '../api/client';
 import { useAuth } from '../auth';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 
 interface InviteCode {
@@ -35,7 +34,7 @@ export default function Admin() {
     });
   }, [user?.isSuperAdmin]);
 
-  if (!user?.isSuperAdmin) return <p className="text-sm text-destructive">需要超级管理员权限</p>;
+  if (!user?.isSuperAdmin) return <p className="text-sm text-destructive">仅超级管理员可访问此页面</p>;
 
   const create = async () => {
     try {
@@ -49,21 +48,19 @@ export default function Admin() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-semibold">邀请码管理</h2>
-      <Card>
-        <CardContent className="flex gap-2">
+      <h1 className="editorial-title">邀请码管理</h1>
+      <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
           <Input
             className="flex-1"
-            placeholder="自定义邀请码（留空自动生成）"
+            aria-label="自定义邀请码" placeholder="输入自定义邀请码，留空则随机生成"
             value={custom}
             onChange={(e) => setCustom(e.target.value)}
           />
-          <Button onClick={create}>创建</Button>
-        </CardContent>
-      </Card>
+          <Button onClick={create}>生成邀请码</Button>
+      </div>
       {loadFailed ? (
-        <Card className="flex flex-col items-center gap-3 py-12 text-center">
-          <p className="text-sm text-destructive">加载邀请码列表失败</p>
+        <div className="flex flex-col items-center gap-3 py-12 text-center">
+          <p className="text-sm text-destructive">加载邀请码失败</p>
           <Button
             onClick={() =>
               load().catch((e) => {
@@ -74,12 +71,12 @@ export default function Admin() {
           >
             重试
           </Button>
-        </Card>
+        </div>
       ) : (
-        codes.map((c) => (
-          <Card key={c.id}>
-            <CardContent className="flex items-center gap-3">
-              <code className="rounded bg-muted px-2 py-0.5">{c.code}</code>
+        <div className="editorial-list">
+        {codes.map((c) => (
+          <div key={c.id} className="editorial-row flex flex-wrap items-center gap-3">
+              <code className="min-w-0 rounded bg-muted px-2 py-0.5 wrap-anywhere">{c.code}</code>
               {c.used ? (
                 <Badge variant="secondary">已使用</Badge>
               ) : (
@@ -105,9 +102,9 @@ export default function Admin() {
                   <Copy className="size-4" />
                 </Button>
               )}
-            </CardContent>
-          </Card>
-        ))
+          </div>
+        ))}
+        </div>
       )}
     </div>
   );

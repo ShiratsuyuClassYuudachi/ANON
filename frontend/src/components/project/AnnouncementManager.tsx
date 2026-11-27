@@ -23,7 +23,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
-import { ListRow } from '@/components/ui/list-row';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -196,7 +195,7 @@ export function AnnouncementManager({ projectId, members, roles, open, onOpenCha
                 const badge = TYPE_BADGE[a.type] ?? TYPE_BADGE.normal;
                 const expired = a.expiresAt !== null && new Date(a.expiresAt).getTime() <= Date.now();
                 return (
-                  <ListRow key={a.id}>
+                  <div key={a.id} className="editorial-row border-b">
                     <div className="flex flex-wrap items-center gap-2">
                       {a.isPinned && <Pin className="size-3.5 shrink-0 text-muted-foreground" />}
                       <Badge variant={badge.variant} className="shrink-0">{badge.label}</Badge>
@@ -224,7 +223,7 @@ export function AnnouncementManager({ projectId, members, roles, open, onOpenCha
                           <span> · 将于 {fmtLocal(a.expiresAt)} 过期</span>
                         ))}
                     </p>
-                  </ListRow>
+                  </div>
                 );
               })}
               {items.length < total && (
@@ -240,7 +239,7 @@ export function AnnouncementManager({ projectId, members, roles, open, onOpenCha
       <FormOverlay open={formOpen} onOpenChange={setFormOpen} title={editing ? '编辑公告' : '发布公告'}>
         <form onSubmit={(e) => void submit(e)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="ann-title">标题</Label>
+            <Label htmlFor="ann-title">公告标题</Label>
             <Input
               id="ann-title"
               required
@@ -250,17 +249,17 @@ export function AnnouncementManager({ projectId, members, roles, open, onOpenCha
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="ann-content">内容</Label>
+            <Label htmlFor="ann-content">正文内容</Label>
             <Textarea
               id="ann-content"
               rows={4}
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="公告正文（可选）"
+              placeholder="填写公告详情（可选）"
             />
           </div>
           <div className="space-y-2">
-            <Label>类型</Label>
+            <Label>重要程度</Label>
             <RadioGroup
               value={type}
               onValueChange={(v) => setType(v as AnnouncementItem['type'])}
@@ -278,11 +277,11 @@ export function AnnouncementManager({ projectId, members, roles, open, onOpenCha
           </div>
           <div className="flex items-center gap-2">
             <Switch id="ann-pinned" checked={isPinned} onCheckedChange={setIsPinned} />
-            <Label htmlFor="ann-pinned">置顶</Label>
+            <Label htmlFor="ann-pinned">置顶展示</Label>
           </div>
           <div className="flex items-center gap-2">
             <Switch id="ann-confirm" checked={requireConfirmation} onCheckedChange={setRequireConfirmation} />
-            <Label htmlFor="ann-confirm">需要成员确认（我已知悉）</Label>
+            <Label htmlFor="ann-confirm">要求成员点击确认（我已知悉）</Label>
           </div>
           <div className="space-y-2">
             <Label>可见范围</Label>
@@ -307,7 +306,7 @@ export function AnnouncementManager({ projectId, members, roles, open, onOpenCha
               value={expiresInput}
               onChange={(e) => setExpiresInput(e.target.value)}
             />
-            <p className="text-xs text-muted-foreground">留空 = 长期有效</p>
+            <p className="text-xs text-muted-foreground">留空则长期有效</p>
           </div>
           <Button type="submit" className="w-full" disabled={submitting || !title.trim()}>
             {submitting && <Loader2 className="size-4 animate-spin" />}
@@ -332,7 +331,7 @@ export function AnnouncementManager({ projectId, members, roles, open, onOpenCha
       <Dialog open={!!confirmTarget} onOpenChange={(o) => !o && setConfirmTarget(null)}>
         <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>确认名单 - {confirmTarget?.title}</DialogTitle>
+            <DialogTitle>确认名单 · {confirmTarget?.title}</DialogTitle>
           </DialogHeader>
           {confirmations === null ? (
             <div className="space-y-2">

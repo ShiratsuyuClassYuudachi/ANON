@@ -44,7 +44,7 @@ export default function CustomToolEmbed({ tool, launchToken, onBack }: Props) {
     <div className="space-y-3">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={onBack}>
-          <ArrowLeft className="size-4" /> 全部工具
+          <ArrowLeft className="size-4" /> 返回全部工具
         </Button>
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium">{tool.name}</p>

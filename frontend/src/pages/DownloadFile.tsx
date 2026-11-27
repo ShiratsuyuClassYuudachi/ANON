@@ -1,4 +1,3 @@
-import { Download } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { downloadFile } from '../api/client';
@@ -19,20 +18,19 @@ export default function DownloadFile() {
   }, [id, name]);
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 text-center">
+    <main className="editorial flex min-h-dvh flex-col items-center justify-center gap-4 p-6 text-center">
       {err ? (
         <>
           <p className="text-destructive">{err}</p>
           <Button variant="outline" onClick={() => window.location.reload()}>
-            重试
+            重新下载
           </Button>
         </>
       ) : (
         <>
-          <Download className="h-8 w-8 animate-bounce text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">已开始下载「{name}」，如未开始请检查浏览器拦截后刷新重试。</p>
+          <p className="text-sm text-muted-foreground">正在开始下载「{name}」；若浏览器未自动弹出保存框，请检查拦截提示或刷新重试。</p>
         </>
       )}
-    </div>
+    </main>
   );
 }

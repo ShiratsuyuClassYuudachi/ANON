@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Bell, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { getVapidPublicKey, PUSH_OPTOUT_KEY, pushSupported, subscribePush } from '../lib/push';
@@ -71,17 +71,16 @@ export default function PushBanner() {
   };
 
   return (
-    <div className="mb-3 flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
-      <Bell className="size-4 shrink-0 text-primary" />
-      <p className="flex-1 text-sm text-foreground">
-        开启推送通知，被指派、待办到期、紧急公告等动态会直接提醒你
+    <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+      <p className="min-w-0 flex-1 text-xs leading-relaxed text-foreground">
+        开启设备推送通知，被指派任务、待办临期或发布紧急公告时会即时提醒你
       </p>
       <Button size="sm" disabled={busy} onClick={enable}>
-        {busy ? '开启中…' : '开启'}
+        {busy ? '开启中…' : '开启通知'}
       </Button>
       <button
         aria-label="暂不开启"
-        className="rounded p-1 text-muted-foreground hover:bg-muted"
+        className="flex size-11 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring md:size-8"
         onClick={dismiss}
       >
         <X className="size-4" />

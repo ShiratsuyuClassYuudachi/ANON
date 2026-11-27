@@ -3,13 +3,12 @@ import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../api/client';
 import { useAuth } from '../auth';
-import { ModeToggle, useTheme } from '@/theme';
+import { ModeToggle, THEME_STYLES, useTheme } from '@/theme';
 import ApiKeysCard from '../components/ApiKeysCard';
 import PushSettingsCard from '../components/PushSettingsCard';
 import QqBindCard from '../components/QqBindCard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -28,17 +27,17 @@ export default function Me() {
       await api('/api/me', { method: 'PATCH', body: { name: name.trim(), contacts: cleaned } });
       setContacts(cleaned);
       await refresh();
-      toast.success('已保存');
+      toast.success('资料已保存');
     } catch (e2) {
       toast.error((e2 as Error).message);
     }
   };
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6">
-      <h2 className="text-2xl font-semibold">个人资料</h2>
-      <Card>
-        <CardContent>
+    <div className="mx-auto w-full max-w-[45rem] space-y-6">
+      <h1 className="editorial-title">个人资料</h1>
+      <section className="editorial-section">
+        <h2 className="editorial-subheading">基本信息</h2>
           <form onSubmit={submit} className="space-y-3">
             <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <span className="break-all">{user.email}</span>
@@ -49,12 +48,12 @@ export default function Me() {
               <Input id="me-name" required value={name} onChange={(e) => setName(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label>联系方式（会展示给项目成员）</Label>
+              <Label>公开联系方式（对同活动成员可见）</Label>
               {contacts.map((c, i) => (
                 <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:grid-cols-[112px_minmax(0,1fr)_44px]" key={i}>
                   <Input
                     className="col-span-2 w-full sm:col-span-1 sm:w-28"
-                    placeholder="平台（如 QQ）"
+                    aria-label="联系方式平台" placeholder="平台（如 QQ、手机）"
                     value={c.platform}
                     onChange={(e) =>
                       setContacts(contacts.map((x, j) => (j === i ? { ...x, platform: e.target.value } : x)))
@@ -62,7 +61,7 @@ export default function Me() {
                   />
                   <Input
                     className="min-w-0 w-full sm:col-start-2"
-                    placeholder="账号"
+                    aria-label="联系方式号码或账号" placeholder="号码或账号"
                     value={c.value}
                     onChange={(e) =>
                       setContacts(contacts.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))
@@ -89,10 +88,9 @@ export default function Me() {
                 + 添加联系方式
               </Button>
             </div>
-            <Button type="submit">保存</Button>
+            <Button type="submit">保存资料</Button>
           </form>
-        </CardContent>
-      </Card>
+      </section>
 
       <PushSettingsCard />
 
@@ -100,25 +98,20 @@ export default function Me() {
 
       <ApiKeysCard />
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">界面偏好</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
+      <section className="editorial-section">
+        <h2 className="editorial-subheading">界面偏好</h2>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant={style === 'minimal' ? 'default' : 'outline'} onClick={() => setStyle('minimal')}>
-              简洁
-            </Button>
-            <Button variant={style === 'playful' ? 'default' : 'outline'} onClick={() => setStyle('playful')}>
-              明快
-            </Button>
+            {THEME_STYLES.map(({ key, label }) => (
+              <Button key={key} variant={style === key ? 'default' : 'outline'} aria-pressed={style === key} onClick={() => setStyle(key)}>
+                {label}
+              </Button>
+            ))}
             <div className="ml-auto">
               <ModeToggle />
             </div>
           </div>
-          <p className="text-sm text-muted-foreground">风格与日夜模式保存在本机</p>
-        </CardContent>
-      </Card>
+          <p className="text-sm text-muted-foreground">界面风格与日夜模式仅保存在当前浏览器。</p>
+      </section>
     </div>
   );
 }
