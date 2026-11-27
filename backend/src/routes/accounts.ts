@@ -70,7 +70,7 @@ async function parseVisibility(projectId: unknown, roleNames: string[], raw: unk
     }
     const count = await Membership.countDocuments({ projectId, userId: { $in: userIds } });
     if (count !== new Set(userIds).size) {
-      throw new AppError(400, 'bad_request', '可见范围内的用户必须是项目成员');
+      throw new AppError(400, 'bad_request', '可见范围内的用户必须是活动成员');
     }
   }
   for (const name of names) {

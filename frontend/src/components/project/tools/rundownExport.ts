@@ -51,12 +51,12 @@ function downloadBlob(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/** 生成 rundown 纯文本 */
+/** 生成流程单纯文本 */
 export function rundownText(r: StageRundown): string {
   const scheduled = computeSchedule(r.startAt, r.items);
   const total = r.items.reduce((sum, it) => sum + it.durationMin, 0);
   const lines = [
-    `舞台 Rundown：${r.name}`,
+    `舞台流程单：${r.name}`,
     `开始：${fmtLocal(r.startAt, true)} ｜ 预计结束：${scheduleEndLabel(r.startAt, r.items)} ｜ 共 ${r.items.length} 个节目（${total} 分钟）`,
     '',
   ];
@@ -196,7 +196,7 @@ export function exportRundownImage(r: StageRundown, columnKeys?: string[]) {
   ctx.fillStyle = '#111827';
   ctx.font = FONT('bold', 26);
   ctx.textBaseline = 'alphabetic';
-  ctx.fillText(`舞台 Rundown：${r.name}`, PAD, y + 30);
+  ctx.fillText(`舞台流程单：${r.name}`, PAD, y + 30);
   ctx.fillStyle = '#6b7280';
   ctx.font = FONT('normal', 13);
   ctx.fillText(

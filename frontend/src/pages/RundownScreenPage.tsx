@@ -41,7 +41,7 @@ export default function RundownScreenPage() {
       <div className="flex min-h-screen items-center justify-center bg-neutral-950 px-8 text-white">
         <div className="space-y-3 text-center">
           <MonitorX className="mx-auto size-12 text-neutral-600" />
-          <p className="text-2xl font-medium">链接不存在或已关闭</p>
+          <p className="text-2xl font-medium">该投屏链接不存在或已关闭</p>
           <p className="text-sm text-neutral-500">{err}</p>
         </div>
       </div>
@@ -82,13 +82,13 @@ export default function RundownScreenPage() {
         {/* 顶栏：名称 + 时钟 + 状态 */}
         <div className="flex items-start justify-between gap-6">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold">{rundown.name}</h1>
+            <h1 className="text-balance text-2xl font-bold">{rundown.name}</h1>
             <p className="text-neutral-400">{data.projectName}</p>
           </div>
           <div className="flex shrink-0 items-center gap-4">
             <p className="font-mono text-4xl tabular-nums">{clock}</p>
             {e.status === 'running' ? (
-              <span className="rounded-md bg-green-600 px-3 py-1 text-lg font-medium">进行中</span>
+              <span className="rounded-md bg-green-600 px-3 py-1 text-lg font-medium">执行中</span>
             ) : e.status === 'finished' ? (
               <span className="rounded-md bg-neutral-700 px-3 py-1 text-lg font-medium text-neutral-200">已结束</span>
             ) : (
@@ -114,7 +114,7 @@ export default function RundownScreenPage() {
         {e.status === 'idle' && (
           <div className="space-y-3 py-8 text-center">
             <p className="text-4xl font-bold">演出尚未开始</p>
-            <p className="text-2xl text-neutral-400">计划开始 {fmtLocal(rundown.startAt, true)}</p>
+            <p className="text-2xl text-neutral-400 tabular-nums">计划开始 {fmtLocal(rundown.startAt, true)}</p>
             {rundown.items.length > 0 && (
               <p className="text-xl text-neutral-500">开场节目：{rundown.items[0].name}</p>
             )}
@@ -128,15 +128,15 @@ export default function RundownScreenPage() {
             {current.item.participants.length > 0 && (
               <p className="text-2xl text-neutral-400">{current.item.participants.map((p) => p.cn).join('、')}</p>
             )}
-            <p className="font-mono text-2xl text-neutral-300">
+            <p className="font-mono text-2xl text-neutral-300 tabular-nums">
               计划 {hhmm(current.plannedStart)}–{hhmm(current.plannedEnd)}
               {current.actualStart && ` ｜ 实际开始 ${hhmm(current.actualStart)}`}
             </p>
-            <p className="text-3xl font-medium">
+            <p className="text-3xl font-medium tabular-nums">
               已进行 {elapsed} 分钟 <span className="text-neutral-400">/ 计划 {current.item.durationMin} 分钟</span>
               {overrun > 0 && <span className="ml-3 text-red-500">已超时 +{overrun} 分钟</span>}
             </p>
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3 tabular-nums">
               {projected !== null && projected > 0 && (
                 <span className="rounded-md bg-red-600 px-4 py-1.5 text-xl font-bold">预计延误 {projected} 分钟</span>
               )}
@@ -165,7 +165,7 @@ export default function RundownScreenPage() {
           <div className="space-y-3 py-8 text-center">
             <p className="text-4xl font-bold">演出已结束</p>
             {e.finishedAt && (
-              <p className="text-2xl text-neutral-400">实际结束 {hhmm(new Date(e.finishedAt))}</p>
+              <p className="text-2xl text-neutral-400 tabular-nums">实际结束 {hhmm(new Date(e.finishedAt))}</p>
             )}
           </div>
         )}
@@ -176,7 +176,7 @@ export default function RundownScreenPage() {
             <p className="text-xl text-neutral-400">接下来</p>
             {nextUp.map((c) => (
               <div key={c.item.id} className="flex items-baseline gap-4">
-                <span className="w-8 shrink-0 text-right text-xl text-neutral-500">
+                <span className="w-8 shrink-0 text-right text-xl text-neutral-500 tabular-nums">
                   {execList.indexOf(c) + 1}
                 </span>
                 <span
@@ -191,14 +191,14 @@ export default function RundownScreenPage() {
                   {hhmm(c.projectedStart)}
                 </span>
                 <span className="min-w-0 flex-1 truncate text-2xl">{c.item.name}</span>
-                <span className="shrink-0 text-lg text-neutral-500">{c.item.durationMin} 分钟</span>
+                <span className="shrink-0 text-lg text-neutral-500 tabular-nums">{c.item.durationMin} 分钟</span>
               </div>
             ))}
           </div>
         )}
 
         {/* 底栏 */}
-        <div className="border-t border-neutral-800 pt-4 text-lg text-neutral-400">
+        <div className="border-t border-neutral-800 pt-4 text-lg text-neutral-400 tabular-nums">
           {e.status === 'finished'
             ? e.finishedAt && `实际结束 ${hhmm(new Date(e.finishedAt))}`
             : execList.length > 0 && `预计结束 ${hhmm(execList[execList.length - 1].projectedEnd)}`}

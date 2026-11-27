@@ -68,7 +68,7 @@ externalMembersRouter.patch('/:memberId', ...requirePermission('member:manage'),
 externalMembersRouter.post('/:memberId/link', ...requirePermission('member:manage'), ah(async (req, res) => {
   const userId = req.body?.userId;
   if (!isValidObjectId(req.params.memberId) || typeof userId !== 'string' || !isValidObjectId(userId)) throw new AppError(400, 'bad_request', '成员或用户 ID 非法');
-  if (!await Membership.exists({ projectId: req.project!._id, userId })) throw new AppError(400, 'bad_request', '只能关联本项目已入项的账号');
+  if (!await Membership.exists({ projectId: req.project!._id, userId })) throw new AppError(400, 'bad_request', '只能关联本活动已加入的账号');
   // 单文档条件更新，避免并发关联到不同账号；无需跨集合事务。
   let member = await ExternalMember.findOneAndUpdate({ _id: req.params.memberId, projectId: req.project!._id, linkedUserId: null },
     { $set: { linkedUserId: userId, linkedAt: new Date(), linkedBy: req.userId } }, { new: true });

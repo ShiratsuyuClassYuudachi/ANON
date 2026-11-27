@@ -96,13 +96,13 @@ async function versionJson(v: ResourceVersionDoc) {
 /** 加载资源及其类型，并校验可见范围（资源 visibility 优先于类型） */
 async function loadVisibleResource(req: Request) {
   const resource = await Resource.findOne({ _id: req.params.resourceId, projectId: req.project!._id });
-  if (!resource) throw new AppError(404, 'not_found', '资源不存在');
+  if (!resource) throw new AppError(404, 'not_found', '资料不存在');
   const [type, categories] = await Promise.all([
     ResourceType.findOne({ _id: resource.typeId, projectId: req.project!._id }),
     ResourceType.find({ projectId: req.project!._id }),
   ]);
   if (!canSeeMaterialResource(viewerOf(req), resource.visibility, type, indexMaterialCategories(categories))) {
-    throw new AppError(403, 'forbidden', '该资源对你不可见');
+    throw new AppError(403, 'forbidden', '该资料对你不可见');
   }
   return { resource, type };
 }
@@ -167,16 +167,16 @@ materialsRouter.post(
   ...requirePermission('materials:manage'),
   ah(async (req, res) => {
     const { name, parentId } = req.body ?? {};
-    if (!name || !String(name).trim()) throw new AppError(400, 'bad_request', '类型名称必填');
+    if (!name || !String(name).trim()) throw new AppError(400, 'bad_request', '分类名称必填');
     let parent: ResourceTypeDoc | null = null;
     if (parentId !== undefined && parentId !== null) {
-      if (typeof parentId !== 'string') throw new AppError(400, 'bad_request', '上级类别无效');
+      if (typeof parentId !== 'string') throw new AppError(400, 'bad_request', '上级分类无效');
       parent = await ResourceType.findOne({ _id: parentId, projectId: req.project!._id });
-      if (!parent) throw new AppError(400, 'bad_request', '上级类别不存在');
-      if (parent.parentId) throw new AppError(400, 'bad_request', '类别最多支持两层');
+      if (!parent) throw new AppError(400, 'bad_request', '上级分类不存在');
+      if (parent.parentId) throw new AppError(400, 'bad_request', '分类最多支持两层');
       const categories = await ResourceType.find({ projectId: req.project!._id });
       if (!canSeeMaterialCategory(viewerOf(req), parent, indexMaterialCategories(categories))) {
-        throw new AppError(403, 'forbidden', '上级类别对你不可见');
+        throw new AppError(403, 'forbidden', '上级分类对你不可见');
       }
     }
     const t = await ResourceType.create({
@@ -194,32 +194,32 @@ materialsRouter.patch(
   ...requirePermission('materials:manage'),
   ah(async (req, res) => {
     const t = await ResourceType.findOne({ _id: req.params.typeId, projectId: req.project!._id });
-    if (!t) throw new AppError(404, 'not_found', '资源类型不存在');
+    if (!t) throw new AppError(404, 'not_found', '资料分类不存在');
     const { name, parentId } = req.body ?? {};
     if (name !== undefined) {
       const normalizedName = String(name).trim();
-      if (!normalizedName) throw new AppError(400, 'bad_request', '类型名称必填');
+      if (!normalizedName) throw new AppError(400, 'bad_request', '分类名称必填');
       t.name = normalizedName;
     }
     if (parentId !== undefined) {
       let parent: ResourceTypeDoc | null = null;
       if (parentId !== null) {
-        if (typeof parentId !== 'string') throw new AppError(400, 'bad_request', '上级类别无效');
+        if (typeof parentId !== 'string') throw new AppError(400, 'bad_request', '上级分类无效');
         parent = await ResourceType.findOne({ _id: parentId, projectId: req.project!._id });
-        if (!parent) throw new AppError(400, 'bad_request', '上级类别不存在');
-        if (parent.parentId) throw new AppError(400, 'bad_request', '类别最多支持两层');
-        if (parent._id.equals(t._id)) throw new AppError(400, 'bad_request', '不能将类别设为自己的上级');
+        if (!parent) throw new AppError(400, 'bad_request', '上级分类不存在');
+        if (parent.parentId) throw new AppError(400, 'bad_request', '分类最多支持两层');
+        if (parent._id.equals(t._id)) throw new AppError(400, 'bad_request', '不能将分类设为自己的上级');
         if (!t.parentId?.equals(parent._id)) {
           const categories = await ResourceType.find({ projectId: req.project!._id });
           if (!canSeeMaterialCategory(viewerOf(req), parent, indexMaterialCategories(categories))) {
-            throw new AppError(403, 'forbidden', '上级类别对你不可见');
+            throw new AppError(403, 'forbidden', '上级分类对你不可见');
           }
         }
       }
       const oldParentId = t.parentId?.toString() ?? null;
       const newParentId = parent?._id.toString() ?? null;
       if (oldParentId !== newParentId && await ResourceType.exists({ projectId: req.project!._id, parentId: t._id })) {
-        throw new AppError(400, 'bad_request', '含有子类别的一级类别不能调整为二级');
+        throw new AppError(400, 'bad_request', '含有子分类的一级分类不能调整为二级');
       }
       t.parentId = parent?._id ?? null;
     }
@@ -235,11 +235,11 @@ materialsRouter.delete(
   ...requirePermission('materials:manage'),
   ah(async (req, res) => {
     const t = await ResourceType.findOne({ _id: req.params.typeId, projectId: req.project!._id });
-    if (!t) throw new AppError(404, 'not_found', '资源类型不存在');
+    if (!t) throw new AppError(404, 'not_found', '资料分类不存在');
     const inUse = await Resource.exists({ typeId: t._id });
-    if (inUse) throw new AppError(400, 'bad_request', '类型下仍有资源，无法删除');
+    if (inUse) throw new AppError(400, 'bad_request', '分类下仍有资料，无法删除');
     if (await ResourceType.exists({ projectId: req.project!._id, parentId: t._id })) {
-      throw new AppError(400, 'bad_request', '类别下仍有子类别，无法删除');
+      throw new AppError(400, 'bad_request', '分类下仍有子分类，无法删除');
     }
     await t.deleteOne();
     res.json({ ok: true });
@@ -311,12 +311,12 @@ materialsRouter.post(
     let previewRef: string | null = null;
     try {
       const { typeId, name, description } = req.body ?? {};
-      if (!name || !String(name).trim()) throw new AppError(400, 'bad_request', '资源名称必填');
+      if (!name || !String(name).trim()) throw new AppError(400, 'bad_request', '资料名称必填');
       const type = await ResourceType.findOne({ _id: typeId, projectId: req.project!._id });
-      if (!type) throw new AppError(400, 'bad_request', '资源类型不存在');
+      if (!type) throw new AppError(400, 'bad_request', '资料分类不存在');
       const categories = await ResourceType.find({ projectId: req.project!._id });
       if (!canSeeMaterialCategory(viewerOf(req), type, indexMaterialCategories(categories))) {
-        throw new AppError(403, 'forbidden', '该资源类型对你不可见');
+        throw new AppError(403, 'forbidden', '该资料分类对你不可见');
       }
       await receiveCompletedUpload(req);
       const r = await Resource.create({
@@ -345,7 +345,7 @@ materialsRouter.post(
         });
       }
 
-      logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'material:create', message: `${req.user!.name}创建了资源「${r.name}」`, sourceType: 'material', sourceId: r._id });
+      logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'material:create', message: `${req.user!.name}创建了资料「${r.name}」`, sourceType: 'material', sourceId: r._id });
       res.status(201).json({ resource: resourceJson(r, latest, fileDoc ?? null) });
     } catch (err) {
       if (previewRef) await deleteStored(previewRef);
@@ -376,16 +376,16 @@ materialsRouter.patch(
       _id: req.params.resourceId,
       projectId: req.project!._id,
     });
-    if (!resource) throw new AppError(404, 'not_found', '资源不存在');
+    if (!resource) throw new AppError(404, 'not_found', '资料不存在');
     const { name, description, typeId } = req.body ?? {};
     if (name !== undefined) resource.name = String(name).trim();
     if (description !== undefined) resource.description = String(description);
     if (typeId !== undefined && String(typeId) !== resource.typeId.toString()) {
       const type = await ResourceType.findOne({ _id: typeId, projectId: req.project!._id });
-      if (!type) throw new AppError(400, 'bad_request', '资源类型不存在');
+      if (!type) throw new AppError(400, 'bad_request', '资料分类不存在');
       const categories = await ResourceType.find({ projectId: req.project!._id });
       if (!canSeeMaterialCategory(viewerOf(req), type, indexMaterialCategories(categories))) {
-        throw new AppError(403, 'forbidden', '该资源类型对你不可见');
+        throw new AppError(403, 'forbidden', '该资料分类对你不可见');
       }
       resource.typeId = type._id;
     }
@@ -406,7 +406,7 @@ materialsRouter.delete(
       _id: req.params.resourceId,
       projectId: req.project!._id,
     });
-    if (!resource) throw new AppError(404, 'not_found', '资源不存在');
+    if (!resource) throw new AppError(404, 'not_found', '资料不存在');
     const name = resource.name;
     const versions = await ResourceVersion.find({ resourceId: resource._id });
     const files = await File.find({ _id: { $in: versions.map((v) => v.fileId) } });
@@ -417,7 +417,7 @@ materialsRouter.delete(
     await File.deleteMany({ _id: { $in: versions.map((v) => v.fileId) } });
     await ResourceVersion.deleteMany({ resourceId: resource._id });
     await resource.deleteOne();
-    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'material:delete', message: `${req.user!.name}删除了资源「${name}」`, sourceType: 'material' });
+    logActivity({ projectId: req.project!._id, actorId: req.userId!, type: 'material:delete', message: `${req.user!.name}删除了资料「${name}」`, sourceType: 'material' });
     res.json({ ok: true });
   }),
 );
@@ -512,7 +512,7 @@ materialsRouter.get(
   ah(async (req, res) => {
     const { resource } = await loadVisibleResource(req);
     const latest = await latestVersionOf(resource._id);
-    if (!latest) throw new AppError(404, 'not_found', '资源尚无版本');
+    if (!latest) throw new AppError(404, 'not_found', '资料尚无版本');
     if (latest.previewPath) {
       await sendStoredFile(res, latest.previewPath);
       return;
@@ -522,6 +522,6 @@ materialsRouter.get(
       await sendStoredFile(res, file.path);
       return;
     }
-    throw new AppError(404, 'not_found', '该资源没有预览图');
+    throw new AppError(404, 'not_found', '该资料没有预览图');
   }),
 );

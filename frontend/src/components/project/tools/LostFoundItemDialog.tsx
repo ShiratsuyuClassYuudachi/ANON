@@ -84,11 +84,11 @@ export default function LostFoundItemDialog({ open, onOpenChange, base, item, on
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="lf-found-at">捡到时间</Label>
+          <Label htmlFor="lf-found-at">拾获时间</Label>
           <Input id="lf-found-at" type="datetime-local" required value={foundAt} onChange={(e) => setFoundAt(e.target.value)} />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="lf-location">捡到地点</Label>
+          <Label htmlFor="lf-location">拾获地点</Label>
           <Input id="lf-location" placeholder="如 A 馆入口服务台" value={foundLocation} onChange={(e) => setFoundLocation(e.target.value)} />
         </div>
         <div className="space-y-1.5">

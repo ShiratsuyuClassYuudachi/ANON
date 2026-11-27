@@ -54,7 +54,7 @@ async function checkedGroupSignupProject(d: QqIntakePayload, id: string): Promis
     _id: id,
     qqGroups: { $elemMatch: { groupOpenId: d.group_openid, allowStageSignup: true } },
   }) : null;
-  if (!project) throw new AppError(403, 'forbidden', '本群的舞台节目录入授权已关闭或绑定项目已变化，请联系项目管理者后重新提交。');
+  if (!project) throw new AppError(403, 'forbidden', '本群的舞台节目录入授权已关闭或绑定活动已变化，请联系活动管理者后重新提交。');
   return project;
 }
 
@@ -107,21 +107,21 @@ async function beginSignup(key: string, original: QqIntakePayload, current: QqIn
     const groupAuthorized = project?.qqGroups.some((g) => g.groupOpenId === current.group_openid && g.allowStageSignup === true) === true;
     if (!project || (!personal && !groupAuthorized)) {
       await reply(user
-        ? '你没有本项目的工具管理权限，无法通过机器人录入节目。可请项目管理者开启本群舞台节目录入授权。'
-        : '请先在 ANON「我的」页生成个人绑定码并关联账号，或请项目管理者在项目设置中开启本群舞台节目录入授权。');
+        ? '你没有本活动的工具管理权限，无法通过机器人录入节目。可请活动管理者开启本群舞台节目录入授权。'
+        : '请先在 ANON「个人资料」页生成个人绑定码并关联账号，或请活动管理者在活动设置中开启本群舞台节目录入授权。');
       return;
     }
     await chooseBatch(key, original, { userId: personal ? String(user!._id) : null, groupAuthorized: !personal }, project, reply);
     return;
   }
   if (!user) {
-    await reply('请先在 ANON「我的」页生成个人绑定码，并在当前会话发送「绑定 XXXXXX」关联账号；录入节目需要工具管理权限。');
+    await reply('请先在 ANON「个人资料」页生成个人绑定码，并在当前会话发送「绑定 XXXXXX」关联账号；录入节目需要工具管理权限。');
     return;
   }
   const actor: SignupActor = { userId: String(user._id), groupAuthorized: false };
   const eligible = await qqProjects(current, user, 'signup');
   if (!eligible.length) {
-    await reply('你当前没有具有工具管理权限的进行中活动，暂无可录入节目的项目。');
+    await reply('你当前没有具有工具管理权限的进行中活动，无法录入节目。');
   } else if (eligible.length === 1) {
     await chooseBatch(key, original, actor, eligible[0], reply);
   } else {
@@ -209,7 +209,7 @@ async function processIntake(d: QqIntakePayload, key: string): Promise<void> {
     // 完整新消息替换上一次意图、节目草稿或待办项目选择。
     clearQqIntake(d);
     if (!d.group_openid && !await resolveUser(d)) {
-      await reply('先在 ANON「我的」页生成绑定码并发送「绑定 XXXXXX」关联账号，之后可发送任务描述或节目报名资料。');
+      await reply('先在 ANON「个人资料」页生成绑定码并发送「绑定 XXXXXX」关联账号，之后可发送任务描述或节目报名资料。');
       return;
     }
     const intent = await classifyIntake(content);

@@ -154,7 +154,7 @@ function parseIdArray(v: unknown, field: string): string[] {
 
 async function loadRundown(rid: string, projectId: Types.ObjectId) {
   const doc = await StageRundown.findOne({ _id: rid, projectId });
-  if (!doc) throw new AppError(404, 'not_found', 'Rundown 不存在');
+  if (!doc) throw new AppError(404, 'not_found', '流程单不存在');
   return doc;
 }
 

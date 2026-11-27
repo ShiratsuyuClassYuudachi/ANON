@@ -41,16 +41,18 @@ export default function CustomToolEmbed({ tool, launchToken, onBack }: Props) {
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={onBack}>
-          <ArrowLeft className="size-4" /> 全部工具
-        </Button>
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-medium">{tool.name}</p>
-          {tool.description && <p className="truncate text-sm text-muted-foreground">{tool.description}</p>}
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <Button variant="ghost" size="sm" className="-ml-2 shrink-0" onClick={onBack}>
+            <ArrowLeft className="size-4" /> 返回全部工具
+          </Button>
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-semibold">{tool.name}</p>
+            {tool.description && <p className="truncate text-pretty text-sm text-muted-foreground">{tool.description}</p>}
+          </div>
         </div>
-        <Button variant="outline" size="sm" onClick={openExternal}>
+        <Button variant="outline" size="sm" className="shrink-0" onClick={openExternal}>
           <ExternalLink className="size-4" /> 新窗口打开
         </Button>
       </div>

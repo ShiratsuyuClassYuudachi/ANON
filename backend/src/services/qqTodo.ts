@@ -126,11 +126,11 @@ export async function handleGroupTaskTodo(d: GroupTaskPayload): Promise<void> {
     });
 
     let text = `已创建待办「${todo.title}」`;
-    if (assigneeNames.length) text += `\n指派：${assigneeNames.join('、')}`;
+    if (assigneeNames.length) text += `\n负责人：${assigneeNames.join('、')}`;
     if (dueAt) text += `\n截止：${formatInTz(dueAt, project.timezone)}`;
     if (nodeAt) text += `\n节点：${formatInTz(nodeAt, project.timezone)}`;
     if (remindAt) text += `\n提醒：${formatInTz(remindAt, project.timezone)}`;
-    if (unmatched.length) text += `\n未识别成员：${unmatched.map((n) => `@${n}`).join('、')}（可在 ANON 待办页手动指派）`;
+    if (unmatched.length) text += `\n未识别成员：${unmatched.map((n) => `@${n}`).join('、')}（可在 ANON 待办页手动设置负责人）`;
     if (config.publicBaseUrl) text += `\n查看：${config.publicBaseUrl}/p/${String(project._id)}?tab=todos`;
     await reply(text);
   } catch (err) {
@@ -258,7 +258,7 @@ export async function handleC2cTaskTodo(d: C2cTaskPayload): Promise<void> {
     // 新任务分支
     const user = await User.findOne({ qqOpenId: openid }).lean();
     if (!user) {
-      await reply('先在 ANON「我的」页生成绑定码并发送「绑定 XXXXXX」关联账号，之后直接给我发任务描述即可创建待办。');
+      await reply('先在 ANON「个人资料」页生成绑定码并发送「绑定 XXXXXX」关联账号，之后直接给我发任务描述即可创建待办。');
       return;
     }
     const memberships = await Membership.find({ userId: user._id }).lean();
@@ -273,7 +273,7 @@ export async function handleC2cTaskTodo(d: C2cTaskPayload): Promise<void> {
       return ta - tb || a.name.localeCompare(b.name, 'zh');
     });
     if (projects.length === 0) {
-      await reply('你当前没有进行中的活动，暂无可创建待办的项目。');
+      await reply('你当前没有进行中的活动，无法创建待办。');
       return;
     }
     if (projects.length > 1) {

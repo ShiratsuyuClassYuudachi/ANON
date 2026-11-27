@@ -17,7 +17,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -182,95 +181,89 @@ export default function LostFoundTool({ project, myPermissions }: Props) {
           <Skeleton className="h-24 w-full" />
         </div>
       ) : items.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-foreground">
-            <PackageSearch className="size-8" />
-            {appliedQ || statusFilter ? '没有匹配的物品' : '暂无失物登记'}
-          </CardContent>
-        </Card>
+        <div className="flex flex-col items-center gap-2 border-y py-10 text-center text-sm text-muted-foreground">
+          <PackageSearch className="size-8" />
+          {appliedQ || statusFilter ? '没有匹配的物品' : '暂无失物登记'}
+        </div>
       ) : (
-        <div className="space-y-2">
+        <div className="divide-y border-y">
           {items.map((it) => (
-            <Card key={it.id}>
-              <CardContent className="flex items-start gap-3 p-3">
-                {it.hasPhoto && (
-                  <AuthImg src={`${base}/${it.id}/photo`} alt={it.name} style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, flexShrink: 0 }} />
-                )}
-                <div className="min-w-0 flex-1 space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium">{it.name}</span>
-                    {it.status === 'pending' ? (
-                      <Badge variant="warning-soft">待认领</Badge>
-                    ) : (
-                      <Badge variant="success">已认领</Badge>
-                    )}
-                  </div>
-                  {it.note && <p className="text-sm text-muted-foreground">{it.note}</p>}
-                  <p className="text-xs text-muted-foreground">
-                    {fmtLocal(it.foundAt, true)} 捡到{it.foundLocation ? ` · ${it.foundLocation}` : ''}
-                  </p>
-                  {it.status === 'claimed' && canManage && it.claimNote && (
-                    <p className="text-xs text-muted-foreground">认领备注：{it.claimNote}</p>
+            <div key={it.id} className="flex items-start gap-3 py-3.5">
+              {it.hasPhoto && (
+                <AuthImg src={`${base}/${it.id}/photo`} alt={it.name} style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, flexShrink: 0 }} />
+              )}
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-balance font-medium">{it.name}</span>
+                  {it.status === 'pending' ? (
+                    <Badge variant="warning-soft">待认领</Badge>
+                  ) : (
+                    <Badge variant="success">已认领</Badge>
                   )}
                 </div>
-                {canManage && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" aria-label={`物品操作 ${it.name}`}>
-                        <MoreHorizontal className="size-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onSelect={() => setEditTarget(it)}>编辑</DropdownMenuItem>
-                      {it.status === 'pending' ? (
-                        <DropdownMenuItem onSelect={() => setClaimTarget(it)}>
-                          <CheckCircle2 className="size-4" /> 标记认领
-                        </DropdownMenuItem>
-                      ) : (
-                        <DropdownMenuItem onSelect={() => setUnclaimTarget(it)}>
-                          <Undo2 className="size-4" /> 撤销认领
-                        </DropdownMenuItem>
-                      )}
-                      <DropdownMenuItem className="text-destructive" onSelect={() => setDeleteTarget(it)}>
-                        删除
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                {it.note && <p className="text-pretty text-sm text-muted-foreground">{it.note}</p>}
+                <p className="text-xs text-muted-foreground tabular-nums">
+                  {fmtLocal(it.foundAt, true)} 拾获{it.foundLocation ? ` · ${it.foundLocation}` : ''}
+                </p>
+                {it.status === 'claimed' && canManage && it.claimNote && (
+                  <p className="text-pretty text-xs text-muted-foreground">认领备注：{it.claimNote}</p>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+              {canManage && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" aria-label={`物品操作 ${it.name}`}>
+                      <MoreHorizontal className="size-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={() => setEditTarget(it)}>编辑</DropdownMenuItem>
+                    {it.status === 'pending' ? (
+                      <DropdownMenuItem onSelect={() => setClaimTarget(it)}>
+                        <CheckCircle2 className="size-4" /> 标记认领
+                      </DropdownMenuItem>
+                    ) : (
+                      <DropdownMenuItem onSelect={() => setUnclaimTarget(it)}>
+                        <Undo2 className="size-4" /> 撤销认领
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem className="text-destructive" onSelect={() => setDeleteTarget(it)}>
+                      删除
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
           ))}
         </div>
       )}
 
       {canManage && share && (
-        <Card>
-          <CardContent className="space-y-2 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Link2 className="size-4 text-primary" />
-                <p className="font-medium">对外公开查找页</p>
-              </div>
-              <Switch checked={share.enabled} onCheckedChange={toggleShare} aria-label="开关公开查找页" />
+        <div className="space-y-2.5 border-t pt-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Link2 className="size-4 text-primary" />
+              <p className="font-medium">对外公开查找页</p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              开启后任何人无需登录即可按名称/地点搜索待认领物品（认领备注等内部信息不公开）
-            </p>
-            {share.enabled && (
-              <div className="flex flex-wrap items-center gap-2">
-                <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1 text-xs">
-                  {`${location.origin}/lf/${share.token}`}
-                </code>
-                <Button type="button" variant="outline" size="sm" onClick={copyLink}>
-                  <ClipboardCopy className="size-4" /> 复制链接
-                </Button>
-                <Button type="button" variant="outline" size="sm" onClick={() => setRegenConfirm(true)}>
-                  <RotateCcw className="size-4" /> 重置链接
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+            <Switch checked={share.enabled} onCheckedChange={toggleShare} aria-label="开关公开查找页" />
+          </div>
+          <p className="text-pretty text-xs text-muted-foreground">
+            开启后任何人无需登录即可按名称/地点搜索待认领物品（认领备注等内部信息不公开）
+          </p>
+          {share.enabled && (
+            <div className="flex flex-wrap items-center gap-2">
+              <code className="min-w-0 flex-1 select-all truncate rounded bg-muted px-2 py-1 text-xs">
+                {`${location.origin}/lf/${share.token}`}
+              </code>
+              <Button type="button" variant="outline" size="sm" onClick={copyLink}>
+                <ClipboardCopy className="size-4" /> 复制链接
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => setRegenConfirm(true)}>
+                <RotateCcw className="size-4" /> 重置链接
+              </Button>
+            </div>
+          )}
+        </div>
       )}
 
       <LostFoundItemDialog

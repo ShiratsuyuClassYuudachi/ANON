@@ -76,7 +76,7 @@ export default function ScreenShareDialog({ open, onOpenChange, base, rundownId 
           <DialogTitle className="flex items-center gap-2">
             <MonitorPlay className="size-5" /> 现场大屏
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-pretty">
             开启后任何人无需登录即可查看大屏：当前节目、接下来安排与紧急公告（联系方式、备注与附件不公开），每 10 秒自动刷新。
           </DialogDescription>
         </DialogHeader>
@@ -96,7 +96,7 @@ export default function ScreenShareDialog({ open, onOpenChange, base, rundownId 
             </div>
             {share.enabled && (
               <div className="flex flex-wrap items-center gap-2">
-                <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1 text-xs">{link}</code>
+                <code className="min-w-0 flex-1 select-all truncate rounded bg-muted px-2 py-1 text-xs">{link}</code>
                 <Button type="button" variant="outline" size="sm" onClick={() => void copyLink()}>
                   <ClipboardCopy className="size-4" /> 复制链接
                 </Button>

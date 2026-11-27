@@ -27,7 +27,7 @@ export function normalizeTodo(db: Db, t: DbTodo) {
 export function externalIds(ctx: Ctx, value: unknown, kept: string[] = []): string[] {
   if (!Array.isArray(value) || value.some((id) => typeof id !== 'string')) throw badRequest('externalAssigneeIds 须为 ID 数组');
   const ids = [...new Set(value as string[])];
-  if (ids.some((id) => !ctx.db.externalMembers.some((m) => m.projectId === ctx.params.pid && m.id === id && ((!m.archivedAt && !m.linkedUserId) || kept.includes(id))))) throw badRequest('指派人必须是本项目未归档、未关联的成员；原有指派可保留');
+  if (ids.some((id) => !ctx.db.externalMembers.some((m) => m.projectId === ctx.params.pid && m.id === id && ((!m.archivedAt && !m.linkedUserId) || kept.includes(id))))) throw badRequest('负责人必须是本活动未归档、未关联的成员；原有负责人可保留');
   return ids;
 }
 

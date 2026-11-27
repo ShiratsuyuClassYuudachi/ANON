@@ -19,8 +19,8 @@ import { qqHelpMenu, qqHelpReply } from './qqHelp';
  * 事件帧（op/t/id）由 webhook 入口解析，本模块只关心 t + d。
  */
 
-const INVALID_BIND_HINT = '绑定码无效或已过期，请在 ANON「我的」页重新生成。';
-const INVALID_GROUP_BIND_HINT = '绑定码无效或已过期，请项目管理者在项目「设置」页重新生成。';
+const INVALID_BIND_HINT = '绑定码无效或已过期，请在 ANON「个人资料」页重新生成。';
+const INVALID_GROUP_BIND_HINT = '绑定码无效或已过期，请活动管理者在活动「设置」页重新生成。';
 
 /** QQ 事件负载：字段全部可选，消费前逐个运行时校验 */
 interface C2CMessagePayload {
@@ -93,7 +93,7 @@ async function handleC2cExport(d: C2CMessagePayload, openid: string): Promise<vo
   const reply = (text: string) => (d.id ? sendC2CMessage(openid, text, { msgId: d.id }) : Promise.resolve(false));
   const user = await User.findOne({ qqOpenId: openid }).lean();
   if (!user) {
-    await reply('请先在 ANON「我的」页生成绑定码并发送「绑定 XXXXXX」，完成绑定后再导出聊天记录。');
+    await reply('请先在 ANON「个人资料」页生成绑定码并发送「绑定 XXXXXX」，完成绑定后再导出聊天记录。');
     return;
   }
   await runChatExport(d, { uploadedBy: user._id }, reply, '仅本人可见');
@@ -104,7 +104,7 @@ async function handleGroupExport(d: GroupAtMessagePayload, groupOpenid: string):
   const reply = (text: string) => (d.id ? sendGroupMessage(groupOpenid, text, { msgId: d.id }) : Promise.resolve(false));
   const project = await Project.findOne({ 'qqGroups.groupOpenId': groupOpenid }).lean();
   if (!project) {
-    await reply('本群未绑定项目，请项目管理者先在项目「设置」页生成绑定码并完成绑定。');
+    await reply('本群未绑定活动，请活动管理者先在活动「设置」页生成绑定码并完成绑定。');
     return;
   }
   const memberOpenid = d.author?.member_openid;
@@ -113,7 +113,7 @@ async function handleGroupExport(d: GroupAtMessagePayload, groupOpenid: string):
         qqMemberIds: { $elemMatch: { groupOpenId: groupOpenid, memberOpenId: memberOpenid } },
       }).lean()
     : null;
-  await runChatExport(d, { projectId: project._id, uploadedBy: user?._id ?? project.createdBy }, reply, '项目成员可见');
+  await runChatExport(d, { projectId: project._id, uploadedBy: user?._id ?? project.createdBy }, reply, '活动成员可见');
 }
 
 /** C2C 收集模式标记：开始导出（需已绑定）/ 结束导出（建档回链）/ 取消导出（丢弃） */
@@ -122,7 +122,7 @@ async function handleC2cCollectMarker(marker: string, openid: string, msgId?: st
   if (marker === '开始导出') {
     const user = await User.findOne({ qqOpenId: openid }).lean();
     if (!user) {
-      await reply('请先在 ANON「我的」页生成绑定码并发送「绑定 XXXXXX」，完成绑定后再导出聊天记录。');
+      await reply('请先在 ANON「个人资料」页生成绑定码并发送「绑定 XXXXXX」，完成绑定后再导出聊天记录。');
       return;
     }
     startCollect(openid, { id: user._id, name: user.name });
@@ -274,7 +274,7 @@ async function handleGroupAtMessage(d: GroupAtMessagePayload): Promise<void> {
         { new: true },
       ).lean();
       if (d.id) {
-        await sendGroupMessage(groupOpenid, `已绑定项目「${project?.name ?? ''}」，里程碑临近、待办到期等通知将发送到本群。@我 发送任务描述（如「周五前把海报送到印刷店」）可直接创建待办。`, { msgId: d.id });
+        await sendGroupMessage(groupOpenid, `已绑定活动「${project?.name ?? ''}」，里程碑临近、待办到期等通知将发送到本群。@我 发送任务描述（如「周五前把海报送到印刷店」）可直接创建待办。`, { msgId: d.id });
       }
       return;
     }
@@ -290,7 +290,7 @@ async function handleGroupAtMessage(d: GroupAtMessagePayload): Promise<void> {
         { new: true },
       ).lean();
       if (d.id) {
-        await sendGroupMessage(groupOpenid, `绑定成功：已关联 ANON 账号「${user?.name ?? ''}」，群里 @你 创建的待办会指派到你名下。`, { msgId: d.id });
+        await sendGroupMessage(groupOpenid, `绑定成功：已关联 ANON 账号「${user?.name ?? ''}」，群里 @你 创建的待办会设为由你负责。`, { msgId: d.id });
       }
       return;
     }

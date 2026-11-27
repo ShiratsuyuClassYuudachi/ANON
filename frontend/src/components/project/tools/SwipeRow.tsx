@@ -94,7 +94,7 @@ export default function SwipeRow({ actions, children }: { actions: SwipeAction[]
   };
 
   return (
-    <div ref={rootRef} className="relative overflow-hidden rounded-xl">
+    <div ref={rootRef} className="relative overflow-hidden">
       <div data-slot="swipe-actions" className="absolute inset-y-0 right-0 flex" style={{ width }} aria-hidden={!open}>
         {actions.map((a) => (
           <button

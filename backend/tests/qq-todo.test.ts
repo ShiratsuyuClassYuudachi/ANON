@@ -124,7 +124,7 @@ describe('QQ 群 AI 录单', () => {
     expect(to).toBe(GROUP);
     expect(opts).toEqual({ msgId: 'gmsg-ai-1' });
     expect(text).toContain('已创建待办「把海报送到印刷店」');
-    expect(text).toContain('指派：Staff');
+    expect(text).toContain('负责人：Staff');
     expect(text).toContain('截止：2026-09-05 18:00');
   });
   it('全量群消息（GROUP_MESSAGE_CREATE）@机器人 → 同样建单，机器人自身不进指派', async () => {
@@ -187,7 +187,7 @@ describe('QQ 群 AI 录单', () => {
 
     const todo = await Todo.findOne({ projectId }).lean();
     expect(todo!.assigneeIds.map(String)).toEqual([staff.user.id]);
-    expect(sendGroupMock.mock.calls[0][1]).toContain('指派：Staff');
+    expect(sendGroupMock.mock.calls[0][1]).toContain('负责人：Staff');
   });
 
   it('mention 全部未命中 → 无指派，回复含未识别成员', async () => {
@@ -201,7 +201,7 @@ describe('QQ 群 AI 录单', () => {
     expect(todo!.assigneeIds).toEqual([]);
     const text = sendGroupMock.mock.calls[0][1];
     expect(text).toContain('未识别成员：@Nobody');
-    expect(text).not.toContain('指派：');
+    expect(text).not.toContain('负责人：');
   });
 
   it('parseTask 返回 null → 回复暂时不可用，不落库', async () => {

@@ -66,7 +66,7 @@ export async function computeRisks(project: ProjectDoc): Promise<void> {
         sourceId: todo._id,
         fingerprint: `todo:${todo._id}:no_assignee`,
         title: '待办无负责人',
-        description: `「${todo.title}」尚未指派负责人`,
+        description: `「${todo.title}」尚未设置负责人`,
       });
     }
   }
@@ -134,8 +134,8 @@ export async function computeRisks(project: ProjectDoc): Promise<void> {
         sourceType: 'work',
         sourceId: wm._id,
         fingerprint: `work:${wm._id}:no_assignees`,
-        title: '现场任务无人分配',
-        description: `「${wm.name}」尚未分配任何成员`,
+        title: '现场岗位无人排班',
+        description: `「${wm.name}」尚未安排任何成员`,
       });
     }
     // Unconfirmed near event
@@ -171,8 +171,8 @@ export async function computeRisks(project: ProjectDoc): Promise<void> {
           sourceType: 'material',
           sourceId: r._id,
           fingerprint: `material:${r._id}:no_versions`,
-          title: '物料无版本',
-          description: `「${r.name}」尚未上传任何版本`,
+          title: '资料待传文件',
+          description: `「${r.name}」尚未上传文件版本`,
         });
       }
     }

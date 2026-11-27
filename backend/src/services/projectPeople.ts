@@ -135,6 +135,6 @@ export function parseAssigneeIds(value: unknown, field = 'externalAssigneeIds'):
 export async function assertExternalAssignees(projectId: unknown, ids: string[], keptIds: string[] = []) {
   const members = await ExternalMember.find({ projectId, _id: { $in: ids } }).lean();
   if (members.length !== ids.length || members.some((m) => (m.archivedAt || m.linkedUserId) && !keptIds.includes(String(m._id)))) {
-    throw new AppError(400, 'bad_request', '指派人必须是本项目未归档、未关联的成员；原有指派可保留');
+    throw new AppError(400, 'bad_request', '负责人必须是本活动未归档、未关联的成员；原有负责人可保留');
   }
 }
