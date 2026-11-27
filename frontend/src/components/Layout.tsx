@@ -10,12 +10,13 @@ import PushBanner from './PushBanner';
 import TrialBanner from './TrialBanner';
 import { OnboardingDialog } from './onboarding/OnboardingDialog';
 import { startTour } from './onboarding/tour';
-import { ModeToggle, StylePicker, THEME_STYLES, useTheme } from '../theme';
+import { ModeToggle, StylePicker, StyleSwatch, THEME_STYLES, useTheme } from '../theme';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -35,7 +36,6 @@ export default function Layout() {
   const pathname = useLocation().pathname;
   const id = pathname.match(/^\/p\/([^/]+)\/?$/)?.[1];
   const isOnsite = /^\/p\/[^/]+\/onsite\/?$/.test(pathname);
-  const activeStyle = THEME_STYLES.findIndex(({ key }) => key === style);
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
   useEffect(() => {
     if (!id) {
@@ -107,9 +107,16 @@ export default function Layout() {
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem className="md:hidden" onClick={() => setStyle(THEME_STYLES[(activeStyle + 1) % THEME_STYLES.length].key)}>
-          <Palette className="size-4" /> 界面风格：{THEME_STYLES[activeStyle].label}
-        </DropdownMenuItem>
+        <DropdownMenuLabel className="flex items-center gap-1.5 text-xs text-muted-foreground md:hidden">
+          <Palette className="size-3.5" aria-hidden="true" /> 界面风格
+        </DropdownMenuLabel>
+        {THEME_STYLES.map((s) => (
+          <DropdownMenuItem key={s.key} className="md:hidden" onClick={() => setStyle(s.key)}>
+            <StyleSwatch swatches={s.swatches} />
+            <span className="flex-1">{s.label}</span>
+            {style === s.key && <Check className="size-4" />}
+          </DropdownMenuItem>
+        ))}
         <DropdownMenuItem className="md:hidden" onClick={toggleMode}>
           {mode === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
           {mode === 'dark' ? '切换到日间模式' : '切换到夜间模式'}
@@ -154,9 +161,8 @@ export default function Layout() {
         <header className={`sticky top-0 z-40 border-b bg-background ${id ? 'md:hidden' : ''}`}>
           <div className={`mx-auto flex w-full max-w-[67.5rem] items-center gap-2 px-4 py-1 ${id ? 'min-h-[3.25rem]' : 'min-h-14'}`}>
             {brand(Boolean(id))}
-            {id && switcher}
-            {!id && <span className="flex-1" />}
-            {!id && <div className="hidden md:block">{theme}</div>}
+            {id ? switcher : <span className="flex-1" />}
+            {id ? <StylePicker /> : theme}
             {profile(Boolean(id))}
           </div>
         </header>

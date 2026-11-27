@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { api } from '../api/client';
 import { fmtLocal } from '../lib/datetime';
-import { ModeToggle } from '../theme';
+import { ModeToggle, StylePicker } from '../theme';
 import type { PublicLostFoundItem, PublicLostFoundResponse } from '../types';
 import Logo from '../components/Logo';
 import { Badge } from '@/components/ui/badge';
@@ -60,7 +60,8 @@ export default function PublicLostFound() {
 
   return (
     <main className="editorial min-h-dvh bg-background">
-      <div className="fixed right-3 top-3 z-50">
+      <div className="fixed right-3 top-3 z-50 flex items-center gap-1">
+        <StylePicker />
         <ModeToggle />
       </div>
       <div className="mx-auto w-full max-w-[60rem] space-y-6 px-4 py-12">

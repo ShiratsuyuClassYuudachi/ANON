@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { api } from '../api/client';
 import { enqueueOffline, isOfflineError } from '../lib/offlineQueue';
 import { fmtLocal } from '../lib/datetime';
+import { ModeToggle, StylePicker } from '../theme';
 import { hhmm } from '../components/project/tools/rundownExport';
 import type { IncidentCategory, OnsiteData, OnsiteModule, OnsiteRundown } from '../types';
 import LostFoundItemDialog from '../components/project/tools/LostFoundItemDialog';
@@ -193,6 +194,10 @@ export default function OnsitePage() {
           <p className="text-sm text-muted-foreground">
             {fmtLocal(data.now)} · 每 30 秒自动同步（支持离线打卡）
           </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <StylePicker />
+          <ModeToggle />
         </div>
       </div>
 

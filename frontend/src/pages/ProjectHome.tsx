@@ -18,6 +18,7 @@ import {
 import { toast } from 'sonner';
 import { api } from '../api/client';
 import { usePwaInstall } from '../lib/pwaInstall';
+import { ModeToggle, StyleSwatch, THEME_STYLES, useTheme } from '@/theme';
 import PwaInstallGuide from '../components/PwaInstallGuide';
 import AccountsTab from '../components/project/AccountsTab';
 import DashboardTab from '../components/project/DashboardTab';
@@ -73,6 +74,7 @@ function hasAny(p: string[], keys: string[]) {
 export default function ProjectHome() {
   const { id } = useParams<{ id: string }>();
   const nav = useNavigate();
+  const { style, setStyle } = useTheme();
   const controls = useOutletContext<ActivityShellControls>();
   const [detail, setDetail] = useState<Detail | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -298,6 +300,23 @@ export default function ProjectHome() {
                 <Download className="size-4" /> 安装到主屏幕
               </Button>
             )}
+            <div className="mt-1 flex flex-wrap items-center gap-1.5 border-t pt-3">
+              {THEME_STYLES.map(({ key, label, swatches }) => (
+                <Button
+                  key={key}
+                  size="sm"
+                  variant={style === key ? 'default' : 'outline'}
+                  aria-pressed={style === key}
+                  onClick={() => setStyle(key)}
+                >
+                  <StyleSwatch swatches={swatches} />
+                  {label}
+                </Button>
+              ))}
+              <div className="ml-auto">
+                <ModeToggle />
+              </div>
+            </div>
           </div>
         </SheetContent>
       </Sheet>

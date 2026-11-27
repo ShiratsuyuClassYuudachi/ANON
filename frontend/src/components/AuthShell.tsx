@@ -26,7 +26,7 @@ export default function AuthShell({ title, description, children, footer }: Prop
         <div className="flex flex-wrap items-center justify-between gap-2 md:justify-end">
           <Logo size="lg" className="md:hidden" />
           <div className="ml-auto flex items-center gap-1">
-            <span className="hidden md:inline-flex"><StylePicker /></span>
+            <StylePicker />
             <ModeToggle />
           </div>
         </div>
