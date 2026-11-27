@@ -116,7 +116,7 @@ export default function ToolsTab({ project, myPermissions }: Props) {
         <Button variant="ghost" size="sm" onClick={() => setBuiltin(null)}>
           <ArrowLeft className="size-4" /> 返回全部工具
         </Button>
-        <div className="editorial-excluded"><StageRundownTool project={project} myPermissions={myPermissions} /></div>
+        <StageRundownTool project={project} myPermissions={myPermissions} />
       </div>
     );
   }
@@ -127,7 +127,7 @@ export default function ToolsTab({ project, myPermissions }: Props) {
         <Button variant="ghost" size="sm" onClick={() => setBuiltin(null)}>
           <ArrowLeft className="size-4" /> 返回全部工具
         </Button>
-        <div className="editorial-excluded"><LostFoundTool project={project} myPermissions={myPermissions} /></div>
+        <LostFoundTool project={project} myPermissions={myPermissions} />
       </div>
     );
   }
@@ -138,7 +138,7 @@ export default function ToolsTab({ project, myPermissions }: Props) {
         <Button variant="ghost" size="sm" onClick={() => setBuiltin(null)}>
           <ArrowLeft className="size-4" /> 返回全部工具
         </Button>
-        <div className="editorial-excluded"><StageSignupTool project={project} myPermissions={myPermissions} /></div>
+        <StageSignupTool project={project} myPermissions={myPermissions} />
       </div>
     );
   }
